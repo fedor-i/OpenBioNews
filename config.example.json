@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "profile": {
+    "title": "Daily Bio Brief",
+    "intro": "Your automated life-sciences news digest.",
+    "bundles": [
+      "biotech",
+      "regulatory",
+      "life_science"
+    ]
+  },
+  "feeds": [
+    {
+      "name": "STAT News",
+      "url": "https://www.statnews.com/feed/",
+      "topic": "biotech"
+    },
+    {
+      "name": "Fierce Biotech",
+      "url": "https://www.fiercebiotech.com/rss/xml",
+      "topic": "biotech"
+    },
+    {
+      "name": "Fierce Pharma",
+      "url": "https://www.fiercepharma.com/rss/xml",
+      "topic": "biotech"
+    },
+    {
+      "name": "Endpoints News",
+      "url": "https://endpts.com/feed/",
+      "topic": "biotech"
+    },
+    {
+      "name": "BioPharma Dive",
+      "url": "https://www.biopharmadive.com/feeds/news/",
+      "topic": "biotech"
+    },
+    {
+      "name": "BioSpace",
+      "url": "https://www.biospace.com/rss/news/",
+      "topic": "biotech"
+    },
+    {
+      "name": "FDA Press Releases",
+      "url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml",
+      "topic": "regulatory"
+    },
+    {
+      "name": "FDA Drug Approvals & Safety",
+      "url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/drugs/rss.xml",
+      "topic": "regulatory"
+    },
+    {
+      "name": "EMA News",
+      "url": "https://www.ema.europa.eu/en/rss.xml",
+      "topic": "regulatory"
+    },
+    {
+      "name": "ScienceDaily Biotechnology",
+      "url": "https://www.sciencedaily.com/rss/plants_animals/biotechnology.xml",
+      "topic": "life_science"
+    },
+    {
+      "name": "ScienceDaily Genetics",
+      "url": "https://www.sciencedaily.com/rss/plants_animals/genetics.xml",
+      "topic": "life_science"
+    },
+    {
+      "name": "Phys.org Biology",
+      "url": "https://phys.org/rss-feed/biology-news/",
+      "topic": "life_science"
+    },
+    {
+      "name": "Nature — Latest",
+      "url": "https://www.nature.com/nature.rss",
+      "topic": "life_science"
+    }
+  ],
+  "filters": {
+    "max_age_hours": 48,
+    "max_items": 40,
+    "max_per_topic": 12,
+    "include_keywords": [],
+    "exclude_keywords": [],
+    "similarity_threshold": 0.5
+  },
+  "llm": {
+    "backend": "none",
+    "model": "",
+    "base_url": "",
+    "api_key_env": "OPENAI_API_KEY",
+    "temperature": 0.3,
+    "max_tokens": 220,
+    "timeout": 60
+  },
+  "output": {
+    "format": "markdown",
+    "group_by": "topic",
+    "path": "digest",
+    "write_file": true,
+    "summaries": true,
+    "why_it_matters": false
+  },
+  "email": {
+    "enabled": false,
+    "smtp_host": "",
+    "smtp_port": 587,
+    "use_tls": true,
+    "username": "",
+    "password_env": "OPENBIONEWS_SMTP_PASSWORD",
+    "from_addr": "",
+    "to_addrs": []
+  }
+}

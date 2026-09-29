@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Wire B</title>
+    <link>https://example.com/wire-b</link>
+    <description>Bundled offline sample feed for the OpenBioNews demo.</description>
+    <item>
+      <title>US FDA clears CRISPR-based sickle cell gene therapy</title>
+      <link>https://example.com/b/fda-crispr-sickle-cell</link>
+      <guid>https://example.com/b/fda-crispr-sickle-cell</guid>
+      <pubDate>Mon, 29 Sep 2025 13:20:00 GMT</pubDate>
+      <description>The agency approved a gene-editing therapy for severe sickle cell disease, the first medicine of its kind to reach the market. The treatment reprograms a patient's blood cells to produce healthy hemoglobin.</description>
+    </item>
+    <item>
+      <title>Regulators tighten rules on lab-grown meat labeling</title>
+      <link>https://example.com/b/cultivated-meat-labeling</link>
+      <guid>https://example.com/b/cultivated-meat-labeling</guid>
+      <pubDate>Mon, 29 Sep 2025 10:30:00 GMT</pubDate>
+      <description>New guidance will require cultivated meat products to carry clear labels distinguishing them from conventionally farmed meat, a move industry groups say could slow consumer adoption.</description>
+    </item>
+    <item>
+      <title>Wearable sensor detects early sepsis hours before symptoms</title>
+      <link>https://example.com/b/wearable-sepsis-sensor</link>
+      <guid>https://example.com/b/wearable-sepsis-sensor</guid>
+      <pubDate>Mon, 29 Sep 2025 07:45:00 GMT</pubDate>
+      <description>In a hospital pilot, a skin patch that continuously monitors inflammatory markers flagged the onset of sepsis an average of six hours earlier than standard vital-sign monitoring.</description>
+    </item>
+  </channel>
+</rss>

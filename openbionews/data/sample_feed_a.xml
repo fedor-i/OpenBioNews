@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Wire A</title>
+    <link>https://example.com/wire-a</link>
+    <description>Bundled offline sample feed for the OpenBioNews demo.</description>
+    <item>
+      <title>FDA approves first CRISPR gene therapy for sickle cell disease</title>
+      <link>https://example.com/a/crispr-sickle-cell-approval</link>
+      <guid>https://example.com/a/crispr-sickle-cell-approval</guid>
+      <pubDate>Mon, 29 Sep 2025 13:05:00 GMT</pubDate>
+      <description>Regulators cleared a one-time treatment that edits patients' own blood stem cells, marking the first approval of a CRISPR-based medicine in the country. Analysts expect a list price near two million dollars.</description>
+    </item>
+    <item>
+      <title>Biotech startup raises 120 million dollars for mRNA cancer vaccine trials</title>
+      <link>https://example.com/a/mrna-cancer-vaccine-funding</link>
+      <guid>https://example.com/a/mrna-cancer-vaccine-funding</guid>
+      <pubDate>Mon, 29 Sep 2025 11:40:00 GMT</pubDate>
+      <description>The Series B round will fund two mid-stage trials of a personalized mRNA vaccine designed to train the immune system against a patient's specific tumor mutations.</description>
+    </item>
+    <item>
+      <title>Large study links gut microbiome diversity to slower cognitive decline</title>
+      <link>https://example.com/a/microbiome-cognition-study</link>
+      <guid>https://example.com/a/microbiome-cognition-study</guid>
+      <pubDate>Mon, 29 Sep 2025 09:15:00 GMT</pubDate>
+      <description>Researchers following 8,000 older adults for a decade report that greater bacterial diversity in the gut was associated with measurably slower memory decline, though they caution the link is not yet proven to be causal.</description>
+    </item>
+    <item>
+      <title>AI model predicts protein folding for entire malaria parasite proteome</title>
+      <link>https://example.com/a/ai-protein-malaria</link>
+      <guid>https://example.com/a/ai-protein-malaria</guid>
+      <pubDate>Mon, 29 Sep 2025 08:00:00 GMT</pubDate>
+      <description>A public database now offers predicted structures for thousands of previously uncharacterized proteins, which scientists hope will speed the search for new antimalarial drug targets.</description>
+    </item>
+  </channel>
+</rss>

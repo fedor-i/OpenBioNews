@@ -1,0 +1,8 @@
+# OpenBioNews core has NO third-party dependencies — it runs on the Python
+# standard library alone (Python 3.9+). This file is intentionally (almost)
+# empty. Nothing below is required to run `openbionews`.
+#
+# Optional extras (uncomment if you want them):
+#
+# feedparser>=6.0   # wider, more forgiving RSS/Atom parsing
+# pytest>=7.0       # to run the test suite

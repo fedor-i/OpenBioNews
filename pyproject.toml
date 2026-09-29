@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openbionews"
+version = "0.1.0"
+description = "Free, self-hosted CLI that gathers news into a clean daily digest. Bring your own LLM, or use none at all."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "OpenBioNews contributors" }]
+keywords = ["news", "rss", "digest", "llm", "ollama", "self-hosted", "biotech"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Communications",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+]
+# The core pipeline uses only the Python standard library — no runtime deps.
+dependencies = []
+
+[project.optional-dependencies]
+# Optional: wider, more forgiving feed parsing. Never required.
+feeds = ["feedparser>=6.0"]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/fedor-i/OpenBioNews"
+Issues = "https://github.com/fedor-i/OpenBioNews/issues"
+
+[project.scripts]
+openbionews = "openbionews.cli:main"
+
+[tool.setuptools]
+packages = ["openbionews", "openbionews.llm"]
+
+[tool.setuptools.package-data]
+openbionews = ["data/*.xml"]
