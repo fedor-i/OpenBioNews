@@ -382,9 +382,7 @@ function selectTab(name, run){
   $("status").textContent = "Pick a filter and hit Search — or tap a chip above.";
   if(run) run();
 }
-$("tab-sec").onclick = () => { selectTab("sec"); syncUrl(); };
-$("tab-trials").onclick = () => { selectTab("trials"); syncUrl(); };
-$("tab-recalls").onclick = () => { selectTab("recalls"); syncUrl(); };
+TABS.forEach(t => { $("tab-"+t).onclick = () => { selectTab(t); syncUrl(); }; });
 
 // ---- shared fetch helper (openFDA returns 404 for "no matches") ----
 async function getJson(url, noMatchOn404){
