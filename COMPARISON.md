@@ -1,63 +1,104 @@
-# OpenBioNews vs. a hosted paid news digest
+# OpenBioNews vs. readthrough.news
 
-OpenBioNews is a free, self-hosted alternative to paid "AI reads the news and
-sends you a digest" services (readthrough.news and peers such as Bio News Agent,
-Summate, Readless, and Prism).
+readthrough.news (by JAMN Ventures, LLC) is the paid product this project is a
+free response to. This page compares them **honestly**, including where they
+differ in kind — not just in price.
 
-> **A note on accuracy:** this comparison describes the *category* of hosted,
-> subscription bio-news digests. Exact features and pricing of any single paid
-> product change over time and should be confirmed on that product's own site;
-> the right-hand column is the typical paid-hosted model, not a verified
-> feature list of one vendor.
+## What readthrough actually is
 
-## At a glance
+> "Every FDA, SEC, and trial development, traced to its source."
 
-| | **OpenBioNews** (this project) | **Hosted paid digest** (typical) |
+readthrough is a **primary-source** biotech intelligence feed. It reads **SEC
+EDGAR, the FDA, and ClinicalTrials.gov** as they update, writes an original
+summary of each development, and **links every sentence to the document it came
+from**. It deliberately excludes secondary media:
+
+> "No trade press. No wire copy. Just the record, on the companies you watch."
+> "If a claim is not in a public document, it is not in a readthrough story."
+
+Reported scale: ~2,208 listed biopharma companies · ~14,172 primary documents ·
+3 regulators, polled around the clock.
+
+**How it works:** (1) **Watch** companies, drugs, and targets (or start from
+curated lists — big pharma, oncology, cardiometabolic, rare disease); (2)
+**Read** — each new filing/approval/recall/trial change becomes a short original
+story, every claim cited, each story auto-checked against its sources before
+publishing; (3) **Get it where you work** — web feed, morning email digest,
+private RSS, Slack/Teams, and full-text search.
+
+**Sources:** SEC EDGAR (8-K, 10-K, 10-Q, S-1, 424B, Form D, 13D/G, DEF 14A);
+FDA (Drugs@FDA approvals, enforcement/recalls, shortages, press releases,
+What's New for drugs & biologics); ClinicalTrials.gov.
+**Polling:** EDGAR every ~10 min in market hours (hourly otherwise); FDA press /
+What's New every ~30 min; Drugs@FDA, recalls, shortages, trials daily.
+**Writing:** an LLM writes each story from the source with a citation on every
+factual sentence; an automated pass verifies each claim; unverifiable sentences
+are dropped and unverifiable stories publish as a short notice linking to the
+source; no human pre-review; corrections shown on the story.
+**Delivery:** web, email digest, private RSS, Slack/Teams, search, a read API
+(JSON) and an **MCP server** for AI assistants.
+**Price:** $29 / seat / month or $300 / seat / year; 14-day free trial, no card;
+enterprise domain sign-in available. Explicitly **not investment advice**.
+
+## Honest positioning: they are different in kind
+
+**OpenBioNews today is a trade-press RSS digest** — it aggregates STAT,
+FierceBiotech, Endpoints, etc. That is precisely the "trade press / wire copy"
+readthrough refuses. So OpenBioNews is **not currently a drop-in replacement**;
+it's a free, general news-digest tool that happens to default to bio outlets.
+
+To become a true free readthrough, OpenBioNews would need to switch from
+secondary feeds to **primary sources with citations** (see roadmap below).
+
+## Feature-by-feature
+
+| Capability | readthrough.news | OpenBioNews today |
 |---|---|---|
-| **Price** | Free, MIT-licensed | Monthly / annual subscription |
-| **Where it runs** | Your computer or server | The vendor's cloud |
-| **Account required** | None | Yes (email/login) |
-| **Your data & reading habits** | Stay on your machine | Held by the vendor |
-| **LLM** | Bring your own — local Ollama, any OpenAI-compatible API, or none | Vendor-chosen, included in price |
-| **Works offline / no LLM** | Yes (deterministic mode) | No |
-| **Sources** | Any RSS/Atom feed; curated bio/regulatory/preprint bundles included; fully editable | Vendor-curated list; usually fixed |
-| **De-dup across outlets** | Yes (title-token clustering) | Yes (often "by meaning") |
-| **Importance ranking** | Yes (transparent, deterministic score) | Yes (often an LLM pick) |
-| **"Why it matters" context** | Optional, on any LLM backend | Usually included |
-| **Read-time estimate** | Yes | Common |
-| **Email delivery** | Optional, your own SMTP | Yes (core feature) |
-| **Output formats** | Markdown, HTML, plain text | Email + web, usually fixed |
-| **Customization** | Total — it's your code and config | Whatever the settings expose |
-| **Automation** | cron / Task Scheduler | Managed, automatic |
-| **Open source / self-host** | Yes | No |
-| **Maintenance** | You (update feeds, run it) | The vendor |
+| Price | $29/seat/mo, $300/seat/yr | Free, MIT |
+| Hosting / account | Vendor cloud, account required | Self-hosted, no account |
+| Primary sources (FDA/SEC/trials) | ✅ core | ❌ (trade-press RSS instead) |
+| Per-sentence source citations | ✅ | ❌ (links to the article) |
+| Automated fact-check vs. source | ✅ | ❌ |
+| Watch lists (company/drug/target) | ✅ | ❌ (topic bundles + keywords) |
+| Company/drug entity profiles | ✅ | ❌ |
+| De-dup across sources | ✅ | ✅ |
+| Importance ranking / read-time | — / — | ✅ / ✅ |
+| Original LLM summaries | ✅ (required) | ✅ (optional; or no-LLM) |
+| "Why it matters" | implicit | ✅ optional |
+| Email digest | ✅ | ✅ (your SMTP) |
+| Private RSS output | ✅ | ⚠️ writes files; no RSS yet |
+| Slack / Teams | ✅ | ❌ (roadmap) |
+| Full-text search | ✅ | ❌ |
+| Read API + MCP server | ✅ | ❌ (roadmap) |
+| Bring-your-own / no LLM | ❌ | ✅ |
+| Runs offline | ❌ | ✅ (no-LLM mode) |
+| Open source | ❌ | ✅ |
 
-## Where the paid product is genuinely better
+## Where each wins
 
-Be honest about the trade-offs — a subscription buys real convenience:
+**readthrough** — authoritative primary-source provenance, per-claim citations
+and verification, entity/watch-list model, managed infra, Slack/Teams/API/MCP,
+zero setup. Worth the subscription for regulated/IR/investor workflows.
 
-- **Zero setup.** Sign up and it just works; no Python, no cron, no SMTP.
-- **Managed infrastructure & deliverability.** Someone else keeps feeds alive,
-  handles email reputation, and fixes breakage.
-- **Editorial quality.** Human curation or a tuned, expensive model may pick and
-  phrase stories better than a small local model.
-- **Polished apps.** Mobile/web reading experience, search, archives, accounts.
-- **Proprietary sources or analysis** you may not be able to replicate from
-  public RSS.
+**OpenBioNews** — free, private, self-hosted, bring-your-own-LLM (or none),
+fully customizable, open source, runs anywhere and offline.
 
-## Where OpenBioNews wins
+## Roadmap to actually replace readthrough (free)
 
-- **Free and open.** No subscription, MIT-licensed, fork it freely.
-- **Private.** In no-LLM or local-model mode, nothing leaves your machine.
-- **Bring your own LLM — or none.** Use a free local model, a free API tier, or
-  pure deterministic summaries.
-- **Fully customizable.** Any feed, any topic, any output; change the code.
-- **No account, no lock-in.** Your config and digests are plain files you own.
-- **Runs anywhere.** Windows, macOS, Linux; pure Python standard library.
+1. **Primary-source connectors** (the defining change):
+   - **ClinicalTrials.gov** REST API (v2) — study changes by sponsor/condition.
+   - **openFDA / Drugs@FDA / enforcement (recalls) / drug shortages** + FDA press RSS.
+   - **SEC EDGAR** full-text search + company filings JSON (8-K, S-1, 424B, Form D…).
+2. **Watch lists** of companies/drugs/tickers instead of (or alongside) topics.
+3. **Citations** — link each summary sentence to its source document.
+4. **A lightweight verification pass** (claim ↔ source) when an LLM is used.
+5. **Private RSS output** and **Slack/Teams webhooks**.
+6. Optional **read API / MCP server** so AI assistants can query the record.
 
-## Who should use which
+Items 5–6 are small; items 1–4 are the real work and would make OpenBioNews a
+genuine free alternative rather than a general news digest.
 
-- **Use a paid hosted digest** if you want a finished product with zero upkeep
-  and are happy to pay and share your reading data.
-- **Use OpenBioNews** if you want it free, private, self-hosted, and yours to
-  bend to any topic or workflow — the point of this project.
+---
+
+_Product facts above are from readthrough.news as viewed by the user in
+Sep 2026 and may change; verify on the vendor's site._
