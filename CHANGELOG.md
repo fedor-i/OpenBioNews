@@ -7,6 +7,12 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Per-sentence citations** — every sentence of a story's brief is bound to the
+  primary-source record it was lifted from, rendered as a numbered `[n]` / `<sup>`
+  marker with a keyed source list beneath. Fully deterministic: the text is
+  verbatim from the cited record, so there is nothing to hallucinate and **no LLM
+  is involved**. Applies across every output (Markdown, HTML, text, RSS) and the
+  hosted web page. New `openbionews/cite.py`; a `Claim` model on each cluster.
 - Continuous integration (GitHub Actions) running the test suite on Linux, macOS
   and Windows across Python 3.9–3.12, plus an install/CLI smoke test.
 - Community health files: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue and pull

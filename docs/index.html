@@ -67,6 +67,8 @@
   .tag.c2{background:var(--warnbg);color:var(--warn)}
   .summary{font-size:.95rem;margin:.3rem 0 .5rem}
   .src{font-size:.82rem;color:var(--muted)}
+  sup.cite{font-size:.68em;line-height:0}
+  sup.cite a{color:var(--accent);text-decoration:none;font-weight:700;padding:0 .05em}
   .src a{color:var(--accent);text-decoration:none}
   .src a:hover{text-decoration:underline}
   .more{display:block;margin:1rem auto;background:var(--chip);color:var(--ink)}
@@ -364,6 +366,16 @@ $("themeBtn").onclick = () => {
 function dig(o,...p){ for(const k of p){ if(o&&typeof o==="object"){o=o[k];} else return undefined; if(o==null) return undefined; } return o; }
 function esc(s){ const d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
 function clip(s,n){ s=s||""; return s.length>n ? s.slice(0,n).replace(/\s+\S*$/,"")+"…" : s; }
+// Per-sentence citations: bind every sentence of a description to the record it
+// came from. Deterministic — the text is verbatim from the source, so there is
+// nothing to hallucinate. One source per card, so all markers share number 1.
+function citeSentences(text, url, label){
+  const t=(text||"").trim();
+  if(!t) return "";
+  const parts=t.split(/(?<=[.!?])\s+(?=[A-Z0-9"'])/).filter(x=>x.trim());
+  const sup=`<sup class="cite"><a href="${esc(url)}" target="_blank" rel="noopener" title="${esc(label)}">1</a></sup>`;
+  return parts.map(p=>esc(p.trim())+sup).join(" ");
+}
 function fmtFdaDate(d){ return (d&&d.length===8)?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:d||""; }
 function prettyStatus(s){ return s ? s.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()) : ""; }
 function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&p!=="NA").map(p=>p.replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase ")).join("/"); }
@@ -447,10 +459,10 @@ function renderTrial(st){
   el.innerHTML =
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(title)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
-    (summary?`<div class="summary">${esc(clip(summary,320))}</div>`:"")+
+    (summary?`<div class="summary">${citeSentences(clip(summary,320),url,"ClinicalTrials.gov "+nct)}</div>`:"")+
     `<div class="src">${conds.length?esc(conds.slice(0,4).join(", "))+" · ":""}`+
     (date?`updated ${esc(date)} · `:"")+
-    `↳ Source: <a href="${esc(url)}" target="_blank" rel="noopener">ClinicalTrials.gov ${esc(nct)}</a></div>`;
+    `↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener">ClinicalTrials.gov ${esc(nct)}</a></div>`;
   return el;
 }
 
@@ -507,10 +519,10 @@ function renderRecall(r){
   el.innerHTML =
     `<h2>${esc(title)}</h2>`+
     `<div class="tags">${tags.map((t,i)=>`<span class="tag${i===0&&clsN?` c${clsN}`:""}">${esc(t)}</span>`).join("")}</div>`+
-    (r.reason_for_recall?`<div class="summary">${esc(clip(r.reason_for_recall,320))}</div>`:"")+
+    (r.reason_for_recall?`<div class="summary">${citeSentences(clip(r.reason_for_recall,320),src,"FDA recall "+(num||"record"))}</div>`:"")+
     `<div class="src">${r.product_description?esc(clip(r.product_description,140))+" · ":""}`+
     (date?`reported ${esc(date)} · `:"")+
-    `↳ Source: <a href="${esc(src)}" target="_blank" rel="noopener">FDA recall ${esc(num||"record")}</a></div>`;
+    `↳ <sup class="cite">1</sup> <a href="${esc(src)}" target="_blank" rel="noopener">FDA recall ${esc(num||"record")}</a></div>`;
   return el;
 }
 
@@ -552,8 +564,8 @@ function approvalCards(app, cutoffMs, includeSuppl){
     el.innerHTML=
       `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)} — ${esc(kind)}</a></h2>`+
       `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
-      `<div class="summary">${esc((sponsorDisp||"The sponsor")+" received "+(isOrig?"FDA approval":"a supplemental FDA approval")+" for "+name+(form?" ("+form+")":"")+".")}</div>`+
-      `<div class="src">${dateStr?`approved ${esc(dateStr)} · `:""}↳ Source: <a href="${esc(url)}" target="_blank" rel="noopener">Drugs@FDA ${esc(appno)}</a></div>`;
+      `<div class="summary">${citeSentences((sponsorDisp||"The sponsor")+" received "+(isOrig?"FDA approval":"a supplemental FDA approval")+" for "+name+(form?" ("+form+")":"")+".",url,"Drugs@FDA "+appno)}</div>`+
+      `<div class="src">${dateStr?`approved ${esc(dateStr)} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener">Drugs@FDA ${esc(appno)}</a></div>`;
     cards.push(el);
   }
   return cards;
@@ -604,8 +616,8 @@ function renderShortage(r){
   el.innerHTML=
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)} — shortage${status?` (${esc(status)})`:""}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
-    (reason?`<div class="summary">${esc(clip(reason,320))}</div>`:"")+
-    `<div class="src">${d?`updated ${esc(String(d).slice(0,10))} · `:""}↳ Source: <a href="${esc(url)}" target="_blank" rel="noopener">FDA Drug Shortages</a></div>`;
+    (reason?`<div class="summary">${citeSentences(clip(reason,320),url,"FDA Drug Shortages")}</div>`:"")+
+    `<div class="src">${d?`updated ${esc(String(d).slice(0,10))} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener">FDA Drug Shortages</a></div>`;
   return el;
 }
 async function searchShortages(reset){
@@ -705,9 +717,9 @@ function renderFiling(h){
   el.innerHTML =
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(company)} — ${esc(form)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
-    (desc?`<div class="summary">${esc(clip(desc,240))}</div>`:"")+
+    (desc?`<div class="summary">${citeSentences(clip(desc,240),url,"EDGAR "+(accn||"filing"))}</div>`:"")+
     `<div class="src">${date?`filed ${esc(date)} · `:""}`+
-    `↳ Source: <a href="${esc(url)}" target="_blank" rel="noopener">EDGAR ${esc(accn||"filing")}</a></div>`;
+    `↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener">EDGAR ${esc(accn||"filing")}</a></div>`;
   return el;
 }
 

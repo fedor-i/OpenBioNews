@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from . import cite
 from .llm.base import Backend
 from .llm.nollm import NoLLMBackend
 from .models import Cluster, Digest
@@ -29,7 +30,12 @@ def compose(
     for i, cluster in enumerate(clusters):
         if not want_summaries:
             cluster.blurb = ""
+            cluster.claims = []
             continue
+        # The source-bound, per-sentence brief is deterministic and backend-
+        # independent: it is lifted verbatim from the cited primary records, so
+        # it stands on its own even when an LLM blurb is also requested.
+        cluster.claims = cite.attribute(cluster)
         try:
             cluster.blurb = backend.summarize(cluster, significance=want_significance)
         except Exception as exc:  # noqa: BLE001 — any backend failure degrades gracefully

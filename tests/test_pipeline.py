@@ -190,7 +190,8 @@ def test_render_rss():
     items = channel.findall("item")
     assert items, "feed should contain items"
     assert items[0].findtext("link") == "https://clinicaltrials.gov/study/NCT01234567"
-    assert "Source:" in (items[0].findtext("description") or "")
+    desc = items[0].findtext("description") or ""
+    assert "Sources:" in desc and "[1]" in desc   # numbered per-sentence citations
     assert items[0].findtext("category") == "Clinical Trials"
 
 
@@ -500,9 +501,32 @@ def test_citation_render():
     clusters = pipeline.cluster_items(parse_studies(CT_FIXTURE), threshold=0.5)
     digest, _ = compose_fn(clusters, NoLLMBackend(), {"title": "Trials"})
     md = render.render(digest, "markdown")
-    assert "↳ Source:" in md and "NCT01234567" in md
+    # Per-sentence citations: a numbered <sup> marker in the body and a keyed
+    # source list underneath, both traced to the registry record.
+    assert "↳ Sources:" in md and "NCT01234567" in md
+    assert "<sup>1</sup>" in md
     html = render.render(digest, "html")
     assert "clinicaltrials.gov/study/NCT01234567" in html
+    assert 'sup class="cite"' in html
+
+
+def test_per_sentence_attribution():
+    """Each brief sentence binds to the source it was lifted from — no LLM."""
+    from openbionews import cite
+    from openbionews.connectors.clinicaltrials import parse_studies
+    from openbionews.compose import compose as compose_fn
+    clusters = pipeline.cluster_items(parse_studies(CT_FIXTURE), threshold=0.5)
+    digest, _ = compose_fn(clusters, NoLLMBackend(), {"title": "Trials"})
+    cluster = digest.clusters[0]
+    assert cluster.claims, "primary-source cluster should have cited claims"
+    # Every claim is a verbatim sentence of a source item, and every claim with
+    # a citation points at a URL that exists on one of the cluster's items.
+    source_urls = {c.url for item in cluster.items for c in item.citations}
+    for claim in cluster.claims:
+        if claim.citation is not None:
+            assert claim.citation.url in source_urls
+    markers, ordered = cite.number_citations(cluster.claims)
+    assert ordered and ordered[0][0] == 1   # numbering starts at 1
 
 
 def test_end_to_end_demo():

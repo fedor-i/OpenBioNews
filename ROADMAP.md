@@ -20,6 +20,8 @@ claim something.
 - [ ] A tiny **local web view** served from the latest digest.
 
 ## Curation
+- [x] **Per-sentence citations** — each sentence of a brief bound to the source
+      record it was lifted from, deterministically (no LLM).
 - [x] **Therapeutic-area presets** (oncology, cardiometabolic, rare disease,
       neuro, immunology, infectious) as one-tap watch-list seeds.
 - [ ] **Per-source trust weights** to bias ranking.

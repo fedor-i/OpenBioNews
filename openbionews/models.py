@@ -18,6 +18,18 @@ class Citation:
 
 
 @dataclass
+class Claim:
+    """One sentence of a story's brief, bound to the source it was lifted from.
+
+    Every claim is a verbatim sentence from a primary-source record, so the
+    attribution is exact — no generation, nothing to hallucinate.
+    """
+
+    text: str
+    citation: "Citation | None" = None
+
+
+@dataclass
 class Item:
     """A single development pulled from a feed or a primary-source connector."""
 
@@ -47,6 +59,8 @@ class Cluster:
     items: list[Item] = field(default_factory=list)
     topic: str = ""
     blurb: str = ""
+    # Per-sentence, source-bound brief (deterministic; see cite.py).
+    claims: list[Claim] = field(default_factory=list)
 
     @property
     def canonical(self) -> Item:
@@ -82,9 +96,12 @@ class Digest:
 
     @property
     def read_minutes(self) -> int:
-        """Rough read time at ~200 words/minute across titles and blurbs."""
+        """Rough read time at ~200 words/minute across titles and briefs."""
         words = 0
         for cluster in self.clusters:
             words += len(cluster.canonical.title.split())
-            words += len(cluster.blurb.split())
+            if cluster.claims:
+                words += sum(len(c.text.split()) for c in cluster.claims)
+            else:
+                words += len(cluster.blurb.split())
         return max(1, round(words / 200))

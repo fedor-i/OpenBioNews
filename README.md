@@ -14,9 +14,11 @@ optionally straight to your inbox. It ships tuned for **biotech and life
 sciences**, but you can point it at any topic.
 
 - 🆓 **Free and open** (MIT). No account, no subscription, no server to rent.
-- 🔬 **Primary sources, cited.** Track **ClinicalTrials.gov** by company, drug,
-  or condition — every development traced to its source record (FDA & SEC on the
-  roadmap). Plus any RSS/Atom feed you like.
+- 🔬 **Primary sources, cited to the sentence.** Track **ClinicalTrials.gov**,
+  **FDA** (recalls, approvals, shortages) and **SEC EDGAR** by company, drug or
+  condition — and *every sentence* of every brief carries a numbered citation back
+  to the exact source record. It's deterministic (verbatim from the record), so
+  there's nothing to hallucinate — **no LLM required**. Plus any RSS/Atom feed.
 - 🖥️ **Runs everywhere.** Windows, macOS, and Linux — pure Python, no build step.
 - 🔌 **Bring your own LLM — or none.** Works with a local model (Ollama), any
   OpenAI-compatible API, or with *no LLM at all* (it uses each article's own

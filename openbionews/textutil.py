@@ -60,13 +60,24 @@ def strip_html(raw: str | None) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+# Split on sentence-ending punctuation followed by a space + capital/quote/digit.
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'])")
+
+
+def split_sentences(text: str) -> list[str]:
+    """Split text into sentences. Conservative: standard-library heuristics only,
+    tuned for the short, well-formed descriptions primary sources return."""
+    text = (text or "").strip()
+    if not text:
+        return []
+    return [s.strip() for s in _SENTENCE_SPLIT.split(text) if s.strip()]
+
+
 def first_sentences(text: str, count: int = 2, max_chars: int = 320) -> str:
     """Return roughly the first ``count`` sentences, bounded by ``max_chars``."""
-    text = text.strip()
-    if not text:
+    pieces = split_sentences(text)
+    if not pieces:
         return ""
-    # Split on sentence-ending punctuation followed by a space + capital/quote.
-    pieces = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'])", text)
     out = " ".join(pieces[:count]).strip()
     if len(out) > max_chars:
         out = out[:max_chars].rsplit(" ", 1)[0].rstrip(",;:") + "…"
