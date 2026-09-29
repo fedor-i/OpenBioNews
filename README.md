@@ -29,6 +29,9 @@ sciences**, but you can point it at any topic.
 > stories needs no AI. An LLM is optional and only used to polish the one-line
 > summaries, so even a small local model is plenty.
 
+**New here?** See [COMPARISON.md](COMPARISON.md) for how this free tool stacks
+up against paid hosted digests.
+
 ---
 
 ## Quick start
@@ -278,7 +281,8 @@ is reachable.
 
 Paid news-digest services (readthrough.news and peers like Bio News Agent,
 Summate, Readless, Prism) share a common playbook. OpenBioNews already brings
-the core of it to a free, self-hosted tool:
+the core of it to a free, self-hosted tool — see **[COMPARISON.md](COMPARISON.md)**
+for the full free-vs-paid breakdown:
 
 | Paid-tier idea | In OpenBioNews |
 | --- | --- |
