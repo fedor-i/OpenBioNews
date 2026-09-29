@@ -16,6 +16,9 @@ env/
 openbionews.config.json
 digest/
 
+# Internal notes (not published)
+COMPARISON.md
+
 # OS / editor
 .DS_Store
 Thumbs.db
