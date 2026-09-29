@@ -105,6 +105,50 @@ BUNDLES: dict[str, dict] = {
 DEFAULT_BUNDLES = ["biotech", "regulatory", "life_science"]
 
 
+# Therapeutic-area presets: one-tap watch lists of conditions/indications for the
+# primary-source connectors (trials, FDA, SEC). Each condition is a plain search
+# term that ClinicalTrials.gov, openFDA and EDGAR all understand.
+THERAPEUTIC_AREAS: dict[str, dict] = {
+    "oncology": {
+        "label": "Oncology",
+        "conditions": ["cancer", "oncology", "lymphoma", "melanoma"],
+    },
+    "cardiometabolic": {
+        "label": "Cardiometabolic",
+        "conditions": ["type 2 diabetes", "obesity", "heart failure", "cardiovascular disease"],
+    },
+    "rare_disease": {
+        "label": "Rare disease",
+        "conditions": ["rare disease", "cystic fibrosis", "sickle cell disease", "muscular dystrophy"],
+    },
+    "neurology": {
+        "label": "Neurology",
+        "conditions": ["Alzheimer disease", "Parkinson disease", "multiple sclerosis", "epilepsy"],
+    },
+    "immunology": {
+        "label": "Immunology & inflammation",
+        "conditions": ["rheumatoid arthritis", "psoriasis", "inflammatory bowel disease", "lupus"],
+    },
+    "infectious": {
+        "label": "Infectious disease",
+        "conditions": ["HIV", "hepatitis", "influenza", "tuberculosis"],
+    },
+}
+
+
+def area_conditions(keys: list[str]) -> list[str]:
+    """Flatten the conditions for the given therapeutic-area keys (deduped, ordered)."""
+    out: list[str] = []
+    for key in keys:
+        area = THERAPEUTIC_AREAS.get(key)
+        if not area:
+            continue
+        for cond in area["conditions"]:
+            if cond not in out:
+                out.append(cond)
+    return out
+
+
 def bundle_feeds(keys: list[str]) -> list[dict]:
     """Flatten the feeds of the given bundle keys, tagging each with its topic."""
     feeds: list[dict] = []

@@ -94,9 +94,12 @@ config file customized to you:
 2. **Pick topics.** Choose from built-in bundles (Biotech & Pharma, Regulatory
    (FDA/EMA), Preprints (bioRxiv/medRxiv), Life Science & Research, Health,
    Science, Tech, World) or add your own RSS URLs.
-3. **Track primary sources.** Optionally watch **ClinicalTrials.gov** by
-   company/sponsor, condition, or drug — official developments, cited to their
-   source record (see below).
+3. **Track primary sources.** Optionally watch **ClinicalTrials.gov**, **FDA**
+   recalls/approvals, and **SEC** filings by company, condition, or drug —
+   official developments, cited to their source record. Start from a
+   **therapeutic-area preset** (oncology, cardiometabolic, rare disease,
+   neurology, immunology, infectious disease) to seed the watch list, then
+   tweak (see below).
 4. **Focus it.** Optionally keep only stories mentioning certain keywords, or
    always drop others.
 5. **Choose how summaries are written** — no LLM, local Ollama, or an

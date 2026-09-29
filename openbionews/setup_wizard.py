@@ -155,11 +155,22 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
     if ask_yes_no("Track official primary sources (trials, FDA recalls, SEC filings)?",
                   default=already):
         wl = cfg.setdefault("watchlist", {})
+        # Optional therapeutic-area presets seed the conditions list.
+        area_opts = [(k, v["label"]) for k, v in sources.THERAPEUTIC_AREAS.items()]
+        picked_areas = ask_multi(
+            "Start from therapeutic-area presets? (optional)", area_opts, [])
+        preset_conditions = sources.area_conditions(picked_areas)
+        if preset_conditions:
+            print(f"  → seeded conditions: {', '.join(preset_conditions)}")
+
         print("Build a watch list (comma-separated; leave blank to skip a line):")
         wl["sponsors"] = _csv(ask_text("  Companies / sponsors",
                                         ", ".join(wl.get("sponsors", []))))
+        existing_conditions = wl.get("conditions", [])
+        # Merge presets with anything already configured, presets first.
+        merged = preset_conditions + [c for c in existing_conditions if c not in preset_conditions]
         wl["conditions"] = _csv(ask_text("  Conditions / indications",
-                                         ", ".join(wl.get("conditions", []))))
+                                         ", ".join(merged)))
         wl["interventions"] = _csv(ask_text("  Drugs / interventions",
                                             ", ".join(wl.get("interventions", []))))
         wl["terms"] = _csv(ask_text("  Other search terms",

@@ -22,6 +22,9 @@ to follow [Semantic Versioning](https://semver.org/).
   Drugs@FDA approvals — original and supplemental (new indication) — cited to
   the Drugs@FDA page. Wizard toggle, doctor check, and demo coverage included.
   (Closes #1.)
+- **Therapeutic-area presets** (oncology, cardiometabolic, rare disease,
+  neurology, immunology, infectious disease): one-tap watch-list seeding in the
+  setup wizard and matching chips on the hosted page. (Closes #4.)
 
 ### Fixed
 - Windows: the setup wizard and `doctor` could raise `UnicodeEncodeError` when

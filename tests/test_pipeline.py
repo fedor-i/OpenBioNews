@@ -166,6 +166,16 @@ def test_render_formats():
     assert "Big Story" in txt
 
 
+def test_therapeutic_area_presets():
+    from openbionews import sources
+    assert "oncology" in sources.THERAPEUTIC_AREAS
+    conds = sources.area_conditions(["oncology", "rare_disease", "nope"])
+    assert "cancer" in conds and "cystic fibrosis" in conds
+    # Deduped and order-preserving; unknown keys ignored.
+    assert len(conds) == len(set(conds))
+    assert sources.area_conditions([]) == []
+
+
 def test_render_rss():
     from xml.etree import ElementTree as ET
     from openbionews.connectors.clinicaltrials import parse_studies
