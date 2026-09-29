@@ -183,9 +183,11 @@ For people who just want to **click and filter**, there's a single-page web app
 in [`docs/index.html`](docs/index.html) with two tabs:
 
 - **Clinical trials** — filter ClinicalTrials.gov by company, condition, drug,
-  status, or phase.
+  status, phase, **recency** ("updated within N days"), and
+  **industry-sponsored only**.
 - **FDA drug recalls** — filter openFDA enforcement reports by firm, product,
-  reason, classification (Class I/II/III), or status.
+  reason, classification (Class I/II/III), status, **report-date recency**, and
+  **voluntary vs. FDA-mandated**.
 
 Both query the source **live in the browser**, show a link to each source
 record, and support **shareable links** (copy a link that reproduces the exact

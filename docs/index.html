@@ -131,10 +131,22 @@
             <option value="PHASE4">Phase 4</option>
           </select>
         </div>
+        <div><label for="t_recent">Updated within</label>
+          <select id="t_recent">
+            <option value="">Any time</option>
+            <option value="7">7 days</option>
+            <option value="30">30 days</option>
+            <option value="90">90 days</option>
+            <option value="180">6 months</option>
+          </select>
+        </div>
       </div>
       <div class="row">
         <button class="go" id="t_search">Search</button>
         <button class="ghost" id="t_clear">Clear</button>
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:.9rem;text-transform:none;letter-spacing:0;color:var(--ink);cursor:pointer;margin:0">
+          <input type="checkbox" id="t_industry" style="width:auto;min-width:0"> Industry-sponsored only
+        </label>
         <div style="flex:1"></div>
         <div style="min-width:150px"><label for="t_sort">Sort</label>
           <select id="t_sort">
@@ -174,6 +186,22 @@
             <option value="Ongoing">Ongoing</option>
             <option value="Completed">Completed</option>
             <option value="Terminated">Terminated</option>
+          </select>
+        </div>
+        <div><label for="r_recent">Reported within</label>
+          <select id="r_recent">
+            <option value="">Any time</option>
+            <option value="30">30 days</option>
+            <option value="90">90 days</option>
+            <option value="365">1 year</option>
+            <option value="1095">3 years</option>
+          </select>
+        </div>
+        <div><label for="r_type">Type</label>
+          <select id="r_type">
+            <option value="">Any type</option>
+            <option value="voluntary">Voluntary (firm-initiated)</option>
+            <option value="mandated">FDA-mandated</option>
           </select>
         </div>
       </div>
@@ -251,16 +279,23 @@ async function getJson(url, noMatchOn404){
 }
 
 // ================= TRIALS =================
+function daysAgoISO(n){ return new Date(Date.now()-n*864e5).toISOString().slice(0,10); }
 function trialsFilters(){
   return {spons:$("t_spons").value.trim(), cond:$("t_cond").value.trim(), intr:$("t_intr").value.trim(),
-    term:$("t_term").value.trim(), status:$("t_status").value, phase:$("t_phase").value, sort:$("t_sort").value};
+    term:$("t_term").value.trim(), status:$("t_status").value, phase:$("t_phase").value,
+    recent:$("t_recent").value, industry:$("t_industry").checked, sort:$("t_sort").value};
 }
-function trialsHasFilter(f){ return f.spons||f.cond||f.intr||f.term||f.status; }
+function trialsHasFilter(f){ return f.spons||f.cond||f.intr||f.term||f.status||f.phase||f.recent||f.industry; }
 function buildCtUrl(f, token){
   const p=new URLSearchParams();
   const add=(k,v)=>{ if(v) p.append(k,v); };
   add("query.spons",f.spons); add("query.cond",f.cond); add("query.intr",f.intr); add("query.term",f.term);
   if(f.status) p.append("filter.overallStatus", f.status);
+  const adv=[];
+  if(f.phase) adv.push(`AREA[Phase]${f.phase}`);
+  if(f.industry) adv.push("AREA[LeadSponsorClass]INDUSTRY");
+  if(f.recent) adv.push(`AREA[LastUpdatePostDate]RANGE[${daysAgoISO(+f.recent)},MAX]`);
+  if(adv.length) p.append("filter.advanced", adv.join(" AND "));
   p.append("sort", f.sort||"LastUpdatePostDate:desc");
   p.append("fields", CT_FIELDS); p.append("pageSize","25"); p.append("countTotal","true");
   if(token) p.append("pageToken", token);
@@ -274,7 +309,7 @@ async function searchTrials(reset){
   try{
     const data = await getJson(buildCtUrl(ctParams||f, reset?null:ctToken));
     ctToken = data.nextPageToken || null;
-    for(const st of (data.studies||[])){ const c=renderTrial(st, (ctParams||f).phase); if(c) $("results").appendChild(c); }
+    for(const st of (data.studies||[])){ const c=renderTrial(st); if(c) $("results").appendChild(c); }
     const have=$("results").children.length;
     const total = data.totalCount!=null ? data.totalCount.toLocaleString() : "?";
     $("status").textContent = have ? `Showing ${have} of ~${total} matching studies.` :
@@ -282,12 +317,11 @@ async function searchTrials(reset){
     $("moreBtn").hidden = !ctToken;
   }catch(err){ showErr("ClinicalTrials.gov", err); }
 }
-function renderTrial(st, phaseWant){
+function renderTrial(st){
   const ps=st.protocolSection||st;
   const nct=dig(ps,"identificationModule","nctId"), title=dig(ps,"identificationModule","briefTitle");
   if(!nct||!title) return null;
   const phases=dig(ps,"designModule","phases")||[];
-  if(phaseWant && !phases.includes(phaseWant)) return null;
   const status=dig(ps,"statusModule","overallStatus")||"";
   const date=dig(ps,"statusModule","lastUpdatePostDateStruct","date")||"";
   const spons=dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")||"";
@@ -309,9 +343,9 @@ function renderTrial(st, phaseWant){
 // ================= FDA RECALLS =================
 function recallsFilters(){
   return {firm:$("r_firm").value.trim(), drug:$("r_drug").value.trim(), reason:$("r_reason").value.trim(),
-    cls:$("r_class").value, status:$("r_status").value};
+    cls:$("r_class").value, status:$("r_status").value, recent:$("r_recent").value, type:$("r_type").value};
 }
-function recallsHasFilter(f){ return f.firm||f.drug||f.reason||f.cls||f.status; }
+function recallsHasFilter(f){ return f.firm||f.drug||f.reason||f.cls||f.status||f.recent||f.type; }
 function buildFdaUrl(f, skip){
   const terms=[];
   const q=(field,v)=>{ if(v) terms.push(`${field}:"${v.replace(/"/g,"")}"`); };
@@ -320,6 +354,12 @@ function buildFdaUrl(f, skip){
   q("reason_for_recall", f.reason);
   if(f.cls) terms.push(`classification:"Class ${f.cls==="1"?"I":f.cls==="2"?"II":"III"}"`);
   if(f.status) terms.push(`status:"${f.status}"`);
+  if(f.type==="voluntary") terms.push(`voluntary_mandated:"Voluntary: Firm Initiated"`);
+  else if(f.type==="mandated") terms.push(`voluntary_mandated:"FDA Mandated"`);
+  if(f.recent){
+    const s=daysAgoISO(+f.recent).replace(/-/g,""), e=daysAgoISO(0).replace(/-/g,"");
+    terms.push(`report_date:[${s} TO ${e}]`);
+  }
   const search = terms.join("+AND+");
   return `${FDA_API}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&sort=report_date:desc&limit=25&skip=${skip||0}`;
 }
@@ -371,8 +411,8 @@ function runSearch(reset){ return tab==="trials" ? searchTrials(reset) : searchR
 $("t_search").onclick=()=>{ searchTrials(true); syncUrl(); };
 $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
 $("moreBtn").onclick=()=>runSearch(false);
-$("t_clear").onclick=()=>{ ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).value=""); $("t_status").value=""; $("t_phase").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
-$("r_clear").onclick=()=>{ ["r_firm","r_drug","r_reason"].forEach(id=>$(id).value=""); $("r_class").value=""; $("r_status").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
+$("t_clear").onclick=()=>{ ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).value=""); $("t_status").value=""; $("t_phase").value=""; $("t_recent").value=""; $("t_industry").checked=false; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
+$("r_clear").onclick=()=>{ ["r_firm","r_drug","r_reason"].forEach(id=>$(id).value=""); $("r_class").value=""; $("r_status").value=""; $("r_recent").value=""; $("r_type").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 
 ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchTrials(true); syncUrl(); }}));
 ["r_firm","r_drug","r_reason"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchRecalls(true); syncUrl(); }}));
@@ -390,12 +430,13 @@ document.querySelectorAll('.chips[data-for="recalls"] .chip').forEach(c=>c.oncli
 });
 
 // ---- shareable URL state ----
-const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_sort:"sort"};
-const R_FIELDS={r_firm:"firm",r_drug:"drug",r_reason:"reason",r_class:"class",r_status:"rstatus"};
+const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent",t_sort:"sort"};
+const R_FIELDS={r_firm:"firm",r_drug:"drug",r_reason:"reason",r_class:"class",r_status:"rstatus",r_recent:"rrecent",r_type:"rtype"};
 function syncUrl(){
   const p=new URLSearchParams(); p.set("tab",tab);
   const map = tab==="trials"?T_FIELDS:R_FIELDS;
   for(const [id,key] of Object.entries(map)){ const v=$(id).value; if(v) p.set(key,v); }
+  if(tab==="trials" && $("t_industry").checked) p.set("industry","1");
   history.replaceState(null,"","?"+p.toString());
 }
 $("copyLink").onclick=async()=>{
@@ -409,6 +450,7 @@ function loadFromUrl(){
   const t=p.get("tab")==="recalls"?"recalls":"trials";
   for(const [id,key] of Object.entries(T_FIELDS)) if(p.get(key)) $(id).value=p.get(key);
   for(const [id,key] of Object.entries(R_FIELDS)) if(p.get(key)) $(id).value=p.get(key);
+  $("t_industry").checked = p.get("industry")==="1";
   selectTab(t);
   const hasT = trialsHasFilter(trialsFilters()), hasR = recallsHasFilter(recallsFilters());
   if(t==="trials" && hasT) searchTrials(true);
