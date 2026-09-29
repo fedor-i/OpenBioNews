@@ -42,24 +42,22 @@ enterprise domain sign-in available. Explicitly **not investment advice**.
 
 ## Honest positioning: they are different in kind
 
-**OpenBioNews today is a trade-press RSS digest** — it aggregates STAT,
-FierceBiotech, Endpoints, etc. That is precisely the "trade press / wire copy"
-readthrough refuses. So OpenBioNews is **not currently a drop-in replacement**;
-it's a free, general news-digest tool that happens to default to bio outlets.
-
-To become a true free readthrough, OpenBioNews would need to switch from
-secondary feeds to **primary sources with citations** (see roadmap below).
+OpenBioNews began as a trade-press RSS digest (STAT, FierceBiotech, Endpoints…)
+— exactly the "trade press / wire copy" readthrough refuses. It is now **pivoting
+to the primary-source model**: as of v0.2 it reads **ClinicalTrials.gov**
+directly and cites each development to its NCT record, with **FDA and SEC
+connectors on the roadmap**. RSS remains available but is no longer the point.
 
 ## Feature-by-feature
 
-| Capability | readthrough.news | OpenBioNews today |
+| Capability | readthrough.news | OpenBioNews (v0.2) |
 |---|---|---|
 | Price | $29/seat/mo, $300/seat/yr | Free, MIT |
 | Hosting / account | Vendor cloud, account required | Self-hosted, no account |
-| Primary sources (FDA/SEC/trials) | ✅ core | ❌ (trade-press RSS instead) |
-| Per-sentence source citations | ✅ | ❌ (links to the article) |
-| Automated fact-check vs. source | ✅ | ❌ |
-| Watch lists (company/drug/target) | ✅ | ❌ (topic bundles + keywords) |
+| Primary sources (FDA/SEC/trials) | ✅ core | ⚠️ ClinicalTrials.gov now; FDA/SEC on roadmap |
+| Source citation per story | ✅ per sentence | ✅ per story (cites the registry record) |
+| Automated fact-check vs. source | ✅ | ❌ (roadmap) |
+| Watch lists (company/drug/condition) | ✅ | ✅ for ClinicalTrials.gov |
 | Company/drug entity profiles | ✅ | ❌ |
 | De-dup across sources | ✅ | ✅ |
 | Importance ranking / read-time | — / — | ✅ / ✅ |

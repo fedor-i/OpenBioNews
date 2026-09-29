@@ -34,7 +34,8 @@ def filter_items(items: list[Item], filters: dict) -> list[Item]:
     seen_links: set[str] = set()
     kept: list[Item] = []
     for item in items:
-        if cutoff and item.published is not None and item.published < cutoff:
+        if (cutoff and not item.age_exempt
+                and item.published is not None and item.published < cutoff):
             continue
         haystack = f"{item.title}\n{item.summary}".lower()
         if include and not any(k in haystack for k in include):

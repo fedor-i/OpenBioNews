@@ -191,6 +191,7 @@ def test_wizard_writes_config(tmp_path=None):
         "A subtitle",       # intro
         "1",                # bundles -> biotech
         "n",                # add own feed?
+        "n",                # track ClinicalTrials.gov? -> no
         "cancer",           # include keywords
         "",                 # exclude keywords
         "24",               # max age
@@ -259,6 +260,83 @@ def test_mailer_configured_and_message():
     assert msg["To"] == "you@example.com"
     assert "My Digest" in msg["Subject"]
     assert msg.get_content_type() == "multipart/alternative"
+
+
+CT_FIXTURE = {
+    "studies": [
+        {
+            "protocolSection": {
+                "identificationModule": {"nctId": "NCT01234567",
+                                          "briefTitle": "Study of DrugX in Advanced Solid Tumors"},
+                "statusModule": {"overallStatus": "RECRUITING",
+                                  "lastUpdatePostDateStruct": {"date": "2026-09-20"}},
+                "sponsorCollaboratorsModule": {"leadSponsor": {"name": "Acme Bio"}},
+                "conditionsModule": {"conditions": ["Melanoma"]},
+                "armsInterventionsModule": {"interventions": [{"name": "DrugX"}]},
+                "designModule": {"phases": ["PHASE2"]},
+                "descriptionModule": {"briefSummary": "A phase 2 study. It evaluates DrugX. Safety measured."},
+            }
+        },
+        {  # missing NCT id -> should be skipped
+            "protocolSection": {"identificationModule": {"briefTitle": "No id"}}
+        },
+    ]
+}
+
+
+def test_clinicaltrials_parse():
+    from openbionews.connectors.clinicaltrials import parse_studies
+    items = parse_studies(CT_FIXTURE)
+    assert len(items) == 1  # the id-less study is skipped
+    it = items[0]
+    assert it.link == "https://clinicaltrials.gov/study/NCT01234567"
+    assert it.source == "ClinicalTrials.gov"
+    assert it.age_exempt is True
+    assert it.tag == "Recruiting · Phase 2 · Acme Bio"
+    assert it.citations and it.citations[0].url == it.link
+    assert it.meta["conditions"] == ["Melanoma"]
+
+
+def test_clinicaltrials_query_building():
+    from openbionews.connectors.clinicaltrials import ClinicalTrialsConnector
+    conn = ClinicalTrialsConnector(
+        {"recent_days": 30},
+        {"sponsors": ["Acme Bio"], "conditions": ["Melanoma"], "interventions": [], "terms": [""]},
+    )
+    pairs = conn._queries()
+    assert ("query.spons", "Acme Bio") in pairs
+    assert ("query.cond", "Melanoma") in pairs
+    assert all(v.strip() for _, v in pairs)  # blank term dropped
+    ok, _ = conn.available()
+    assert ok is True
+    # No watch list -> unavailable
+    empty = ClinicalTrialsConnector({}, {})
+    assert empty.available()[0] is False
+
+
+def test_connector_registry_and_age_exempt():
+    from openbionews.connectors import get_connectors
+    cfg = config.default_config()
+    assert get_connectors(cfg) == []  # disabled by default
+    cfg["connectors"]["clinicaltrials"]["enabled"] = True
+    cfg["watchlist"]["sponsors"] = ["Acme Bio"]
+    assert len(get_connectors(cfg)) == 1
+    # An age-exempt item survives an aggressive age filter.
+    from openbionews.connectors.clinicaltrials import parse_studies
+    old = parse_studies(CT_FIXTURE)  # dated 2026-09-20, likely older than 1h
+    kept = pipeline.filter_items(old, {"max_age_hours": 1})
+    assert len(kept) == 1
+
+
+def test_citation_render():
+    from openbionews.connectors.clinicaltrials import parse_studies
+    from openbionews.compose import compose as compose_fn
+    clusters = pipeline.cluster_items(parse_studies(CT_FIXTURE), threshold=0.5)
+    digest, _ = compose_fn(clusters, NoLLMBackend(), {"title": "Trials"})
+    md = render.render(digest, "markdown")
+    assert "↳ Source:" in md and "NCT01234567" in md
+    html = render.render(digest, "html")
+    assert "clinicaltrials.gov/study/NCT01234567" in html
 
 
 def test_end_to_end_demo():

@@ -33,6 +33,11 @@ def ask_text(question: str, default: str = "") -> str:
     return answer or default
 
 
+def _csv(text: str) -> list[str]:
+    """Split a comma-separated answer into a clean list."""
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
 def ask_yes_no(question: str, default: bool = True) -> bool:
     hint = "Y/n" if default else "y/N"
     answer = _in(f"{question} [{hint}]: ").strip().lower()
@@ -136,6 +141,34 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
             cfg["feeds"].append({"name": name, "url": url, "topic": chosen_bundles[0] if chosen_bundles else "custom"})
             print(f"  → added {name}")
 
+    # 2b. Primary sources (official records, traced to their documents)
+    print("\nPrimary sources read official records — trial registries, "
+          "regulators — instead of trade press, and cite the source document.")
+    ct = cfg.setdefault("connectors", {}).setdefault("clinicaltrials", {})
+    if ask_yes_no("Track official trial developments from ClinicalTrials.gov?",
+                  default=ct.get("enabled", False)):
+        ct["enabled"] = True
+        wl = cfg.setdefault("watchlist", {})
+        print("Build a watch list (comma-separated; leave blank to skip a line):")
+        wl["sponsors"] = _csv(ask_text("  Companies / trial sponsors",
+                                        ", ".join(wl.get("sponsors", []))))
+        wl["conditions"] = _csv(ask_text("  Conditions / indications",
+                                         ", ".join(wl.get("conditions", []))))
+        wl["interventions"] = _csv(ask_text("  Drugs / interventions",
+                                            ", ".join(wl.get("interventions", []))))
+        wl["terms"] = _csv(ask_text("  Other search terms",
+                                    ", ".join(wl.get("terms", []))))
+        days = ask_text("  Only developments updated within how many days?",
+                        str(ct.get("recent_days", 30)))
+        try:
+            ct["recent_days"] = int(days)
+        except ValueError:
+            pass
+        watched = sum(len(wl.get(k, [])) for k in ("sponsors", "conditions", "interventions", "terms"))
+        print(f"  → tracking {watched} entit(ies) on ClinicalTrials.gov.")
+    else:
+        ct["enabled"] = False
+
     # 3. Focus
     focus = ask_text(
         "Only keep stories mentioning these keywords (comma-separated, optional)", ""
@@ -229,6 +262,10 @@ def _print_summary(cfg: dict) -> None:
     print(f"  Title    : {cfg['profile']['title']}")
     print(f"  Topics   : {', '.join(cfg['profile'].get('bundles', [])) or '(custom feeds)'}")
     print(f"  Feeds    : {len(cfg['feeds'])}")
+    if cfg.get("connectors", {}).get("clinicaltrials", {}).get("enabled"):
+        wl = cfg.get("watchlist", {})
+        watched = sum(len(wl.get(k, [])) for k in ("sponsors", "conditions", "interventions", "terms"))
+        print(f"  Primary  : ClinicalTrials.gov ({watched} watched)")
     summaries = cfg["llm"]["backend"]
     if cfg["output"].get("why_it_matters"):
         summaries += " + why-it-matters"

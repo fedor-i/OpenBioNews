@@ -68,6 +68,23 @@ def default_config() -> dict[str, Any]:
             "from_addr": "",
             "to_addrs": [],
         },
+        # Entities to track for primary-source connectors (FDA/SEC/trials).
+        "watchlist": {
+            "sponsors": [],        # company / trial-sponsor names
+            "conditions": [],       # diseases / indications
+            "interventions": [],    # drugs / therapies
+            "terms": [],            # free-text search terms
+        },
+        # Primary-source connectors read official records, not trade press.
+        "connectors": {
+            "clinicaltrials": {
+                "enabled": False,
+                "recent_days": 30,   # only developments updated within N days
+                "max_per_query": 20,  # cap results per watch entry
+                "max_total": 60,      # cap total studies across the connector
+                "statuses": [],       # e.g. ["RECRUITING", "COMPLETED"]; empty = any
+            },
+        },
     }
 
 

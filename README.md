@@ -9,6 +9,9 @@ optionally straight to your inbox. It ships tuned for **biotech and life
 sciences**, but you can point it at any topic.
 
 - 🆓 **Free and open** (MIT). No account, no subscription, no server to rent.
+- 🔬 **Primary sources, cited.** Track **ClinicalTrials.gov** by company, drug,
+  or condition — every development traced to its source record (FDA & SEC on the
+  roadmap). Plus any RSS/Atom feed you like.
 - 🖥️ **Runs everywhere.** Windows, macOS, and Linux — pure Python, no build step.
 - 🔌 **Bring your own LLM — or none.** Works with a local model (Ollama), any
   OpenAI-compatible API, or with *no LLM at all* (it uses each article's own
@@ -90,11 +93,14 @@ config file customized to you:
 2. **Pick topics.** Choose from built-in bundles (Biotech & Pharma, Regulatory
    (FDA/EMA), Preprints (bioRxiv/medRxiv), Life Science & Research, Health,
    Science, Tech, World) or add your own RSS URLs.
-3. **Focus it.** Optionally keep only stories mentioning certain keywords, or
+3. **Track primary sources.** Optionally watch **ClinicalTrials.gov** by
+   company/sponsor, condition, or drug — official developments, cited to their
+   source record (see below).
+4. **Focus it.** Optionally keep only stories mentioning certain keywords, or
    always drop others.
-4. **Choose how summaries are written** — no LLM, local Ollama, or an
+5. **Choose how summaries are written** — no LLM, local Ollama, or an
    OpenAI-compatible API.
-5. **Pick an output format** — Markdown, HTML, or text.
+6. **Pick an output format** — Markdown, HTML, or text.
 
 The result is `openbionews.config.json` in the current folder. Re-run `setup`
 any time to change it, or edit the file directly (see
@@ -132,6 +138,49 @@ openbionews run
 
 If a summary call ever fails (rate limit, network blip), that story quietly
 falls back to the no-LLM summary — the run never aborts.
+
+---
+
+## Primary sources — traced to the document
+
+Beyond RSS (which is *secondary* trade press), OpenBioNews can read **official
+primary records** and trace every development back to its source document — the
+model that paid biotech-intelligence feeds like readthrough.news are built on,
+here for free. See [COMPARISON.md](COMPARISON.md).
+
+**Available now: ClinicalTrials.gov.** Build a watch list of companies/sponsors,
+conditions, or drugs, and each recent trial development (new registration,
+status change, phase, sponsor) becomes an entry that **cites its NCT record**:
+
+```jsonc
+"watchlist": {
+  "sponsors": ["Moderna", "Vertex Pharmaceuticals"],
+  "conditions": ["cystic fibrosis"],
+  "interventions": ["mRNA-1345"],
+  "terms": []
+},
+"connectors": {
+  "clinicaltrials": { "enabled": true, "recent_days": 30 }
+}
+```
+
+The setup wizard builds this for you, and `openbionews doctor` verifies the
+watch list. Each story renders with a status tag and a source line:
+
+```
+### Study of DrugX in Advanced Solid Tumors
+*Recruiting · Phase 2 · Acme Bio · ClinicalTrials.gov · 20 Sep*
+A phase 2 study evaluating DrugX…
+↳ Source: ClinicalTrials.gov NCT01234567
+```
+
+No API key is needed, and nothing about your watch list leaves your machine
+except the queries to ClinicalTrials.gov itself.
+
+**On the roadmap** (to fully match readthrough): **openFDA / Drugs@FDA**
+(approvals, recalls, shortages) and **SEC EDGAR** (8-K, S-1, Form D…). The
+connector interface is designed for exactly these — see
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ---
 

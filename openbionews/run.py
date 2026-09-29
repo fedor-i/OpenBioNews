@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from . import fetch, mailer, pipeline, render
 from .compose import compose
+from .connectors import get_connectors
 from .llm import get_backend
 from .models import Digest
 
@@ -43,6 +44,20 @@ def build_digest(cfg: dict[str, Any], log: Callable[[str], None] | None = None) 
             log(f"  · {name}: {count} items")
 
     items, result.fetch_errors = fetch.fetch_all(feeds, on_status=_status)
+
+    # Primary-source connectors (trial registries, regulators, filings).
+    connectors = get_connectors(cfg)
+    if connectors:
+        log(f"Querying {len(connectors)} primary source(s)…")
+        for conn in connectors:
+            try:
+                citems = conn.fetch()
+                items.extend(citems)
+                _status(conn.label, len(citems), None)
+            except Exception as exc:  # noqa: BLE001 — a dead source never sinks the run
+                result.fetch_errors.append((conn.label, str(exc)))
+                _status(conn.label, 0, str(exc))
+
     result.item_count = len(items)
 
     items = pipeline.filter_items(items, filters)

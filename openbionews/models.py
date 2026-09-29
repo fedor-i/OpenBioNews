@@ -9,8 +9,17 @@ from . import textutil
 
 
 @dataclass
+class Citation:
+    """A link back to the primary document a story is traced to."""
+
+    label: str
+    url: str
+    kind: str = ""  # e.g. "registry", "filing", "fda"
+
+
+@dataclass
 class Item:
-    """A single news entry pulled from a feed."""
+    """A single development pulled from a feed or a primary-source connector."""
 
     title: str
     link: str
@@ -19,6 +28,13 @@ class Item:
     topic: str = ""
     published: datetime | None = None
     guid: str = ""
+    # Primary-source extras (empty for plain RSS items):
+    citations: list[Citation] = field(default_factory=list)
+    tag: str = ""            # short status line, e.g. "Recruiting · Phase 2 · Moderna"
+    meta: dict = field(default_factory=dict)
+    # Connectors pre-filter by their own recency window, so the global
+    # max-age filter must not also drop them.
+    age_exempt: bool = False
 
     def token_set(self):
         return textutil.token_set(self.title)

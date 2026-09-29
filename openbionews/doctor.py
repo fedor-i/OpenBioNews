@@ -6,6 +6,7 @@ import os
 
 from . import config as config_mod
 from . import fetch, mailer
+from .connectors import get_connectors
 from .llm import get_backend
 
 OK = "✓"
@@ -48,6 +49,15 @@ def run_doctor(cfg: dict, check_feeds: bool = True) -> int:
         else:
             print(f"  {BAD} email enabled but host/from/to are incomplete")
             problems += 1
+
+    connectors = get_connectors(cfg)
+    if connectors:
+        print("\nPrimary sources")
+        for conn in connectors:
+            ok, message = conn.available()
+            print(f"  {OK if ok else BAD} {conn.label}: {message}")
+            if not ok:
+                problems += 1
 
     if check_feeds:
         feeds = cfg.get("feeds", [])

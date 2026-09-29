@@ -110,5 +110,20 @@
     "password_env": "OPENBIONEWS_SMTP_PASSWORD",
     "from_addr": "",
     "to_addrs": []
+  },
+  "watchlist": {
+    "sponsors": [],
+    "conditions": [],
+    "interventions": [],
+    "terms": []
+  },
+  "connectors": {
+    "clinicaltrials": {
+      "enabled": false,
+      "recent_days": 30,
+      "max_per_query": 20,
+      "max_total": 60,
+      "statuses": []
+    }
   }
 }
