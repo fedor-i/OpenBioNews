@@ -188,6 +188,9 @@ in [`docs/index.html`](docs/index.html) with two tabs:
 - **FDA drug recalls** — filter openFDA enforcement reports by firm, product,
   reason, classification (Class I/II/III), status, **report-date recency**, and
   **voluntary vs. FDA-mandated**.
+- **SEC filings** — full-text search SEC EDGAR by company/ticker/keyword,
+  **filing type** (8-K, 10-K, S-1, 424B, 13D/G, DEF 14A, Form 4…), and
+  **filed-within** recency; each result links to the filing document.
 
 Both query the source **live in the browser**, show a link to each source
 record, and support **shareable links** (copy a link that reproduces the exact

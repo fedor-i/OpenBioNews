@@ -91,6 +91,7 @@
   <div class="tabs" role="tablist">
     <button class="tab" id="tab-trials" role="tab" aria-selected="true" aria-controls="panel-trials">Clinical trials</button>
     <button class="tab" id="tab-recalls" role="tab" aria-selected="false" aria-controls="panel-recalls">FDA drug recalls</button>
+    <button class="tab" id="tab-sec" role="tab" aria-selected="false" aria-controls="panel-sec">SEC filings</button>
   </div>
 
   <!-- TRIALS -->
@@ -212,6 +213,49 @@
     </div>
   </section>
 
+  <!-- SEC FILINGS -->
+  <section id="panel-sec" role="tabpanel" hidden>
+    <div class="filters">
+      <div class="chips" data-for="sec">
+        <span class="chip" data-form="8-K">8-K (material events)</span>
+        <span class="chip" data-form="S-1">S-1 (IPO / registration)</span>
+        <span class="chip" data-form="424B5">424B (offering)</span>
+        <span class="chip" data-form="SC 13D">13D (activist stake)</span>
+        <span class="chip" data-q="Moderna">Moderna</span>
+      </div>
+      <div class="grid">
+        <div><label for="s_q">Company, ticker, or keyword</label><input id="s_q" placeholder="e.g. Moderna, or a phrase"></div>
+        <div><label for="s_form">Filing type</label>
+          <select id="s_form">
+            <option value="">Any filing</option>
+            <option value="8-K">8-K — material event</option>
+            <option value="10-K">10-K — annual report</option>
+            <option value="10-Q">10-Q — quarterly report</option>
+            <option value="S-1">S-1 — registration / IPO</option>
+            <option value="424B5">424B — prospectus / offering</option>
+            <option value="SC 13D">SC 13D — activist ownership</option>
+            <option value="SC 13G">SC 13G — passive ownership</option>
+            <option value="DEF 14A">DEF 14A — proxy statement</option>
+            <option value="4">Form 4 — insider transaction</option>
+          </select>
+        </div>
+        <div><label for="s_recent">Filed within</label>
+          <select id="s_recent">
+            <option value="">Any time</option>
+            <option value="7">7 days</option>
+            <option value="30">30 days</option>
+            <option value="90">90 days</option>
+            <option value="365">1 year</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <button class="go" id="s_search">Search</button>
+        <button class="ghost" id="s_clear">Clear</button>
+      </div>
+    </div>
+  </section>
+
   <div class="bar">
     <div class="status" id="status">Pick a filter and hit Search — or tap a chip above.</div>
     <button class="linkbtn" id="copyLink" title="Copy a shareable link to this view">🔗 Copy link</button>
@@ -221,8 +265,9 @@
 </main>
 
 <footer>
-  Data from <a href="https://clinicaltrials.gov" target="_blank" rel="noopener">ClinicalTrials.gov</a>
-  and <a href="https://open.fda.gov" target="_blank" rel="noopener">openFDA</a>, queried live in your
+  Data from <a href="https://clinicaltrials.gov" target="_blank" rel="noopener">ClinicalTrials.gov</a>,
+  <a href="https://open.fda.gov" target="_blank" rel="noopener">openFDA</a>, and
+  <a href="https://efts.sec.gov" target="_blank" rel="noopener">SEC EDGAR</a>, queried live in your
   browser. Nothing is stored or tracked. Not investment or medical advice. ·
   Built with <a href="https://github.com/fedor-i/OpenBioNews" target="_blank" rel="noopener">OpenBioNews</a> (free, open source).
 </footer>
@@ -233,10 +278,12 @@ const CT_API = "https://clinicaltrials.gov/api/v2/studies";
 const CT_FIELDS = ["NCTId","BriefTitle","OverallStatus","LastUpdatePostDate","LeadSponsorName",
   "Condition","InterventionName","BriefSummary","Phase","StudyType"].join(",");
 const FDA_API = "https://api.fda.gov/drug/enforcement.json";
+const SEC_API = "https://efts.sec.gov/LATEST/search-index";
 
 let tab = "trials";
 let ctToken = null, ctParams = null;
 let fdaSkip = 0, fdaParams = null, fdaTotal = 0;
+let secFrom = 0, secParams = null, secTotal = 0;
 
 // ---- theme (per-viewer convenience) ----
 try{ const s=localStorage.getItem("obn-theme"); if(s) document.documentElement.setAttribute("data-theme",s); }catch(e){}
@@ -255,18 +302,20 @@ function prettyStatus(s){ return s ? s.replace(/_/g," ").replace(/\b\w/g,c=>c.to
 function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&p!=="NA").map(p=>p.replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase ")).join("/"); }
 
 // ---- tab switching ----
+const TABS = ["trials","recalls","sec"];
 function selectTab(name, run){
   tab = name;
-  const isT = name==="trials";
-  $("tab-trials").setAttribute("aria-selected", isT);
-  $("tab-recalls").setAttribute("aria-selected", !isT);
-  $("panel-trials").hidden = !isT;
-  $("panel-recalls").hidden = isT;
+  for(const t of TABS){
+    const on = t===name;
+    $("tab-"+t).setAttribute("aria-selected", on);
+    $("panel-"+t).hidden = !on;
+  }
   $("results").innerHTML = "";
   $("moreBtn").hidden = true;
   $("status").textContent = "Pick a filter and hit Search — or tap a chip above.";
   if(run) run();
 }
+$("tab-sec").onclick = () => { selectTab("sec"); syncUrl(); };
 $("tab-trials").onclick = () => { selectTab("trials"); syncUrl(); };
 $("tab-recalls").onclick = () => { selectTab("recalls"); syncUrl(); };
 
@@ -400,6 +449,59 @@ function renderRecall(r){
   return el;
 }
 
+// ================= SEC EDGAR =================
+function secFilters(){
+  return {q:$("s_q").value.trim(), form:$("s_form").value, recent:$("s_recent").value};
+}
+function secHasFilter(f){ return !!f.q; }
+function buildSecUrl(f, from){
+  const p=new URLSearchParams();
+  if(f.q) p.append("q", f.q);
+  if(f.form) p.append("forms", f.form);
+  if(f.recent){ p.append("dateRange","custom"); p.append("startdt", daysAgoISO(+f.recent)); p.append("enddt", daysAgoISO(0)); }
+  if(from) p.append("from", from);
+  return SEC_API+"?"+p.toString();
+}
+async function searchSec(reset){
+  const f=secFilters();
+  if(reset){ secFrom=0; secParams=f; $("results").innerHTML=""; }
+  if(!secHasFilter(f)){ $("status").textContent="Enter a company, ticker or keyword to search filings."; return; }
+  $("status").textContent="Searching SEC EDGAR…"; $("moreBtn").hidden=true;
+  try{
+    const data = await getJson(buildSecUrl(secParams||f, reset?0:secFrom));
+    const hits = dig(data,"hits","hits")||[];
+    secTotal = dig(data,"hits","total","value")||0;
+    for(const h of hits){ const c=renderFiling(h); if(c) $("results").appendChild(c); }
+    secFrom += hits.length;
+    const have=$("results").children.length;
+    $("status").textContent = have ? `Showing ${have} of ${Number(secTotal).toLocaleString()} filings.` : "No matching filings.";
+    $("moreBtn").hidden = have>=secTotal || hits.length===0;
+  }catch(err){ showErr("SEC EDGAR", err); }
+}
+function renderFiling(h){
+  const s=h._source||{};
+  const [accn, file] = (h._id||"").split(":");
+  const cik=(s.ciks&&s.ciks[0])||"";
+  const cikInt=String(parseInt(cik,10)||cik);
+  const accnNoDash=(accn||"").replace(/-/g,"");
+  const url = (accn&&file&&cik) ? `https://www.sec.gov/Archives/edgar/data/${cikInt}/${accnNoDash}/${file}`
+    : (cik ? `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cikInt}` : "https://www.sec.gov/cgi-bin/browse-edgar");
+  const form = s.root_form || s.form || s.file_type || "Filing";
+  const names = s.display_names || [];
+  const company = names.length ? names[0] : (s.file_description || "SEC filing");
+  const date = s.file_date || "";
+  const desc = s.file_description || "";
+  const tags = [form].concat(names.length>1 ? [`+${names.length-1} filer(s)`] : []);
+  const el=document.createElement("article");
+  el.innerHTML =
+    `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(company)} — ${esc(form)}</a></h2>`+
+    `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
+    (desc?`<div class="summary">${esc(clip(desc,240))}</div>`:"")+
+    `<div class="src">${date?`filed ${esc(date)} · `:""}`+
+    `↳ Source: <a href="${esc(url)}" target="_blank" rel="noopener">EDGAR ${esc(accn||"filing")}</a></div>`;
+  return el;
+}
+
 // ---- errors ----
 function showErr(name, err){
   $("status").innerHTML = `<span class="err">Could not reach ${esc(name)} (${esc(err.message)}). `+
@@ -407,15 +509,18 @@ function showErr(name, err){
 }
 
 // ---- current search dispatch ----
-function runSearch(reset){ return tab==="trials" ? searchTrials(reset) : searchRecalls(reset); }
+function runSearch(reset){ return tab==="trials" ? searchTrials(reset) : tab==="recalls" ? searchRecalls(reset) : searchSec(reset); }
 $("t_search").onclick=()=>{ searchTrials(true); syncUrl(); };
 $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
+$("s_search").onclick=()=>{ searchSec(true); syncUrl(); };
 $("moreBtn").onclick=()=>runSearch(false);
 $("t_clear").onclick=()=>{ ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).value=""); $("t_status").value=""; $("t_phase").value=""; $("t_recent").value=""; $("t_industry").checked=false; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("r_clear").onclick=()=>{ ["r_firm","r_drug","r_reason"].forEach(id=>$(id).value=""); $("r_class").value=""; $("r_status").value=""; $("r_recent").value=""; $("r_type").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
+$("s_clear").onclick=()=>{ $("s_q").value=""; $("s_form").value=""; $("s_recent").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 
 ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchTrials(true); syncUrl(); }}));
 ["r_firm","r_drug","r_reason"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchRecalls(true); syncUrl(); }}));
+$("s_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchSec(true); syncUrl(); }});
 
 document.querySelectorAll('.chips[data-for="trials"] .chip').forEach(c=>c.onclick=()=>{
   if(c.dataset.cond) $("t_cond").value=c.dataset.cond;
@@ -428,14 +533,21 @@ document.querySelectorAll('.chips[data-for="recalls"] .chip').forEach(c=>c.oncli
   if(c.dataset.class) $("r_class").value=c.dataset.class;
   searchRecalls(true); syncUrl();
 });
+document.querySelectorAll('.chips[data-for="sec"] .chip').forEach(c=>c.onclick=()=>{
+  if(c.dataset.form) $("s_form").value=c.dataset.form;
+  if(c.dataset.q) $("s_q").value=c.dataset.q;
+  if(!$("s_q").value) $("s_q").value="pharmaceutical";  // efts needs a query term
+  searchSec(true); syncUrl();
+});
 
 // ---- shareable URL state ----
 const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent",t_sort:"sort"};
 const R_FIELDS={r_firm:"firm",r_drug:"drug",r_reason:"reason",r_class:"class",r_status:"rstatus",r_recent:"rrecent",r_type:"rtype"};
+const S_FIELDS={s_q:"q",s_form:"form",s_recent:"srecent"};
+function fieldsFor(t){ return t==="trials"?T_FIELDS : t==="recalls"?R_FIELDS : S_FIELDS; }
 function syncUrl(){
   const p=new URLSearchParams(); p.set("tab",tab);
-  const map = tab==="trials"?T_FIELDS:R_FIELDS;
-  for(const [id,key] of Object.entries(map)){ const v=$(id).value; if(v) p.set(key,v); }
+  for(const [id,key] of Object.entries(fieldsFor(tab))){ const v=$(id).value; if(v) p.set(key,v); }
   if(tab==="trials" && $("t_industry").checked) p.set("industry","1");
   history.replaceState(null,"","?"+p.toString());
 }
@@ -447,14 +559,14 @@ $("copyLink").onclick=async()=>{
 };
 function loadFromUrl(){
   const p=new URLSearchParams(location.search);
-  const t=p.get("tab")==="recalls"?"recalls":"trials";
-  for(const [id,key] of Object.entries(T_FIELDS)) if(p.get(key)) $(id).value=p.get(key);
-  for(const [id,key] of Object.entries(R_FIELDS)) if(p.get(key)) $(id).value=p.get(key);
+  const t=TABS.includes(p.get("tab"))?p.get("tab"):"trials";
+  for(const map of [T_FIELDS,R_FIELDS,S_FIELDS])
+    for(const [id,key] of Object.entries(map)) if(p.get(key)) $(id).value=p.get(key);
   $("t_industry").checked = p.get("industry")==="1";
   selectTab(t);
-  const hasT = trialsHasFilter(trialsFilters()), hasR = recallsHasFilter(recallsFilters());
-  if(t==="trials" && hasT) searchTrials(true);
-  else if(t==="recalls" && hasR) searchRecalls(true);
+  if(t==="trials" && trialsHasFilter(trialsFilters())) searchTrials(true);
+  else if(t==="recalls" && recallsHasFilter(recallsFilters())) searchRecalls(true);
+  else if(t==="sec" && secHasFilter(secFilters())) searchSec(true);
 }
 loadFromUrl();
 </script>
