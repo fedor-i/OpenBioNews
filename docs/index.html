@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OpenBioNews — Trial Watch</title>
-<meta name="description" content="Filter clinical-trial developments live from ClinicalTrials.gov — free, traced to the source.">
+<title>OpenBioNews — Bio Watch</title>
+<meta name="description" content="Filter clinical-trial developments and FDA drug recalls live, free, traced to the source.">
 <style>
   :root{
     --bg:#f7f5ef; --panel:#ffffff; --ink:#1a1a1a; --muted:#6b7280; --line:#e6e2d8;
     --accent:#1a56db; --chip:#efece3; --tag:#eef2ff; --tagink:#3743a6;
+    --warn:#9a3412; --warnbg:#fdeee0; --crit:#b42318; --critbg:#fde8e6;
     --shadow:0 1px 2px rgba(0,0,0,.05),0 1px 3px rgba(0,0,0,.04);
     color-scheme:light dark;
   }
@@ -16,27 +17,33 @@
     :root:not([data-theme="light"]){
       --bg:#15171a; --panel:#1d2024; --ink:#e8e8e8; --muted:#9aa0a6; --line:#2c2f33;
       --accent:#8ab4f8; --chip:#24272c; --tag:#20263a; --tagink:#b7c4ff;
-      --shadow:0 1px 2px rgba(0,0,0,.3);
+      --warn:#fbbf77; --warnbg:#3a2a17; --crit:#ff9d94; --critbg:#3a1e1c;
+      --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark;
     }
   }
   :root[data-theme="dark"]{
     --bg:#15171a; --panel:#1d2024; --ink:#e8e8e8; --muted:#9aa0a6; --line:#2c2f33;
     --accent:#8ab4f8; --chip:#24272c; --tag:#20263a; --tagink:#b7c4ff;
+    --warn:#fbbf77; --warnbg:#3a2a17; --crit:#ff9d94; --critbg:#3a1e1c; color-scheme:dark;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
     font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-  header{max-width:60rem;margin:0 auto;padding:1.6rem 1rem .4rem}
+  header{max-width:60rem;margin:0 auto;padding:1.6rem 1rem .2rem}
   .brand{font:700 1.5rem/1.1 Georgia,"Times New Roman",serif;letter-spacing:-.01em}
-  .brand small{font:400 .8rem/1 -apple-system,sans-serif;color:var(--muted);display:block;margin-top:.3rem}
+  .brand small{font:400 .82rem/1.3 -apple-system,sans-serif;color:var(--muted);display:block;margin-top:.35rem}
   main{max-width:60rem;margin:0 auto;padding:0 1rem 3rem}
+  .tabs{display:flex;gap:.4rem;margin:1rem 0 .2rem;border-bottom:1px solid var(--line)}
+  .tab{background:none;border:none;padding:.6rem .9rem;font-size:.98rem;font-weight:600;color:var(--muted);
+    cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
   .filters{background:var(--panel);border:1px solid var(--line);border-radius:14px;
     padding:1rem;margin:1rem 0;box-shadow:var(--shadow)}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.7rem}
   label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;
     color:var(--muted);margin:0 0 .25rem}
   input,select{width:100%;padding:.55rem .6rem;border:1px solid var(--line);border-radius:9px;
-    background:var(--bg);color:var(--ink);font-size:.95rem}
+    background:var(--bg);color:var(--ink);font-size:.95rem;min-width:0}
   .row{display:flex;gap:.6rem;align-items:end;flex-wrap:wrap;margin-top:.8rem}
   button{cursor:pointer;border:none;border-radius:9px;padding:.6rem 1.1rem;font-size:.95rem;font-weight:600}
   .go{background:var(--accent);color:#fff}
@@ -45,15 +52,20 @@
   .chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;
     padding:.28rem .7rem;font-size:.82rem;cursor:pointer;color:var(--ink)}
   .chip:hover{border-color:var(--accent)}
-  .status{color:var(--muted);font-size:.9rem;margin:1rem 0 .3rem;min-height:1.2em}
+  .bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:1rem 0 .3rem}
+  .status{color:var(--muted);font-size:.9rem;min-height:1.2em;flex:1;min-width:200px}
+  .linkbtn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;
+    padding:.35rem .6rem;font-size:.8rem;font-weight:500;cursor:pointer}
   article{background:var(--panel);border:1px solid var(--line);border-radius:14px;
     padding:1rem 1.1rem;margin:.75rem 0;box-shadow:var(--shadow)}
-  article h2{font-size:1.08rem;margin:.1rem 0 .4rem;line-height:1.3}
+  article h2{font-size:1.06rem;margin:.1rem 0 .4rem;line-height:1.3;min-width:0}
   article h2 a{color:var(--ink);text-decoration:none}
   article h2 a:hover{color:var(--accent);text-decoration:underline}
   .tags{display:flex;flex-wrap:wrap;gap:.35rem;margin:.1rem 0 .5rem}
   .tag{background:var(--tag);color:var(--tagink);border-radius:6px;padding:.12rem .5rem;font-size:.76rem;font-weight:600}
-  .summary{color:var(--ink);font-size:.95rem;margin:.3rem 0 .5rem}
+  .tag.c1{background:var(--critbg);color:var(--crit)}
+  .tag.c2{background:var(--warnbg);color:var(--warn)}
+  .summary{font-size:.95rem;margin:.3rem 0 .5rem}
   .src{font-size:.82rem;color:var(--muted)}
   .src a{color:var(--accent);text-decoration:none}
   .src a:hover{text-decoration:underline}
@@ -63,211 +75,346 @@
   footer a{color:var(--accent)}
   .toggle{float:right;background:var(--chip);border:1px solid var(--line);color:var(--ink);
     border-radius:999px;padding:.3rem .7rem;font-size:.8rem;cursor:pointer;font-weight:500}
-  .err{color:#b42318}
-  @media (prefers-color-scheme:dark){.err{color:#ff9d94}}
+  .err{color:var(--crit)}
+  [hidden]{display:none!important}
 </style>
 </head>
 <body>
 <header>
   <button class="toggle" id="themeBtn" title="Toggle light/dark">◐ theme</button>
-  <div class="brand">OpenBioNews · Trial Watch
-    <small>Filter clinical-trial developments live from ClinicalTrials.gov — free, and traced to the source record.</small>
+  <div class="brand">OpenBioNews
+    <small>Filter clinical-trial developments and FDA drug recalls — live, free, and traced to the source record.</small>
   </div>
 </header>
 
 <main>
-  <section class="filters">
-    <div class="chips" id="presets">
-      <span class="chip" data-cond="oncology">Oncology</span>
-      <span class="chip" data-cond="rare disease">Rare disease</span>
-      <span class="chip" data-cond="cystic fibrosis">Cystic fibrosis</span>
-      <span class="chip" data-cond="Alzheimer disease">Alzheimer's</span>
-      <span class="chip" data-spons="Moderna">Moderna</span>
-      <span class="chip" data-spons="Pfizer">Pfizer</span>
-      <span class="chip" data-spons="Vertex Pharmaceuticals">Vertex</span>
-    </div>
-    <div class="grid">
-      <div><label for="spons">Company / sponsor</label><input id="spons" placeholder="e.g. Moderna"></div>
-      <div><label for="cond">Condition</label><input id="cond" placeholder="e.g. melanoma"></div>
-      <div><label for="intr">Drug / intervention</label><input id="intr" placeholder="e.g. mRNA-1345"></div>
-      <div><label for="term">Keyword</label><input id="term" placeholder="any text"></div>
-      <div>
-        <label for="status">Status</label>
-        <select id="status">
-          <option value="">Any status</option>
-          <option value="RECRUITING">Recruiting</option>
-          <option value="NOT_YET_RECRUITING">Not yet recruiting</option>
-          <option value="ACTIVE_NOT_RECRUITING">Active, not recruiting</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="TERMINATED">Terminated</option>
-          <option value="SUSPENDED">Suspended</option>
-          <option value="WITHDRAWN">Withdrawn</option>
-        </select>
+  <div class="tabs" role="tablist">
+    <button class="tab" id="tab-trials" role="tab" aria-selected="true" aria-controls="panel-trials">Clinical trials</button>
+    <button class="tab" id="tab-recalls" role="tab" aria-selected="false" aria-controls="panel-recalls">FDA drug recalls</button>
+  </div>
+
+  <!-- TRIALS -->
+  <section id="panel-trials" role="tabpanel">
+    <div class="filters">
+      <div class="chips" data-for="trials">
+        <span class="chip" data-cond="oncology">Oncology</span>
+        <span class="chip" data-cond="rare disease">Rare disease</span>
+        <span class="chip" data-cond="cystic fibrosis">Cystic fibrosis</span>
+        <span class="chip" data-spons="Moderna">Moderna</span>
+        <span class="chip" data-spons="Pfizer">Pfizer</span>
+        <span class="chip" data-spons="Vertex Pharmaceuticals">Vertex</span>
       </div>
-      <div>
-        <label for="phase">Phase</label>
-        <select id="phase">
-          <option value="">Any phase</option>
-          <option value="EARLY_PHASE1">Early Phase 1</option>
-          <option value="PHASE1">Phase 1</option>
-          <option value="PHASE2">Phase 2</option>
-          <option value="PHASE3">Phase 3</option>
-          <option value="PHASE4">Phase 4</option>
-        </select>
+      <div class="grid">
+        <div><label for="t_spons">Company / sponsor</label><input id="t_spons" placeholder="e.g. Moderna"></div>
+        <div><label for="t_cond">Condition</label><input id="t_cond" placeholder="e.g. melanoma"></div>
+        <div><label for="t_intr">Drug / intervention</label><input id="t_intr" placeholder="e.g. mRNA-1345"></div>
+        <div><label for="t_term">Keyword</label><input id="t_term" placeholder="any text"></div>
+        <div><label for="t_status">Status</label>
+          <select id="t_status">
+            <option value="">Any status</option>
+            <option value="RECRUITING">Recruiting</option>
+            <option value="NOT_YET_RECRUITING">Not yet recruiting</option>
+            <option value="ACTIVE_NOT_RECRUITING">Active, not recruiting</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="TERMINATED">Terminated</option>
+            <option value="SUSPENDED">Suspended</option>
+            <option value="WITHDRAWN">Withdrawn</option>
+          </select>
+        </div>
+        <div><label for="t_phase">Phase</label>
+          <select id="t_phase">
+            <option value="">Any phase</option>
+            <option value="EARLY_PHASE1">Early Phase 1</option>
+            <option value="PHASE1">Phase 1</option>
+            <option value="PHASE2">Phase 2</option>
+            <option value="PHASE3">Phase 3</option>
+            <option value="PHASE4">Phase 4</option>
+          </select>
+        </div>
       </div>
-    </div>
-    <div class="row">
-      <button class="go" id="searchBtn">Search</button>
-      <button class="ghost" id="clearBtn">Clear</button>
-      <div style="flex:1"></div>
-      <div style="min-width:140px">
-        <label for="sort">Sort</label>
-        <select id="sort">
-          <option value="LastUpdatePostDate:desc">Most recently updated</option>
-          <option value="StudyFirstPostDate:desc">Newest registered</option>
-          <option value="@relevance">Best match</option>
-        </select>
+      <div class="row">
+        <button class="go" id="t_search">Search</button>
+        <button class="ghost" id="t_clear">Clear</button>
+        <div style="flex:1"></div>
+        <div style="min-width:150px"><label for="t_sort">Sort</label>
+          <select id="t_sort">
+            <option value="LastUpdatePostDate:desc">Recently updated</option>
+            <option value="StudyFirstPostDate:desc">Newest registered</option>
+            <option value="@relevance">Best match</option>
+          </select>
+        </div>
       </div>
     </div>
   </section>
 
-  <div class="status" id="status">Pick a filter and hit Search — or tap a chip above.</div>
+  <!-- RECALLS -->
+  <section id="panel-recalls" role="tabpanel" hidden>
+    <div class="filters">
+      <div class="chips" data-for="recalls">
+        <span class="chip" data-class="1">Class I (most serious)</span>
+        <span class="chip" data-reason="contamination">Contamination</span>
+        <span class="chip" data-reason="mislabel">Mislabeling</span>
+        <span class="chip" data-firm="Pfizer">Pfizer</span>
+      </div>
+      <div class="grid">
+        <div><label for="r_firm">Recalling firm</label><input id="r_firm" placeholder="e.g. Pfizer"></div>
+        <div><label for="r_drug">Drug / product</label><input id="r_drug" placeholder="e.g. metformin"></div>
+        <div><label for="r_reason">Reason keyword</label><input id="r_reason" placeholder="e.g. contamination"></div>
+        <div><label for="r_class">Classification</label>
+          <select id="r_class">
+            <option value="">Any class</option>
+            <option value="1">Class I — serious/fatal risk</option>
+            <option value="2">Class II — temporary/reversible</option>
+            <option value="3">Class III — unlikely harm</option>
+          </select>
+        </div>
+        <div><label for="r_status">Status</label>
+          <select id="r_status">
+            <option value="">Any status</option>
+            <option value="Ongoing">Ongoing</option>
+            <option value="Completed">Completed</option>
+            <option value="Terminated">Terminated</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <button class="go" id="r_search">Search</button>
+        <button class="ghost" id="r_clear">Clear</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="bar">
+    <div class="status" id="status">Pick a filter and hit Search — or tap a chip above.</div>
+    <button class="linkbtn" id="copyLink" title="Copy a shareable link to this view">🔗 Copy link</button>
+  </div>
   <div id="results"></div>
-  <button class="ghost more" id="moreBtn" style="display:none">Load more</button>
+  <button class="ghost more" id="moreBtn" hidden>Load more</button>
 </main>
 
 <footer>
-  Data from <a href="https://clinicaltrials.gov" target="_blank" rel="noopener">ClinicalTrials.gov</a>,
-  queried live in your browser. Nothing is stored or tracked.
-  Not investment or medical advice. ·
+  Data from <a href="https://clinicaltrials.gov" target="_blank" rel="noopener">ClinicalTrials.gov</a>
+  and <a href="https://open.fda.gov" target="_blank" rel="noopener">openFDA</a>, queried live in your
+  browser. Nothing is stored or tracked. Not investment or medical advice. ·
   Built with <a href="https://github.com/fedor-i/OpenBioNews" target="_blank" rel="noopener">OpenBioNews</a> (free, open source).
 </footer>
 
 <script>
-const API = "https://clinicaltrials.gov/api/v2/studies";
-const FIELDS = ["NCTId","BriefTitle","OverallStatus","LastUpdatePostDate",
-  "LeadSponsorName","Condition","InterventionName","BriefSummary","Phase","StudyType"].join(",");
-
 const $ = id => document.getElementById(id);
-let nextToken = null;
-let lastParams = null;
+const CT_API = "https://clinicaltrials.gov/api/v2/studies";
+const CT_FIELDS = ["NCTId","BriefTitle","OverallStatus","LastUpdatePostDate","LeadSponsorName",
+  "Condition","InterventionName","BriefSummary","Phase","StudyType"].join(",");
+const FDA_API = "https://api.fda.gov/drug/enforcement.json";
 
-// Theme toggle (per-viewer convenience only)
-try{
-  const saved = localStorage.getItem("obn-theme");
-  if(saved) document.documentElement.setAttribute("data-theme", saved);
-}catch(e){}
+let tab = "trials";
+let ctToken = null, ctParams = null;
+let fdaSkip = 0, fdaParams = null, fdaTotal = 0;
+
+// ---- theme (per-viewer convenience) ----
+try{ const s=localStorage.getItem("obn-theme"); if(s) document.documentElement.setAttribute("data-theme",s); }catch(e){}
 $("themeBtn").onclick = () => {
-  const cur = document.documentElement.getAttribute("data-theme");
-  const next = cur === "dark" ? "light" : (cur === "light" ? "dark" :
-    (matchMedia("(prefers-color-scheme:dark)").matches ? "light" : "dark"));
-  document.documentElement.setAttribute("data-theme", next);
-  try{ localStorage.setItem("obn-theme", next); }catch(e){}
+  const cur=document.documentElement.getAttribute("data-theme");
+  const next=cur==="dark"?"light":(cur==="light"?"dark":(matchMedia("(prefers-color-scheme:dark)").matches?"light":"dark"));
+  document.documentElement.setAttribute("data-theme",next);
+  try{ localStorage.setItem("obn-theme",next); }catch(e){}
 };
 
-function dig(o, ...path){ for(const k of path){ if(o && typeof o==="object"){ o=o[k]; } else return undefined; if(o==null) return undefined; } return o; }
+function dig(o,...p){ for(const k of p){ if(o&&typeof o==="object"){o=o[k];} else return undefined; if(o==null) return undefined; } return o; }
+function esc(s){ const d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
+function clip(s,n){ s=s||""; return s.length>n ? s.slice(0,n).replace(/\s+\S*$/,"")+"…" : s; }
+function fmtFdaDate(d){ return (d&&d.length===8)?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:d||""; }
 function prettyStatus(s){ return s ? s.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()) : ""; }
 function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&p!=="NA").map(p=>p.replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase ")).join("/"); }
-function esc(s){ const d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
 
-function buildParams(reset){
-  const p = new URLSearchParams();
-  const add = (k,v)=>{ if(v && v.trim()) p.append(k, v.trim()); };
-  add("query.spons", $("spons").value);
-  add("query.cond",  $("cond").value);
-  add("query.intr",  $("intr").value);
-  add("query.term",  $("term").value);
-  if($("status").value) p.append("filter.overallStatus", $("status").value);
-  p.append("sort", $("sort").value);
-  p.append("fields", FIELDS);
-  p.append("pageSize", "25");
-  p.append("countTotal", "true");
-  if(!reset && nextToken) p.append("pageToken", nextToken);
-  return p;
+// ---- tab switching ----
+function selectTab(name, run){
+  tab = name;
+  const isT = name==="trials";
+  $("tab-trials").setAttribute("aria-selected", isT);
+  $("tab-recalls").setAttribute("aria-selected", !isT);
+  $("panel-trials").hidden = !isT;
+  $("panel-recalls").hidden = isT;
+  $("results").innerHTML = "";
+  $("moreBtn").hidden = true;
+  $("status").textContent = "Pick a filter and hit Search — or tap a chip above.";
+  if(run) run();
+}
+$("tab-trials").onclick = () => { selectTab("trials"); syncUrl(); };
+$("tab-recalls").onclick = () => { selectTab("recalls"); syncUrl(); };
+
+// ---- shared fetch helper (openFDA returns 404 for "no matches") ----
+async function getJson(url, noMatchOn404){
+  const res = await fetch(url, {headers:{"Accept":"application/json"}});
+  if(res.status===404 && noMatchOn404) return {__empty:true};
+  if(!res.ok) throw new Error("HTTP "+res.status);
+  return res.json();
 }
 
-function anyFilter(){
-  return ["spons","cond","intr","term","status"].some(id => $(id).value.trim());
+// ================= TRIALS =================
+function trialsFilters(){
+  return {spons:$("t_spons").value.trim(), cond:$("t_cond").value.trim(), intr:$("t_intr").value.trim(),
+    term:$("t_term").value.trim(), status:$("t_status").value, phase:$("t_phase").value, sort:$("t_sort").value};
 }
-
-async function search(reset){
-  if(reset){ nextToken=null; $("results").innerHTML=""; }
-  if(!anyFilter()){
-    $("status").textContent = "Enter at least one filter (company, condition, drug, keyword or status).";
-    return;
-  }
-  const phaseWant = $("phase").value;
-  const params = reset ? buildParams(true) : lastParams;
-  if(reset) lastParams = params;
-  else { params.set("pageToken", nextToken || ""); }
-  $("status").textContent = "Searching ClinicalTrials.gov…";
-  $("moreBtn").style.display = "none";
+function trialsHasFilter(f){ return f.spons||f.cond||f.intr||f.term||f.status; }
+function buildCtUrl(f, token){
+  const p=new URLSearchParams();
+  const add=(k,v)=>{ if(v) p.append(k,v); };
+  add("query.spons",f.spons); add("query.cond",f.cond); add("query.intr",f.intr); add("query.term",f.term);
+  if(f.status) p.append("filter.overallStatus", f.status);
+  p.append("sort", f.sort||"LastUpdatePostDate:desc");
+  p.append("fields", CT_FIELDS); p.append("pageSize","25"); p.append("countTotal","true");
+  if(token) p.append("pageToken", token);
+  return CT_API+"?"+p.toString();
+}
+async function searchTrials(reset){
+  const f = trialsFilters();
+  if(reset){ ctToken=null; ctParams=f; $("results").innerHTML=""; }
+  if(!trialsHasFilter(f)){ $("status").textContent="Enter a company, condition, drug, keyword or status."; return; }
+  $("status").textContent="Searching ClinicalTrials.gov…"; $("moreBtn").hidden=true;
   try{
-    const res = await fetch(API + "?" + params.toString(), {headers:{"Accept":"application/json"}});
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    const studies = data.studies || [];
-    nextToken = data.nextPageToken || null;
-    let shown = 0;
-    for(const st of studies){
-      const card = render(st, phaseWant);
-      if(card){ $("results").appendChild(card); shown++; }
-    }
+    const data = await getJson(buildCtUrl(ctParams||f, reset?null:ctToken));
+    ctToken = data.nextPageToken || null;
+    for(const st of (data.studies||[])){ const c=renderTrial(st, (ctParams||f).phase); if(c) $("results").appendChild(c); }
+    const have=$("results").children.length;
     const total = data.totalCount!=null ? data.totalCount.toLocaleString() : "?";
-    const have = $("results").children.length;
     $("status").textContent = have ? `Showing ${have} of ~${total} matching studies.` :
-      "No matching studies (try a broader filter, or a different phase).";
-    $("moreBtn").style.display = nextToken ? "block" : "none";
-  }catch(err){
-    $("status").innerHTML = '<span class="err">Could not reach ClinicalTrials.gov ('+esc(err.message)+
-      '). If this persists, the API may be busy or blocked by your network.</span>';
-  }
+      "No matching studies (try a broader filter or different phase).";
+    $("moreBtn").hidden = !ctToken;
+  }catch(err){ showErr("ClinicalTrials.gov", err); }
 }
-
-function render(st, phaseWant){
-  const ps = st.protocolSection || st;
-  const nct = dig(ps,"identificationModule","nctId");
-  const title = dig(ps,"identificationModule","briefTitle");
-  if(!nct || !title) return null;
-  const phases = dig(ps,"designModule","phases") || [];
+function renderTrial(st, phaseWant){
+  const ps=st.protocolSection||st;
+  const nct=dig(ps,"identificationModule","nctId"), title=dig(ps,"identificationModule","briefTitle");
+  if(!nct||!title) return null;
+  const phases=dig(ps,"designModule","phases")||[];
   if(phaseWant && !phases.includes(phaseWant)) return null;
-  const status = dig(ps,"statusModule","overallStatus") || "";
-  const date = dig(ps,"statusModule","lastUpdatePostDateStruct","date") || "";
-  const spons = dig(ps,"sponsorCollaboratorsModule","leadSponsor","name") || "";
-  const conds = dig(ps,"conditionsModule","conditions") || [];
-  const summary = dig(ps,"descriptionModule","briefSummary") || "";
-  const url = "https://clinicaltrials.gov/study/" + nct;
-
-  const tags = [prettyStatus(status), prettyPhase(phases), spons].filter(Boolean);
-  const el = document.createElement("article");
+  const status=dig(ps,"statusModule","overallStatus")||"";
+  const date=dig(ps,"statusModule","lastUpdatePostDateStruct","date")||"";
+  const spons=dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")||"";
+  const conds=dig(ps,"conditionsModule","conditions")||[];
+  const summary=dig(ps,"descriptionModule","briefSummary")||"";
+  const url="https://clinicaltrials.gov/study/"+nct;
+  const tags=[prettyStatus(status),prettyPhase(phases),spons].filter(Boolean);
+  const el=document.createElement("article");
   el.innerHTML =
-    `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(title)}</a></h2>` +
-    `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>` +
-    (summary ? `<div class="summary">${esc(summary.length>320?summary.slice(0,320).replace(/\s+\S*$/,"")+"…":summary)}</div>` : "") +
-    `<div class="src">${conds.length?esc(conds.slice(0,4).join(", "))+" · ":""}` +
-    (date?`updated ${esc(date)} · `:"") +
+    `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(title)}</a></h2>`+
+    `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
+    (summary?`<div class="summary">${esc(clip(summary,320))}</div>`:"")+
+    `<div class="src">${conds.length?esc(conds.slice(0,4).join(", "))+" · ":""}`+
+    (date?`updated ${esc(date)} · `:"")+
     `↳ Source: <a href="${esc(url)}" target="_blank" rel="noopener">ClinicalTrials.gov ${esc(nct)}</a></div>`;
   return el;
 }
 
-$("searchBtn").onclick = () => search(true);
-$("moreBtn").onclick = () => search(false);
-$("clearBtn").onclick = () => {
-  ["spons","cond","intr","term"].forEach(id=>$(id).value="");
-  $("status").value=""; $("phase").value="";
-  $("results").innerHTML=""; $("moreBtn").style.display="none";
-  $("status").textContent="Cleared. Pick a filter and hit Search.";
+// ================= FDA RECALLS =================
+function recallsFilters(){
+  return {firm:$("r_firm").value.trim(), drug:$("r_drug").value.trim(), reason:$("r_reason").value.trim(),
+    cls:$("r_class").value, status:$("r_status").value};
+}
+function recallsHasFilter(f){ return f.firm||f.drug||f.reason||f.cls||f.status; }
+function buildFdaUrl(f, skip){
+  const terms=[];
+  const q=(field,v)=>{ if(v) terms.push(`${field}:"${v.replace(/"/g,"")}"`); };
+  q("recalling_firm", f.firm);
+  q("product_description", f.drug);
+  q("reason_for_recall", f.reason);
+  if(f.cls) terms.push(`classification:"Class ${f.cls==="1"?"I":f.cls==="2"?"II":"III"}"`);
+  if(f.status) terms.push(`status:"${f.status}"`);
+  const search = terms.join("+AND+");
+  return `${FDA_API}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&sort=report_date:desc&limit=25&skip=${skip||0}`;
+}
+async function searchRecalls(reset){
+  const f=recallsFilters();
+  if(reset){ fdaSkip=0; fdaParams=f; $("results").innerHTML=""; }
+  if(!recallsHasFilter(f)){ $("status").textContent="Enter a firm, drug, reason, class or status."; return; }
+  $("status").textContent="Searching openFDA…"; $("moreBtn").hidden=true;
+  try{
+    const data = await getJson(buildFdaUrl(fdaParams||f, reset?0:fdaSkip), true);
+    if(data.__empty){ if(reset) $("results").innerHTML=""; $("status").textContent="No matching recalls."; $("moreBtn").hidden=true; return; }
+    fdaTotal = dig(data,"meta","results","total") || 0;
+    const rows = data.results||[];
+    for(const r of rows){ $("results").appendChild(renderRecall(r)); }
+    fdaSkip += rows.length;
+    const have=$("results").children.length;
+    $("status").textContent = have ? `Showing ${have} of ${Number(fdaTotal).toLocaleString()} recalls.` : "No matching recalls.";
+    $("moreBtn").hidden = have >= fdaTotal;
+  }catch(err){ showErr("openFDA", err); }
+}
+function renderRecall(r){
+  const brand=dig(r,"openfda","brand_name");
+  const title = (brand&&brand.length?brand[0]:null) || clip(r.product_description,90) || (r.recalling_firm+" recall");
+  const cls=(r.classification||"").replace("Class ","");
+  const clsN = cls==="I"?"1":cls==="II"?"2":cls==="III"?"3":"";
+  const tags=[r.classification, r.status, r.recalling_firm].filter(Boolean);
+  const date=fmtFdaDate(r.report_date);
+  const num=r.recall_number||"";
+  const src = num ? `${FDA_API}?search=recall_number:%22${encodeURIComponent(num)}%22` : "https://www.fda.gov/drugs/drug-recalls";
+  const el=document.createElement("article");
+  el.innerHTML =
+    `<h2>${esc(title)}</h2>`+
+    `<div class="tags">${tags.map((t,i)=>`<span class="tag${i===0&&clsN?` c${clsN}`:""}">${esc(t)}</span>`).join("")}</div>`+
+    (r.reason_for_recall?`<div class="summary">${esc(clip(r.reason_for_recall,320))}</div>`:"")+
+    `<div class="src">${r.product_description?esc(clip(r.product_description,140))+" · ":""}`+
+    (date?`reported ${esc(date)} · `:"")+
+    `↳ Source: <a href="${esc(src)}" target="_blank" rel="noopener">FDA recall ${esc(num||"record")}</a></div>`;
+  return el;
+}
+
+// ---- errors ----
+function showErr(name, err){
+  $("status").innerHTML = `<span class="err">Could not reach ${esc(name)} (${esc(err.message)}). `+
+    `It may be busy or blocked by your network — try again shortly.</span>`;
+}
+
+// ---- current search dispatch ----
+function runSearch(reset){ return tab==="trials" ? searchTrials(reset) : searchRecalls(reset); }
+$("t_search").onclick=()=>{ searchTrials(true); syncUrl(); };
+$("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
+$("moreBtn").onclick=()=>runSearch(false);
+$("t_clear").onclick=()=>{ ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).value=""); $("t_status").value=""; $("t_phase").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
+$("r_clear").onclick=()=>{ ["r_firm","r_drug","r_reason"].forEach(id=>$(id).value=""); $("r_class").value=""; $("r_status").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
+
+["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchTrials(true); syncUrl(); }}));
+["r_firm","r_drug","r_reason"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchRecalls(true); syncUrl(); }}));
+
+document.querySelectorAll('.chips[data-for="trials"] .chip').forEach(c=>c.onclick=()=>{
+  if(c.dataset.cond) $("t_cond").value=c.dataset.cond;
+  if(c.dataset.spons) $("t_spons").value=c.dataset.spons;
+  searchTrials(true); syncUrl();
+});
+document.querySelectorAll('.chips[data-for="recalls"] .chip').forEach(c=>c.onclick=()=>{
+  if(c.dataset.firm) $("r_firm").value=c.dataset.firm;
+  if(c.dataset.reason) $("r_reason").value=c.dataset.reason;
+  if(c.dataset.class) $("r_class").value=c.dataset.class;
+  searchRecalls(true); syncUrl();
+});
+
+// ---- shareable URL state ----
+const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_sort:"sort"};
+const R_FIELDS={r_firm:"firm",r_drug:"drug",r_reason:"reason",r_class:"class",r_status:"rstatus"};
+function syncUrl(){
+  const p=new URLSearchParams(); p.set("tab",tab);
+  const map = tab==="trials"?T_FIELDS:R_FIELDS;
+  for(const [id,key] of Object.entries(map)){ const v=$(id).value; if(v) p.set(key,v); }
+  history.replaceState(null,"","?"+p.toString());
+}
+$("copyLink").onclick=async()=>{
+  syncUrl();
+  const url=location.href;
+  try{ await navigator.clipboard.writeText(url); $("copyLink").textContent="✓ Copied"; setTimeout(()=>$("copyLink").textContent="🔗 Copy link",1500); }
+  catch(e){ prompt("Copy this link:", url); }
 };
-["spons","cond","intr","term"].forEach(id=>{
-  $(id).addEventListener("keydown", e=>{ if(e.key==="Enter") search(true); });
-});
-document.querySelectorAll("#presets .chip").forEach(chip=>{
-  chip.onclick = () => {
-    if(chip.dataset.cond) $("cond").value = chip.dataset.cond;
-    if(chip.dataset.spons) $("spons").value = chip.dataset.spons;
-    search(true);
-  };
-});
+function loadFromUrl(){
+  const p=new URLSearchParams(location.search);
+  const t=p.get("tab")==="recalls"?"recalls":"trials";
+  for(const [id,key] of Object.entries(T_FIELDS)) if(p.get(key)) $(id).value=p.get(key);
+  for(const [id,key] of Object.entries(R_FIELDS)) if(p.get(key)) $(id).value=p.get(key);
+  selectTab(t);
+  const hasT = trialsHasFilter(trialsFilters()), hasR = recallsHasFilter(recallsFilters());
+  if(t==="trials" && hasT) searchTrials(true);
+  else if(t==="recalls" && hasR) searchRecalls(true);
+}
+loadFromUrl();
 </script>
 </body>
 </html>

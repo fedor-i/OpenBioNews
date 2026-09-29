@@ -180,18 +180,26 @@ exactly these — see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 ## Hosted web version — filter in your browser, no install
 
 For people who just want to **click and filter**, there's a single-page web app
-in [`docs/index.html`](docs/index.html). It queries ClinicalTrials.gov **live in
-the browser** — filter by company, condition, drug, status, or phase and read
-results with a link to each source record. No server, no backend, no tracking.
+in [`docs/index.html`](docs/index.html) with two tabs:
 
-**Host it free on GitHub Pages** (about 30 seconds):
+- **Clinical trials** — filter ClinicalTrials.gov by company, condition, drug,
+  status, or phase.
+- **FDA drug recalls** — filter openFDA enforcement reports by firm, product,
+  reason, classification (Class I/II/III), or status.
 
-1. Repo → **Settings → Pages**.
-2. **Source:** *Deploy from a branch* → Branch **`main`**, folder **`/docs`** → **Save**.
+Both query the source **live in the browser**, show a link to each source
+record, and support **shareable links** (copy a link that reproduces the exact
+filtered view). No server, no backend, no tracking.
+
+**Host it free on GitHub Pages:**
+
+1. Repo → **Settings → Pages → Build and deployment**.
+2. **Source: GitHub Actions** (the included workflow deploys `docs/`), *or*
+   *Deploy from a branch* → **`main`** / **`/docs`**.
 3. Your page goes live at `https://fedor-i.github.io/OpenBioNews/`.
 
 Point a custom domain at it in the same settings page if you like. Because it's
-static and calls the public API directly, it costs nothing to run and scales to
+static and calls the public APIs directly, it costs nothing to run and scales to
 any number of visitors.
 
 ---
