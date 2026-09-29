@@ -160,6 +160,8 @@ conditions, drugs, terms) and switch on whichever official sources you want:
   status), cited to the FDA record.
 - **openFDA drug approvals** — Drugs@FDA approvals, original and supplemental
   (new indication), cited to the Drugs@FDA page.
+- **openFDA drug shortages** — current/resolved shortages (reason, status,
+  category), cited to the FDA Drug Shortages database.
 - **SEC EDGAR** — filings (8-K, 10-K, S-1, 424B, 13D/G, DEF 14A, Form 4…), cited
   to the filing document. SEC asks for a contact User-Agent — set your email in
   `connectors.edgar.user_agent`.
@@ -175,6 +177,7 @@ conditions, drugs, terms) and switch on whichever official sources you want:
   "clinicaltrials":    { "enabled": true, "recent_days": 30 },
   "openfda":           { "enabled": true, "recent_days": 30 },
   "openfda_approvals": { "enabled": true, "recent_days": 90 },
+  "openfda_shortages": { "enabled": true, "recent_days": 60, "statuses": ["Current"] },
   "edgar":             { "enabled": true, "recent_days": 30, "forms": ["8-K"],
                          "user_agent": "Your Name your@email.com" }
 }

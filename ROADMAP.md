@@ -7,7 +7,7 @@ claim something.
 
 ## Primary sources (highest value)
 - [x] **openFDA drug approvals** (Drugs@FDA) — new + supplemental approvals.
-- [ ] **openFDA drug shortages** — current/resolved shortages.
+- [x] **openFDA drug shortages** — current/resolved shortages.
 - [ ] **SEC EDGAR via `data.sec.gov`** submissions per company (CIK) as an
       alternative to full-text search, for precise per-company filing feeds.
 - [ ] **EMA** and other non-US regulators.

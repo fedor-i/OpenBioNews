@@ -1,0 +1,14 @@
+{
+  "results": [
+    {
+      "generic_name": "Cisplatin Injection",
+      "proprietary_name": "",
+      "company_name": "Onco Generics",
+      "status": "Current",
+      "reason_for_shortage": "Manufacturing delay at the primary supplier.",
+      "therapeutic_category": ["Oncology"],
+      "update_date": "2026-09-17",
+      "initial_posting_date": "2026-07-15"
+    }
+  ]
+}

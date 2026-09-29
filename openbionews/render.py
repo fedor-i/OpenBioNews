@@ -17,6 +17,7 @@ _TOPIC_LABELS = {
     "clinical_trials": "Clinical Trials",
     "fda_recalls": "FDA Drug Recalls",
     "fda_approvals": "FDA Drug Approvals",
+    "fda_shortages": "FDA Drug Shortages",
     "sec_filings": "SEC Filings",
 }
 

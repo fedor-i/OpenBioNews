@@ -98,6 +98,13 @@ def default_config() -> dict[str, Any]:
                 "max_total": 40,
                 "include_supplements": True,  # also include new-indication supplements
             },
+            "openfda_shortages": {
+                "enabled": False,
+                "recent_days": 60,        # shortage updates within N days
+                "max_per_query": 20,
+                "max_total": 40,
+                "statuses": ["Current"],   # e.g. ["Current", "Resolved"]; [] = any
+            },
             "edgar": {
                 "enabled": False,
                 "recent_days": 30,       # filings filed within N days

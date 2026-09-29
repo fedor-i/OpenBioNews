@@ -150,8 +150,9 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
     ct = conns.setdefault("clinicaltrials", {})
     fda = conns.setdefault("openfda", {})
     apr = conns.setdefault("openfda_approvals", {})
+    shr = conns.setdefault("openfda_shortages", {})
     edg = conns.setdefault("edgar", {})
-    already = any(c.get("enabled") for c in (ct, fda, apr, edg))
+    already = any(c.get("enabled") for c in (ct, fda, apr, shr, edg))
     if ask_yes_no("Track official primary sources (trials, FDA recalls, SEC filings)?",
                   default=already):
         wl = cfg.setdefault("watchlist", {})
@@ -185,9 +186,11 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
                                     default=fda.get("enabled", False))
         apr["enabled"] = ask_yes_no("  Include FDA drug approvals (openFDA)?",
                                     default=apr.get("enabled", False))
+        shr["enabled"] = ask_yes_no("  Include FDA drug shortages (openFDA)?",
+                                    default=shr.get("enabled", False))
         edg["enabled"] = ask_yes_no("  Include SEC filings (EDGAR)?",
                                     default=edg.get("enabled", False))
-        for c in (ct, fda, apr, edg):
+        for c in (ct, fda, apr, shr, edg):
             c["recent_days"] = recent
         if apr["enabled"]:
             # Approvals are less frequent — widen the window unless the user set one.
@@ -199,10 +202,11 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
             edg["forms"] = _csv(ask_text("  SEC form types (comma-separated)",
                                          ", ".join(edg.get("forms", ["8-K"]))))
         enabled = [n for n, c in (("ClinicalTrials.gov", ct), ("FDA recalls", fda),
-                                  ("FDA approvals", apr), ("SEC EDGAR", edg)) if c.get("enabled")]
+                                  ("FDA approvals", apr), ("FDA shortages", shr),
+                                  ("SEC EDGAR", edg)) if c.get("enabled")]
         print(f"  → primary sources: {', '.join(enabled) or 'none selected'}")
     else:
-        for c in (ct, fda, apr, edg):
+        for c in (ct, fda, apr, shr, edg):
             c["enabled"] = False
 
     # 3. Focus
@@ -301,7 +305,8 @@ def _print_summary(cfg: dict) -> None:
     print(f"  Feeds    : {len(cfg['feeds'])}")
     conns = cfg.get("connectors", {})
     labels = {"clinicaltrials": "ClinicalTrials.gov", "openfda": "FDA recalls",
-              "openfda_approvals": "FDA approvals", "edgar": "SEC EDGAR"}
+              "openfda_approvals": "FDA approvals", "openfda_shortages": "FDA shortages",
+              "edgar": "SEC EDGAR"}
     enabled = [labels[k] for k in labels if conns.get(k, {}).get("enabled")]
     if enabled:
         wl = cfg.get("watchlist", {})

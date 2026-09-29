@@ -139,6 +139,15 @@
       "max_total": 40,
       "include_supplements": true
     },
+    "openfda_shortages": {
+      "enabled": false,
+      "recent_days": 60,
+      "max_per_query": 20,
+      "max_total": 40,
+      "statuses": [
+        "Current"
+      ]
+    },
     "edgar": {
       "enabled": false,
       "recent_days": 30,

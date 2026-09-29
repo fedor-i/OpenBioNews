@@ -19,6 +19,7 @@ from .connectors.clinicaltrials import parse_studies
 from .connectors.edgar import parse_hits
 from .connectors.openfda import parse_enforcement
 from .connectors.openfda_approvals import parse_approvals
+from .connectors.openfda_shortages import parse_shortages
 from .llm.nollm import NoLLMBackend
 from .models import Digest
 
@@ -40,6 +41,7 @@ def demo_items() -> list:
     items.extend(parse_enforcement(json.loads((DATA / "demo_openfda.json").read_text("utf-8"))))
     # cutoff=None: keep every fixture approval regardless of its fixed date.
     items.extend(parse_approvals(json.loads((DATA / "demo_fda_approvals.json").read_text("utf-8")), cutoff=None))
+    items.extend(parse_shortages(json.loads((DATA / "demo_fda_shortages.json").read_text("utf-8"))))
     items.extend(parse_hits(json.loads((DATA / "demo_edgar.json").read_text("utf-8"))))
     return items
 

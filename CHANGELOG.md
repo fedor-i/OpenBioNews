@@ -25,6 +25,9 @@ to follow [Semantic Versioning](https://semver.org/).
 - **Therapeutic-area presets** (oncology, cardiometabolic, rare disease,
   neurology, immunology, infectious disease): one-tap watch-list seeding in the
   setup wizard and matching chips on the hosted page. (Closes #4.)
+- **openFDA drug-shortages connector** (`connectors.openfda_shortages`): current
+  (or resolved) shortages by drug/company, cited to the FDA Drug Shortages
+  database — completing the FDA trio (recalls + approvals + shortages).
 
 ### Fixed
 - Windows: the setup wizard and `doctor` could raise `UnicodeEncodeError` when

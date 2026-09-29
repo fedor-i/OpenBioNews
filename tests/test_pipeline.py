@@ -439,6 +439,30 @@ def test_openfda_approvals_query_and_registry():
     assert any(x.name == "openFDA (Drug Approvals)" for x in get_connectors(cfg))
 
 
+SHORTAGE_FIXTURE = {"results": [{
+    "generic_name": "Amoxicillin", "company_name": "Generic Pharma Co",
+    "status": "Current", "reason_for_shortage": "Demand increase.",
+    "therapeutic_category": ["Anti-Infective"], "update_date": "2026-09-18",
+}]}
+
+
+def test_openfda_shortages_parse_and_query():
+    from openbionews.connectors.openfda_shortages import parse_shortages, OpenFDAShortagesConnector
+    from openbionews.connectors import get_connectors
+    it = parse_shortages(SHORTAGE_FIXTURE)[0]
+    assert it.title == "Amoxicillin — shortage (Current)"
+    assert it.tag == "Current · Anti-Infective · Generic Pharma Co"
+    assert it.source == "openFDA (Drug Shortages)" and it.topic == "fda_shortages" and it.age_exempt
+    assert "dps.fda.gov/drugshortages" in it.citations[0].url
+    c = OpenFDAShortagesConnector({"statuses": ["Current"]}, {"interventions": ["amoxicillin"]})
+    raw = c._raw_query(c._entity_exprs()[0])
+    assert 'status:"Current"' in raw and "generic_name" in raw
+    assert c.available()[0] is True
+    cfg = config.default_config()
+    cfg["connectors"]["openfda_shortages"]["enabled"] = True
+    assert any(x.name == "openFDA (Drug Shortages)" for x in get_connectors(cfg))
+
+
 def test_edgar_parse():
     from openbionews.connectors.edgar import parse_hits
     items = parse_hits(SEC_FIXTURE)
@@ -498,12 +522,13 @@ def test_demo_covers_all_primary_sources():
 
     rendered, digest = build_demo_digest("markdown")
     topics = {c.topic for c in digest.clusters}
-    assert {"clinical_trials", "fda_recalls", "fda_approvals", "sec_filings"} <= topics
+    assert {"clinical_trials", "fda_recalls", "fda_approvals", "fda_shortages", "sec_filings"} <= topics
     # Each primary source contributes a citation line to the output.
     assert "NCT05012345" in rendered            # ClinicalTrials.gov record
     assert "FDA recall D-0456-2026" in rendered  # openFDA recall record (Class I)
     assert "D-0461-2026" in rendered             # both recalls survive dedup
     assert "Drugs@FDA BLA761399" in rendered     # openFDA approval record
+    assert "FDA Drug Shortages: Cisplatin Injection" in rendered  # shortage record
     assert "EDGAR 0001683168-26-006789" in rendered  # SEC filing
     # HTML variant renders too.
     html, _ = build_demo_digest("html")
