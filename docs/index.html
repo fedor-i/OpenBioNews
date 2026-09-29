@@ -462,6 +462,27 @@ function buildSecUrl(f, from){
   if(from) p.append("from", from);
   return SEC_API+"?"+p.toString();
 }
+// SEC's own full-text search UI, deep-linked with the current filters. Used as a
+// reliable fallback because efts.sec.gov does not consistently allow in-browser
+// (cross-origin) requests.
+function secUiLink(f){
+  const parts=[];
+  if(f.q) parts.push("q="+encodeURIComponent(f.q));
+  if(f.form) parts.push("forms="+encodeURIComponent(f.form));
+  if(f.recent) parts.push("dateRange=custom","startdt="+daysAgoISO(+f.recent),"enddt="+daysAgoISO(0));
+  return "https://www.sec.gov/edgar/search/#/"+parts.join("&");
+}
+function secFallbackCard(f, note){
+  const url=secUiLink(f);
+  const el=document.createElement("article");
+  el.innerHTML =
+    `<h2>Open this search on SEC EDGAR ↗</h2>`+
+    (note?`<div class="summary">${esc(note)}</div>`:"")+
+    `<div class="src">SEC does not allow in-page results from other sites, so this opens the official `+
+    `EDGAR full-text search with your filters already applied: `+
+    `<a href="${esc(url)}" target="_blank" rel="noopener">EDGAR full-text search ↗</a></div>`;
+  return el;
+}
 async function searchSec(reset){
   const f=secFilters();
   if(reset){ secFrom=0; secParams=f; $("results").innerHTML=""; }
@@ -474,9 +495,20 @@ async function searchSec(reset){
     for(const h of hits){ const c=renderFiling(h); if(c) $("results").appendChild(c); }
     secFrom += hits.length;
     const have=$("results").children.length;
-    $("status").textContent = have ? `Showing ${have} of ${Number(secTotal).toLocaleString()} filings.` : "No matching filings.";
+    if(have){
+      $("status").innerHTML = `Showing ${have} of ${Number(secTotal).toLocaleString()} filings · `+
+        `<a href="${esc(secUiLink(secParams||f))}" target="_blank" rel="noopener">open on EDGAR ↗</a>`;
+    }else{
+      $("results").appendChild(secFallbackCard(secParams||f, "No results returned in-page."));
+      $("status").textContent = "Use the EDGAR link below.";
+    }
     $("moreBtn").hidden = have>=secTotal || hits.length===0;
-  }catch(err){ showErr("SEC EDGAR", err); }
+  }catch(err){
+    $("results").appendChild(secFallbackCard(secParams||f,
+      "In-browser search was blocked by SEC ("+err.message+")."));
+    $("status").textContent = "SEC blocks in-page search from other sites — use the link below.";
+    $("moreBtn").hidden = true;
+  }
 }
 function renderFiling(h){
   const s=h._source||{};

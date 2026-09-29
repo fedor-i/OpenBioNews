@@ -190,7 +190,10 @@ in [`docs/index.html`](docs/index.html) with two tabs:
   **voluntary vs. FDA-mandated**.
 - **SEC filings** — full-text search SEC EDGAR by company/ticker/keyword,
   **filing type** (8-K, 10-K, S-1, 424B, 13D/G, DEF 14A, Form 4…), and
-  **filed-within** recency; each result links to the filing document.
+  **filed-within** recency; each result links to the filing document. (SEC does
+  not reliably allow in-browser cross-origin requests, so when a visitor's
+  browser is blocked, this tab falls back to opening the same search on SEC's
+  official EDGAR site with the filters applied.)
 
 Both query the source **live in the browser**, show a link to each source
 record, and support **shareable links** (copy a link that reproduces the exact
