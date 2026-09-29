@@ -409,15 +409,31 @@ def test_citation_render():
 
 
 def test_end_to_end_demo():
-    from openbionews.cli import _demo_config
-    from openbionews.run import build_digest
+    from openbionews.demo import build_demo_digest
 
-    result = build_digest(_demo_config())
-    assert result.story_count >= 1
+    rendered, digest = build_demo_digest("markdown")
+    assert digest.clusters, "demo should produce stories"
     # The two sample wires share one CRISPR story; it should cluster.
-    multi = [c for c in result.digest.clusters if len(c.sources) > 1]
+    multi = [c for c in digest.clusters if len(c.sources) > 1]
     assert multi, "expected at least one multi-source cluster"
-    assert "OpenBioNews" in result.rendered or "Demo" in result.rendered
+    assert "OpenBioNews" in rendered
+
+
+def test_demo_covers_all_primary_sources():
+    """The offline demo must showcase trials, FDA recalls and SEC filings, cited."""
+    from openbionews.demo import build_demo_digest
+
+    rendered, digest = build_demo_digest("markdown")
+    topics = {c.topic for c in digest.clusters}
+    assert {"clinical_trials", "fda_recalls", "sec_filings"} <= topics
+    # Each primary source contributes a citation line to the output.
+    assert "NCT05012345" in rendered            # ClinicalTrials.gov record
+    assert "FDA recall D-0456-2026" in rendered  # openFDA record (Class I)
+    assert "D-0461-2026" in rendered             # both recalls survive dedup
+    assert "EDGAR 0001683168-26-006789" in rendered  # SEC filing
+    # HTML variant renders too.
+    html, _ = build_demo_digest("html")
+    assert "<!doctype html>" in html
 
 
 if __name__ == "__main__":

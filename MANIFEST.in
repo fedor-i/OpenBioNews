@@ -1,0 +1,9 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include CONTRIBUTING.md
+include CODE_OF_CONDUCT.md
+include config.example.json
+include requirements.txt
+recursive-include openbionews/data *.xml *.json
+recursive-include tests *.py

@@ -26,22 +26,6 @@ def _load_or_hint(path: Path | None):
     return config_mod.load_config(cfg_path)
 
 
-def _demo_config() -> dict:
-    """A self-contained config that reads the bundled offline sample feed."""
-    data = Path(__file__).parent / "data"
-    cfg = config_mod.default_config()
-    cfg["profile"]["title"] = "OpenBioNews — Demo Digest"
-    cfg["profile"]["intro"] = "Built offline from bundled sample data."
-    cfg["profile"]["bundles"] = ["biotech"]
-    cfg["feeds"] = [
-        {"name": "Sample Wire A", "url": str(data / "sample_feed_a.xml"), "topic": "biotech"},
-        {"name": "Sample Wire B", "url": str(data / "sample_feed_b.xml"), "topic": "biotech"},
-    ]
-    cfg["filters"]["max_age_hours"] = 0  # sample dates are fixed; don't age them out
-    cfg["output"]["write_file"] = False
-    return cfg
-
-
 def cmd_setup(args) -> int:
     path = Path(args.config).expanduser() if args.config else None
     existing = None
@@ -54,9 +38,13 @@ def cmd_setup(args) -> int:
 
 def cmd_run(args) -> int:
     if args.demo:
-        cfg = _demo_config()
-    else:
-        cfg = _load_or_hint(Path(args.config).expanduser() if args.config else None)
+        # Offline showcase: mixed RSS + primary-source digest from bundled data.
+        from .demo import build_demo_digest
+        rendered, _ = build_demo_digest(fmt=(args.format or "markdown"))
+        sys.stdout.write(rendered)
+        return 0
+
+    cfg = _load_or_hint(Path(args.config).expanduser() if args.config else None)
     if args.no_summaries:
         cfg["output"]["summaries"] = False
     if args.format:

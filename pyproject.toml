@@ -39,4 +39,4 @@ openbionews = "openbionews.cli:main"
 packages = ["openbionews", "openbionews.llm", "openbionews.connectors"]
 
 [tool.setuptools.package-data]
-openbionews = ["data/*.xml"]
+openbionews = ["data/*.xml", "data/*.json"]

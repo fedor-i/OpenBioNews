@@ -1,0 +1,24 @@
+{
+  "results": [
+    {
+      "recalling_firm": "Meridian Injectables",
+      "product_description": "Epinephrine Injection USP 1 mg/mL single-dose vials",
+      "reason_for_recall": "Presence of visible particulate matter identified during routine stability testing.",
+      "classification": "Class I",
+      "status": "Ongoing",
+      "report_date": "20260921",
+      "recall_number": "D-0456-2026",
+      "openfda": {"brand_name": ["Adrenaclick"]}
+    },
+    {
+      "recalling_firm": "Cardinal Generics",
+      "product_description": "Metformin Hydrochloride Extended-Release Tablets 750 mg",
+      "reason_for_recall": "N-nitrosodimethylamine (NDMA) levels above the acceptable daily intake limit.",
+      "classification": "Class II",
+      "status": "Ongoing",
+      "report_date": "20260916",
+      "recall_number": "D-0461-2026",
+      "openfda": {"brand_name": []}
+    }
+  ]
+}

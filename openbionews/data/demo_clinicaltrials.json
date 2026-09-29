@@ -1,0 +1,26 @@
+{
+  "studies": [
+    {
+      "protocolSection": {
+        "identificationModule": {"nctId": "NCT05012345", "briefTitle": "CAR-T Therapy for Relapsed Large B-Cell Lymphoma"},
+        "statusModule": {"overallStatus": "RECRUITING", "lastUpdatePostDateStruct": {"date": "2026-09-24"}},
+        "sponsorCollaboratorsModule": {"leadSponsor": {"name": "Helix Therapeutics"}},
+        "conditionsModule": {"conditions": ["Large B-Cell Lymphoma"]},
+        "armsInterventionsModule": {"interventions": [{"name": "HLX-CAR19"}]},
+        "designModule": {"phases": ["PHASE2"]},
+        "descriptionModule": {"briefSummary": "A phase 2 study evaluating an autologous CD19-directed CAR-T therapy in adults with relapsed or refractory large B-cell lymphoma. The primary endpoint is overall response rate at three months."}
+      }
+    },
+    {
+      "protocolSection": {
+        "identificationModule": {"nctId": "NCT05099887", "briefTitle": "Inhaled mRNA Therapy for Cystic Fibrosis"},
+        "statusModule": {"overallStatus": "ACTIVE_NOT_RECRUITING", "lastUpdatePostDateStruct": {"date": "2026-09-19"}},
+        "sponsorCollaboratorsModule": {"leadSponsor": {"name": "Aer Bio"}},
+        "conditionsModule": {"conditions": ["Cystic Fibrosis"]},
+        "armsInterventionsModule": {"interventions": [{"name": "AER-501"}]},
+        "designModule": {"phases": ["PHASE1"]},
+        "descriptionModule": {"briefSummary": "A first-in-human study of a nebulized mRNA therapy designed to restore CFTR protein function in patients with cystic fibrosis carrying selected mutations. Safety and tolerability are the primary endpoints."}
+      }
+    }
+  ]
+}

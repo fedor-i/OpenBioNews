@@ -42,7 +42,10 @@ def filter_items(items: list[Item], filters: dict) -> list[Item]:
             continue
         if exclude and any(k in haystack for k in exclude):
             continue
-        key = _normalize_link(item.link) or item.guid
+        # Prefer the stable guid (NCT id, recall number, EDGAR accession) — some
+        # sources' links differ only by a query string, which _normalize_link
+        # strips, so link-only dedup would wrongly collapse them.
+        key = (item.guid or "").strip() or _normalize_link(item.link)
         if key in seen_links:
             continue
         seen_links.add(key)

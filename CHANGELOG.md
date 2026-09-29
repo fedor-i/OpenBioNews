@@ -11,12 +11,19 @@ to follow [Semantic Versioning](https://semver.org/).
   and Windows across Python 3.9–3.12, plus an install/CLI smoke test.
 - Community health files: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue and pull
   request templates.
+- **Offline mixed demo**: `openbionews run --demo` now builds a digest from
+  bundled samples covering trade-press RSS *and* all three primary sources
+  (ClinicalTrials.gov, FDA recalls, SEC filings), each with a source citation —
+  a network-free preview of the real output.
 
 ### Fixed
 - Windows: the setup wizard and `doctor` could raise `UnicodeEncodeError` when
   invoked directly (bypassing the CLI entry point) because stdout defaulted to a
   legacy code page. The UTF-8 guard is now shared and applied at every entry
   point (`openbionews/termio.py`). Caught by the new cross-platform CI.
+- De-duplication now keys on an item's stable id (NCT id, recall number, EDGAR
+  accession) before its link. Previously, sources whose links differ only by a
+  query string (e.g. openFDA recall records) could be wrongly collapsed into one.
 
 ## [0.3.0]
 

@@ -364,20 +364,21 @@ is reachable.
 
 ---
 
-## Roadmap
+## Contributing
 
-Natural next steps a contributor could add:
+Contributions of every size are welcome — a typo fix, a new feed, or a whole new
+primary-source connector. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md), see
+where things are headed in [`ROADMAP.md`](ROADMAP.md), and check the
+[good first issues](https://github.com/fedor-i/OpenBioNews/issues?q=is%3Aopen+label%3A%22good+first+issue%22).
 
-- **More primary-source connectors** — openFDA / Drugs@FDA (approvals, recalls,
-  shortages) and SEC EDGAR (8-K, S-1, Form D…).
-- **Semantic de-dup** (group by meaning, not just shared title words) using
-  local embeddings.
-- **Per-source trust weights** to bias ranking toward sources you trust.
-- **A lightweight claim ↔ source verification pass** when an LLM is used.
-- **Private RSS output** and **Slack / Teams** webhooks.
-- **More input types** (YouTube channels, podcasts, preprint categories).
+The whole test suite runs with no dependencies:
 
-PRs welcome.
+```bash
+python3 tests/test_pipeline.py
+```
+
+CI runs it on Linux, macOS and Windows across Python 3.9–3.12 on every pull
+request. Releases publish to PyPI automatically ([`RELEASING.md`](RELEASING.md)).
 
 ## License
 

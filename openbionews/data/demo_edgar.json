@@ -1,0 +1,27 @@
+{
+  "hits": {
+    "total": {"value": 2},
+    "hits": [
+      {
+        "_id": "0001683168-26-006789:hlx-8k.htm",
+        "_source": {
+          "ciks": ["0001683168"],
+          "root_form": "8-K",
+          "file_date": "2026-09-23",
+          "display_names": ["Helix Therapeutics, Inc. (HLXT) (CIK 0001683168)"],
+          "file_description": "Current report — topline Phase 2 lymphoma data"
+        }
+      },
+      {
+        "_id": "0001772749-26-004567:aer-s1.htm",
+        "_source": {
+          "ciks": ["0001772749"],
+          "root_form": "S-1",
+          "file_date": "2026-09-18",
+          "display_names": ["Aer Bio, Inc. (CIK 0001772749)"],
+          "file_description": "Registration statement for a proposed initial public offering"
+        }
+      }
+    ]
+  }
+}
