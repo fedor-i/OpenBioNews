@@ -166,6 +166,24 @@ def test_render_formats():
     assert "Big Story" in txt
 
 
+def test_render_rss():
+    from xml.etree import ElementTree as ET
+    from openbionews.connectors.clinicaltrials import parse_studies
+    from openbionews.compose import compose as compose_fn
+    clusters = pipeline.cluster_items(parse_studies(CT_FIXTURE), threshold=0.5)
+    digest, _ = compose_fn(clusters, NoLLMBackend(), {"title": "My Feed", "intro": "hi"})
+    xml = render.render(digest, "rss")
+    root = ET.fromstring(xml)                    # must be well-formed
+    assert root.tag == "rss" and root.get("version") == "2.0"
+    channel = root.find("channel")
+    assert channel.findtext("title") == "My Feed"
+    items = channel.findall("item")
+    assert items, "feed should contain items"
+    assert items[0].findtext("link") == "https://clinicaltrials.gov/study/NCT01234567"
+    assert "Source:" in (items[0].findtext("description") or "")
+    assert items[0].findtext("category") == "Clinical Trials"
+
+
 def test_config_roundtrip(tmp_path=None):
     import tempfile
     d = tmp_path or Path(tempfile.mkdtemp())

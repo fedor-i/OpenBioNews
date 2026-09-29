@@ -15,6 +15,9 @@ to follow [Semantic Versioning](https://semver.org/).
   bundled samples covering trade-press RSS *and* all three primary sources
   (ClinicalTrials.gov, FDA recalls, SEC filings), each with a source citation —
   a network-free preview of the real output.
+- **RSS feed output** (`--format rss`, or `output.format: rss`): writes a valid
+  RSS 2.0 feed (`digest/latest.xml`) you can subscribe to in any reader, with a
+  source citation in every item. Standard-library only. (Closes #2.)
 
 ### Fixed
 - Windows: the setup wizard and `doctor` could raise `UnicodeEncodeError` when

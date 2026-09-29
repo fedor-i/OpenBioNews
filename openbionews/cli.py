@@ -110,7 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--stdout", action="store_true", help="print the digest instead of writing a file")
     p_run.add_argument("--no-summaries", action="store_true", help="headlines and links only")
     p_run.add_argument("--email", action="store_true", help="also email the digest (uses your email config)")
-    p_run.add_argument("--format", choices=["markdown", "html", "text"], help="override output format")
+    p_run.add_argument("--format", choices=["markdown", "html", "text", "rss"], help="override output format")
     p_run.add_argument("-q", "--quiet", action="store_true", help="suppress progress output")
     p_run.set_defaults(func=cmd_run)
 

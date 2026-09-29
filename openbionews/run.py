@@ -92,7 +92,7 @@ def build_digest(cfg: dict[str, Any], log: Callable[[str], None] | None = None) 
 
 
 def _extension(fmt: str) -> str:
-    return {"markdown": "md", "html": "html", "text": "txt"}.get(fmt, "txt")
+    return {"markdown": "md", "html": "html", "text": "txt", "rss": "xml"}.get(fmt, "txt")
 
 
 def run(cfg: dict[str, Any], log: Callable[[str], None] | None = None,

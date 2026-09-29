@@ -236,7 +236,8 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
     # 5. Output
     fmt = ask_choice(
         "Output format for the digest file?",
-        [("markdown", "Markdown (.md)"), ("html", "HTML web page (.html)"), ("text", "Plain text (.txt)")],
+        [("markdown", "Markdown (.md)"), ("html", "HTML web page (.html)"),
+         ("text", "Plain text (.txt)"), ("rss", "RSS feed (.xml) — subscribe in any reader")],
         cfg["output"].get("format", "markdown"),
     )
     cfg["output"]["format"] = fmt

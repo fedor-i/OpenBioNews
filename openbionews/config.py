@@ -48,7 +48,7 @@ def default_config() -> dict[str, Any]:
             "timeout": 60,
         },
         "output": {
-            "format": "markdown",   # markdown | html | text
+            "format": "markdown",   # markdown | html | text | rss
             "group_by": "topic",     # topic | none
             "path": "digest",         # directory for written digests
             "write_file": True,
@@ -164,6 +164,6 @@ def validate_config(cfg: dict[str, Any]) -> list[str]:
                 f"llm.backend is 'openai' but env var ${env} is not set."
             )
     fmt = cfg.get("output", {}).get("format", "markdown")
-    if fmt not in ("markdown", "html", "text"):
+    if fmt not in ("markdown", "html", "text", "rss"):
         problems.append(f"Unknown output.format '{fmt}'.")
     return problems

@@ -101,7 +101,8 @@ config file customized to you:
    always drop others.
 5. **Choose how summaries are written** — no LLM, local Ollama, or an
    OpenAI-compatible API.
-6. **Pick an output format** — Markdown, HTML, or text.
+6. **Pick an output format** — Markdown, HTML, text, or an **RSS feed** you can
+   subscribe to in any reader.
 
 The result is `openbionews.config.json` in the current folder. Re-run `setup`
 any time to change it, or edit the file directly (see
@@ -257,7 +258,9 @@ OpenBioNews is a plain command, so any scheduler works.
 `python -m openbionews run` in the project folder on your schedule.
 
 Point your reader, a static-site folder, or an email script at
-`digest/latest.<ext>`.
+`digest/latest.<ext>`. With `format: rss` (or `openbionews run --format rss`),
+that's `digest/latest.xml` — a standard RSS feed you can subscribe to in any
+feed reader, so a scheduled run keeps your reader up to date automatically.
 
 ---
 
