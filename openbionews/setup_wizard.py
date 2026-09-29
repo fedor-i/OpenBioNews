@@ -142,15 +142,18 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
             print(f"  → added {name}")
 
     # 2b. Primary sources (official records, traced to their documents)
-    print("\nPrimary sources read official records — trial registries, "
-          "regulators — instead of trade press, and cite the source document.")
-    ct = cfg.setdefault("connectors", {}).setdefault("clinicaltrials", {})
-    if ask_yes_no("Track official trial developments from ClinicalTrials.gov?",
-                  default=ct.get("enabled", False)):
-        ct["enabled"] = True
+    print("\nPrimary sources read official records — trial registries, regulators, "
+          "SEC filings — instead of trade press, and cite the source document.")
+    conns = cfg.setdefault("connectors", {})
+    ct = conns.setdefault("clinicaltrials", {})
+    fda = conns.setdefault("openfda", {})
+    edg = conns.setdefault("edgar", {})
+    already = any(c.get("enabled") for c in (ct, fda, edg))
+    if ask_yes_no("Track official primary sources (trials, FDA recalls, SEC filings)?",
+                  default=already):
         wl = cfg.setdefault("watchlist", {})
         print("Build a watch list (comma-separated; leave blank to skip a line):")
-        wl["sponsors"] = _csv(ask_text("  Companies / trial sponsors",
+        wl["sponsors"] = _csv(ask_text("  Companies / sponsors",
                                         ", ".join(wl.get("sponsors", []))))
         wl["conditions"] = _csv(ask_text("  Conditions / indications",
                                          ", ".join(wl.get("conditions", []))))
@@ -158,16 +161,30 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
                                             ", ".join(wl.get("interventions", []))))
         wl["terms"] = _csv(ask_text("  Other search terms",
                                     ", ".join(wl.get("terms", []))))
-        days = ask_text("  Only developments updated within how many days?",
+        days = ask_text("  Only developments within how many days?",
                         str(ct.get("recent_days", 30)))
-        try:
-            ct["recent_days"] = int(days)
-        except ValueError:
-            pass
-        watched = sum(len(wl.get(k, [])) for k in ("sponsors", "conditions", "interventions", "terms"))
-        print(f"  → tracking {watched} entit(ies) on ClinicalTrials.gov.")
+        recent = int(days) if days.isdigit() else 30
+
+        ct["enabled"] = ask_yes_no("  Include ClinicalTrials.gov (trial developments)?",
+                                   default=ct.get("enabled", True))
+        fda["enabled"] = ask_yes_no("  Include FDA drug recalls (openFDA)?",
+                                    default=fda.get("enabled", False))
+        edg["enabled"] = ask_yes_no("  Include SEC filings (EDGAR)?",
+                                    default=edg.get("enabled", False))
+        for c in (ct, fda, edg):
+            c["recent_days"] = recent
+        if edg["enabled"]:
+            edg["user_agent"] = ask_text(
+                "  SEC asks for a contact — your name and email",
+                edg.get("user_agent") or "")
+            edg["forms"] = _csv(ask_text("  SEC form types (comma-separated)",
+                                         ", ".join(edg.get("forms", ["8-K"]))))
+        enabled = [n for n, c in (("ClinicalTrials.gov", ct), ("FDA recalls", fda),
+                                  ("SEC EDGAR", edg)) if c.get("enabled")]
+        print(f"  → primary sources: {', '.join(enabled) or 'none selected'}")
     else:
-        ct["enabled"] = False
+        for c in (ct, fda, edg):
+            c["enabled"] = False
 
     # 3. Focus
     focus = ask_text(
@@ -262,10 +279,13 @@ def _print_summary(cfg: dict) -> None:
     print(f"  Title    : {cfg['profile']['title']}")
     print(f"  Topics   : {', '.join(cfg['profile'].get('bundles', [])) or '(custom feeds)'}")
     print(f"  Feeds    : {len(cfg['feeds'])}")
-    if cfg.get("connectors", {}).get("clinicaltrials", {}).get("enabled"):
+    conns = cfg.get("connectors", {})
+    labels = {"clinicaltrials": "ClinicalTrials.gov", "openfda": "FDA recalls", "edgar": "SEC EDGAR"}
+    enabled = [labels[k] for k in labels if conns.get(k, {}).get("enabled")]
+    if enabled:
         wl = cfg.get("watchlist", {})
         watched = sum(len(wl.get(k, [])) for k in ("sponsors", "conditions", "interventions", "terms"))
-        print(f"  Primary  : ClinicalTrials.gov ({watched} watched)")
+        print(f"  Primary  : {', '.join(enabled)} ({watched} watched)")
     summaries = cfg["llm"]["backend"]
     if cfg["output"].get("why_it_matters"):
         summaries += " + why-it-matters"

@@ -84,6 +84,23 @@ def default_config() -> dict[str, Any]:
                 "max_total": 60,      # cap total studies across the connector
                 "statuses": [],       # e.g. ["RECRUITING", "COMPLETED"]; empty = any
             },
+            "openfda": {
+                "enabled": False,
+                "recent_days": 30,       # recalls reported within N days
+                "max_per_query": 20,
+                "max_total": 40,
+                "classifications": [],    # e.g. ["Class I"]; empty = any severity
+            },
+            "edgar": {
+                "enabled": False,
+                "recent_days": 30,       # filings filed within N days
+                "forms": ["8-K"],         # SEC form types; [] = any
+                "max_per_query": 20,
+                "max_total": 40,
+                # SEC asks for a descriptive User-Agent with contact info.
+                # Set this to your own name/email, e.g. "Jane Doe jane@example.com".
+                "user_agent": "",
+            },
         },
     }
 

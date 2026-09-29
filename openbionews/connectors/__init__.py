@@ -14,6 +14,14 @@ from __future__ import annotations
 
 from .base import Connector
 from .clinicaltrials import ClinicalTrialsConnector
+from .edgar import EdgarConnector
+from .openfda import OpenFDAConnector
+
+_REGISTRY = {
+    "clinicaltrials": ClinicalTrialsConnector,
+    "openfda": OpenFDAConnector,
+    "edgar": EdgarConnector,
+}
 
 
 def get_connectors(cfg: dict) -> list[Connector]:
@@ -21,12 +29,17 @@ def get_connectors(cfg: dict) -> list[Connector]:
     connectors_cfg = cfg.get("connectors", {})
     watchlist = cfg.get("watchlist", {})
     out: list[Connector] = []
-
-    ct = connectors_cfg.get("clinicaltrials", {})
-    if ct.get("enabled"):
-        out.append(ClinicalTrialsConnector(ct, watchlist))
-
+    for key, cls in _REGISTRY.items():
+        conf = connectors_cfg.get(key, {})
+        if conf.get("enabled"):
+            out.append(cls(conf, watchlist))
     return out
 
 
-__all__ = ["Connector", "ClinicalTrialsConnector", "get_connectors"]
+__all__ = [
+    "Connector",
+    "ClinicalTrialsConnector",
+    "OpenFDAConnector",
+    "EdgarConnector",
+    "get_connectors",
+]

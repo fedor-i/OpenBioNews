@@ -328,6 +328,75 @@ def test_connector_registry_and_age_exempt():
     assert len(kept) == 1
 
 
+FDA_FIXTURE = {"results": [{
+    "recalling_firm": "Acme Pharma", "product_description": "Metformin 500mg tablets",
+    "reason_for_recall": "Nitrosamine impurity above limit.", "classification": "Class II",
+    "status": "Ongoing", "report_date": "20260910", "recall_number": "D-1234-2026",
+    "openfda": {"brand_name": ["Glucophage"]},
+}]}
+
+SEC_FIXTURE = {"hits": {"total": {"value": 2}, "hits": [{
+    "_id": "0001682852-26-000045:mrna-8k.htm",
+    "_source": {"ciks": ["0001682852"], "root_form": "8-K", "file_date": "2026-09-20",
+                "display_names": ["Moderna, Inc. (MRNA) (CIK 0001682852)"],
+                "file_description": "Current report"},
+}]}}
+
+
+def test_openfda_parse():
+    from openbionews.connectors.openfda import parse_enforcement
+    items = parse_enforcement(FDA_FIXTURE)
+    assert len(items) == 1
+    it = items[0]
+    assert it.title == "Glucophage"
+    assert it.tag == "Class II · Ongoing · Acme Pharma"
+    assert it.source == "openFDA (Drug Recalls)"
+    assert it.age_exempt and it.published.year == 2026
+    assert it.citations and "D-1234-2026" in it.citations[0].url
+
+
+def test_openfda_query():
+    from openbionews.connectors.openfda import OpenFDAConnector
+    c = OpenFDAConnector({"recent_days": 30, "classifications": ["Class I", "Class II"]},
+                         {"sponsors": ["Acme Pharma"]})
+    raw = c._build_raw_query("recalling_firm", "Acme Pharma")
+    assert 'recalling_firm:"Acme%20Pharma"' in raw
+    assert "report_date:[" in raw and "+AND+" in raw
+    assert "OR classification" in raw.replace("%20", " ")
+    assert c.available()[0] is True
+
+
+def test_edgar_parse():
+    from openbionews.connectors.edgar import parse_hits
+    items = parse_hits(SEC_FIXTURE)
+    assert len(items) == 1
+    it = items[0]
+    assert it.title == "Moderna, Inc. (MRNA) — 8-K"   # "(CIK …)" stripped
+    assert it.link == "https://www.sec.gov/Archives/edgar/data/1682852/000168285226000045/mrna-8k.htm"
+    assert it.source == "SEC EDGAR" and it.age_exempt
+    assert it.citations[0].label.startswith("EDGAR ")
+
+
+def test_edgar_params_and_ua():
+    from openbionews.connectors.edgar import EdgarConnector, DEFAULT_UA
+    e = EdgarConnector({"recent_days": 30, "forms": ["8-K", "S-1"]}, {"sponsors": ["Moderna"]})
+    params = e._params("Moderna", 0)
+    assert params["forms"] == "8-K,S-1" and params["dateRange"] == "custom"
+    ok, msg = e.available()
+    assert ok and "user_agent" in msg  # nudges to set a contact UA
+    e2 = EdgarConnector({"user_agent": "Jane jane@x.com"}, {"terms": ["gene therapy"]})
+    assert e2.user_agent != DEFAULT_UA
+
+
+def test_registry_three_connectors():
+    from openbionews.connectors import get_connectors
+    cfg = config.default_config()
+    for key in ("clinicaltrials", "openfda", "edgar"):
+        cfg["connectors"][key]["enabled"] = True
+    cfg["watchlist"]["sponsors"] = ["Moderna"]
+    assert len(get_connectors(cfg)) == 3
+
+
 def test_citation_render():
     from openbionews.connectors.clinicaltrials import parse_studies
     from openbionews.compose import compose as compose_fn

@@ -142,9 +142,16 @@ falls back to the no-LLM summary — the run never aborts.
 Beyond RSS (which is *secondary* trade press), OpenBioNews can read **official
 primary records** and trace every development back to its source document.
 
-**Available now: ClinicalTrials.gov.** Build a watch list of companies/sponsors,
-conditions, or drugs, and each recent trial development (new registration,
-status change, phase, sponsor) becomes an entry that **cites its NCT record**:
+Three connectors are built in. You keep **one watch list** (companies,
+conditions, drugs, terms) and switch on whichever official sources you want:
+
+- **ClinicalTrials.gov** — trial developments (registration, status, phase),
+  cited to the NCT record.
+- **openFDA drug recalls** — enforcement reports (reason, Class I/II/III,
+  status), cited to the FDA record.
+- **SEC EDGAR** — filings (8-K, 10-K, S-1, 424B, 13D/G, DEF 14A, Form 4…), cited
+  to the filing document. SEC asks for a contact User-Agent — set your email in
+  `connectors.edgar.user_agent`.
 
 ```jsonc
 "watchlist": {
@@ -154,12 +161,15 @@ status change, phase, sponsor) becomes an entry that **cites its NCT record**:
   "terms": []
 },
 "connectors": {
-  "clinicaltrials": { "enabled": true, "recent_days": 30 }
+  "clinicaltrials": { "enabled": true,  "recent_days": 30 },
+  "openfda":        { "enabled": true,  "recent_days": 30 },
+  "edgar":          { "enabled": true,  "recent_days": 30, "forms": ["8-K"],
+                      "user_agent": "Your Name your@email.com" }
 }
 ```
 
-The setup wizard builds this for you, and `openbionews doctor` verifies the
-watch list. Each story renders with a status tag and a source line:
+The setup wizard builds this for you, and `openbionews doctor` verifies each
+source. Every story renders with a tag and a source line:
 
 ```
 ### Study of DrugX in Advanced Solid Tumors
@@ -168,12 +178,9 @@ A phase 2 study evaluating DrugX…
 ↳ Source: ClinicalTrials.gov NCT01234567
 ```
 
-No API key is needed, and nothing about your watch list leaves your machine
-except the queries to ClinicalTrials.gov itself.
-
-**On the roadmap:** **openFDA / Drugs@FDA** (approvals, recalls, shortages) and
-**SEC EDGAR** (8-K, S-1, Form D…). The connector interface is designed for
-exactly these — see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+No API keys are required. Because the connectors run on your machine, they can
+set the `User-Agent` SEC requires and are not subject to the browser CORS limits
+that constrain the hosted web page — this is the reliable path for SEC data.
 
 ---
 

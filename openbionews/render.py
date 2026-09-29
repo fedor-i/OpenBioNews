@@ -9,10 +9,19 @@ from . import sources
 from .models import Cluster, Digest
 
 
+_TOPIC_LABELS = {
+    "clinical_trials": "Clinical Trials",
+    "fda_recalls": "FDA Drug Recalls",
+    "sec_filings": "SEC Filings",
+}
+
+
 def _topic_label(topic: str) -> str:
     bundle = sources.BUNDLES.get(topic)
     if bundle:
         return bundle["label"]
+    if topic in _TOPIC_LABELS:
+        return _TOPIC_LABELS[topic]
     return topic.replace("_", " ").title() if topic else "Other"
 
 

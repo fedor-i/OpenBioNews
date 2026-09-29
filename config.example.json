@@ -124,6 +124,23 @@
       "max_per_query": 20,
       "max_total": 60,
       "statuses": []
+    },
+    "openfda": {
+      "enabled": false,
+      "recent_days": 30,
+      "max_per_query": 20,
+      "max_total": 40,
+      "classifications": []
+    },
+    "edgar": {
+      "enabled": false,
+      "recent_days": 30,
+      "forms": [
+        "8-K"
+      ],
+      "max_per_query": 20,
+      "max_total": 40,
+      "user_agent": ""
     }
   }
 }

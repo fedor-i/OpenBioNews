@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openbionews"
-version = "0.2.0"
-description = "Free, self-hosted CLI that turns news feeds and primary sources (ClinicalTrials.gov, FDA/SEC planned) into a cited daily digest. Bring your own LLM, or use none."
+version = "0.3.0"
+description = "Free, self-hosted CLI that turns news feeds and primary sources (ClinicalTrials.gov, openFDA recalls, SEC EDGAR) into a cited daily digest. Bring your own LLM, or use none."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }

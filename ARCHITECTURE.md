@@ -23,7 +23,7 @@ same pipeline.
 | `openbionews/config.py` | Load/save/validate the JSON config; ship sensible defaults. |
 | `openbionews/sources.py` | Curated topic bundles of RSS/Atom feeds. |
 | `openbionews/fetch.py` | Download and parse RSS/Atom feeds (stdlib parser). Failures are collected, never fatal. |
-| `openbionews/connectors/` | Primary-source connectors (ClinicalTrials.gov today; FDA/SEC next) that emit cited `Item`s from a watch list. |
+| `openbionews/connectors/` | Primary-source connectors (ClinicalTrials.gov, openFDA recalls, SEC EDGAR) that emit cited `Item`s from a watch list. |
 | `openbionews/httputil.py` | Shared stdlib JSON-over-HTTP GET used by connectors. |
 | `openbionews/models.py` | `Item`, `Cluster`, `Digest`, `Citation` dataclasses. |
 | `openbionews/pipeline.py` | Deterministic filtering, de-duplication, clustering, and importance ranking (`importance_score`). |
@@ -67,5 +67,6 @@ same pipeline.
 4. Split parsing from fetching (a `parse_*` function) so it can be unit-tested
    with a fixture and no network.
 
-Planned next: `openfda` (Drugs@FDA approvals, recalls, shortages) and `edgar`
-(SEC filings) — see `COMPARISON.md`.
+Shipped connectors: `clinicaltrials`, `openfda` (drug recalls) and `edgar`
+(SEC full-text search). Running server-side, they set the `User-Agent` SEC
+requires and avoid the browser CORS limits that constrain the hosted page.
