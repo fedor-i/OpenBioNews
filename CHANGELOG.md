@@ -23,6 +23,9 @@ to follow [Semantic Versioning](https://semver.org/).
   the Drugs@FDA page. Wizard toggle, doctor check, and demo coverage included.
   (Closes #1.)
 
+### Changed
+- Refresh broken built-in RSS feeds and add GEN and EMA human-medicine feeds.
+
 ### Fixed
 - Windows: the setup wizard and `doctor` could raise `UnicodeEncodeError` when
   invoked directly (bypassing the CLI entry point) because stdout defaulted to a
