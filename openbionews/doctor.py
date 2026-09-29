@@ -8,6 +8,7 @@ from . import config as config_mod
 from . import fetch, mailer
 from .connectors import get_connectors
 from .llm import get_backend
+from .termio import force_utf8_output
 
 OK = "✓"
 BAD = "✗"
@@ -15,6 +16,7 @@ BAD = "✗"
 
 def run_doctor(cfg: dict, check_feeds: bool = True) -> int:
     """Print a diagnostic report. Returns an exit code (0 = healthy)."""
+    force_utf8_output()  # safe Unicode output even when called directly (Windows)
     problems = 0
 
     print("Configuration")

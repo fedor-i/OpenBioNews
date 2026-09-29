@@ -12,6 +12,12 @@ to follow [Semantic Versioning](https://semver.org/).
 - Community health files: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue and pull
   request templates.
 
+### Fixed
+- Windows: the setup wizard and `doctor` could raise `UnicodeEncodeError` when
+  invoked directly (bypassing the CLI entry point) because stdout defaulted to a
+  legacy code page. The UTF-8 guard is now shared and applied at every entry
+  point (`openbionews/termio.py`). Caught by the new cross-platform CI.
+
 ## [0.3.0]
 
 ### Added

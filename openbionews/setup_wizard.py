@@ -13,6 +13,7 @@ from pathlib import Path
 
 from . import config as config_mod
 from . import sources
+from .termio import force_utf8_output
 
 # ---- small prompt helpers ---------------------------------------------------
 
@@ -94,6 +95,7 @@ def ask_multi(question: str, options: list[tuple[str, str]], default_keys: list[
 
 def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
     """Run the interactive wizard and return the assembled config dict."""
+    force_utf8_output()  # safe Unicode output even when called directly (Windows)
     if not sys.stdin.isatty():
         cfg = existing or config_mod.default_config()
         saved_path = config_mod.save_config(cfg, path)

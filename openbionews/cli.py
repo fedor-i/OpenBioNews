@@ -12,6 +12,7 @@ from . import sources
 from .doctor import run_doctor
 from .run import run as run_pipeline
 from .setup_wizard import run_wizard
+from .termio import force_utf8_output
 
 
 def _load_or_hint(path: Path | None):
@@ -135,25 +136,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _force_utf8_output() -> None:
-    """Make stdout/stderr UTF-8 so box-drawing and check marks never crash.
-
-    On Windows, redirected/piped output defaults to the locale code page
-    (often cp1252), where printing characters like ✓ or → raises
-    UnicodeEncodeError. Reconfiguring to UTF-8 with a safe error handler keeps
-    the tool identical across Windows, macOS and Linux.
-    """
-    for stream in (sys.stdout, sys.stderr):
-        reconfigure = getattr(stream, "reconfigure", None)
-        if reconfigure:
-            try:
-                reconfigure(encoding="utf-8", errors="replace")
-            except (ValueError, OSError):
-                pass
-
-
 def main(argv: list[str] | None = None) -> int:
-    _force_utf8_output()
+    force_utf8_output()
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):
