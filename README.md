@@ -19,8 +19,7 @@ sciences**, but you can point it at any topic.
 - 🧩 **Zero dependencies.** The core runs on the Python standard library. If you
   have Python, you can run it.
 - 🥇 **Curated, not a firehose.** Stories are de-duplicated across outlets and
-  ranked by importance, with a read-time estimate — like the paid digests, but
-  yours.
+  ranked by importance, with a read-time estimate.
 - 📬 **Optional email delivery.** Have it mail you the digest every morning via
   any SMTP server.
 - 🔒 **Private.** Your feeds and reading habits stay on your machine. With the
@@ -31,9 +30,6 @@ sciences**, but you can point it at any topic.
 > Gathering news into a post is deterministic — grouping and de-duplicating
 > stories needs no AI. An LLM is optional and only used to polish the one-line
 > summaries, so even a small local model is plenty.
-
-**New here?** See [COMPARISON.md](COMPARISON.md) for how this free tool stacks
-up against paid hosted digests.
 
 ---
 
@@ -144,9 +140,7 @@ falls back to the no-LLM summary — the run never aborts.
 ## Primary sources — traced to the document
 
 Beyond RSS (which is *secondary* trade press), OpenBioNews can read **official
-primary records** and trace every development back to its source document — the
-model that paid biotech-intelligence feeds like readthrough.news are built on,
-here for free. See [COMPARISON.md](COMPARISON.md).
+primary records** and trace every development back to its source document.
 
 **Available now: ClinicalTrials.gov.** Build a watch list of companies/sponsors,
 conditions, or drugs, and each recent trial development (new registration,
@@ -177,10 +171,9 @@ A phase 2 study evaluating DrugX…
 No API key is needed, and nothing about your watch list leaves your machine
 except the queries to ClinicalTrials.gov itself.
 
-**On the roadmap** (to fully match readthrough): **openFDA / Drugs@FDA**
-(approvals, recalls, shortages) and **SEC EDGAR** (8-K, S-1, Form D…). The
-connector interface is designed for exactly these — see
-[`ARCHITECTURE.md`](ARCHITECTURE.md).
+**On the roadmap:** **openFDA / Drugs@FDA** (approvals, recalls, shortages) and
+**SEC EDGAR** (8-K, S-1, Form D…). The connector interface is designed for
+exactly these — see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ---
 
@@ -242,10 +235,9 @@ Point your reader, a static-site folder, or an email script at
 
 ## Email delivery (optional)
 
-Have OpenBioNews mail you the digest — the self-hosted equivalent of a paid
-newsletter landing in your inbox. Enable it during `openbionews setup`, or set
-the `email` block in your config. It works with any SMTP server (your own,
-Gmail with an app password, Fastmail, a work relay…).
+Have OpenBioNews mail you the digest every morning. Enable it during
+`openbionews setup`, or set the `email` block in your config. It works with any
+SMTP server (your own, Gmail with an app password, Fastmail, a work relay…).
 
 ```jsonc
 "email": {
@@ -284,8 +276,7 @@ OpenBioNews doesn't just dump every headline. Stories are:
    focused read with a **read-time estimate** in the header.
 
 If you use an LLM backend, turn on **"why it matters"** in setup to add a short
-significance note under each summary — the kind of editorial context paid
-digests charge for, generated locally or with your own key.
+significance note under each summary, generated locally or with your own key.
 
 ---
 
@@ -345,35 +336,22 @@ is reachable.
 
 ---
 
-## Ideas borrowed from paid digests (and what's next)
-
-Paid news-digest services (readthrough.news and peers like Bio News Agent,
-Summate, Readless, Prism) share a common playbook. OpenBioNews already brings
-the core of it to a free, self-hosted tool — see **[COMPARISON.md](COMPARISON.md)**
-for the full free-vs-paid breakdown:
-
-| Paid-tier idea | In OpenBioNews |
-| --- | --- |
-| Curated "top N" instead of a firehose | ✅ importance ranking + `max_items` cap |
-| "5-minute read" framing | ✅ read-time estimate in the header |
-| De-dup the same story across outlets | ✅ cross-outlet clustering |
-| "Why it matters" context | ✅ optional, on any LLM backend |
-| Delivered to your inbox | ✅ optional SMTP email |
-| Broad curated bio sources | ✅ outlets + FDA/EMA + bioRxiv/medRxiv bundles |
-| Daily automation | ✅ cron / Task Scheduler |
+## Roadmap
 
 Natural next steps a contributor could add:
 
+- **More primary-source connectors** — openFDA / Drugs@FDA (approvals, recalls,
+  shortages) and SEC EDGAR (8-K, S-1, Form D…).
 - **Semantic de-dup** (group by meaning, not just shared title words) using
   local embeddings.
-- **Per-source trust weights** to bias ranking toward outlets you trust.
-- **A tiny local web view / static site** built from `latest.html`.
+- **Per-source trust weights** to bias ranking toward sources you trust.
+- **A lightweight claim ↔ source verification pass** when an LLM is used.
+- **Private RSS output** and **Slack / Teams** webhooks.
 - **More input types** (YouTube channels, podcasts, preprint categories).
-- **LLM-picked "editor's top 5"** as an optional ranking pass.
 
 PRs welcome.
 
 ## License
 
 [MIT](LICENSE). Free to use, modify, and redistribute. This is an independent,
-community-oriented tool, not affiliated with any paid service.
+community-oriented, open-source tool.
