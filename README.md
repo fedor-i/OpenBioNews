@@ -184,6 +184,25 @@ connector interface is designed for exactly these — see
 
 ---
 
+## Hosted web version — filter in your browser, no install
+
+For people who just want to **click and filter**, there's a single-page web app
+in [`docs/index.html`](docs/index.html). It queries ClinicalTrials.gov **live in
+the browser** — filter by company, condition, drug, status, or phase and read
+results with a link to each source record. No server, no backend, no tracking.
+
+**Host it free on GitHub Pages** (about 30 seconds):
+
+1. Repo → **Settings → Pages**.
+2. **Source:** *Deploy from a branch* → Branch **`main`**, folder **`/docs`** → **Save**.
+3. Your page goes live at `https://fedor-i.github.io/OpenBioNews/`.
+
+Point a custom domain at it in the same settings page if you like. Because it's
+static and calls the public API directly, it costs nothing to run and scales to
+any number of visitors.
+
+---
+
 ## Commands
 
 | Command | What it does |
