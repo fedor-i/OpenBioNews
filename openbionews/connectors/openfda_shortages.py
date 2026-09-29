@@ -67,7 +67,8 @@ def record_to_item(rec: dict, topic: str = "fda_shortages") -> Item | None:
         guid=f"{name}|{company}|{rec.get('update_date') or rec.get('initial_posting_date') or ''}",
         citations=[Citation(label=f"FDA Drug Shortages: {name}", url=url, kind="fda")],
         tag=" · ".join(tag_parts),
-        meta={"status": status, "company": company, "categories": cats},
+        meta={"status": status, "company": company, "categories": cats,
+              "track": ({"Status": status} if status else {})},
         age_exempt=True,
     )
 

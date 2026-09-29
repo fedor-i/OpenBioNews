@@ -52,6 +52,7 @@
   .chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;
     padding:.28rem .7rem;font-size:.82rem;cursor:pointer;color:var(--ink)}
   .chip:hover{border-color:var(--accent)}
+  .chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
   .bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:1rem 0 .3rem}
   .status{color:var(--muted);font-size:.9rem;min-height:1.2em;flex:1;min-width:200px}
   .linkbtn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;
@@ -108,12 +109,17 @@
         <span class="chip" data-cond="Alzheimer disease">Neurology</span>
         <span class="chip" data-cond="rheumatoid arthritis">Immunology</span>
         <span class="chip" data-cond="HIV">Infectious</span>
+        <span class="chip" data-term="artificial intelligence">AI</span>
+        <span class="chip" data-term="organ-on-a-chip">NAM</span>
+        <span class="chip" data-term="CAR-T">Gene &amp; cell</span>
+        <span class="chip" data-term="GLP-1">GLP-1</span>
+        <span class="chip" data-term="radioligand therapy">Radiopharma</span>
         <span class="chip" data-spons="Moderna">Moderna</span>
         <span class="chip" data-spons="Vertex Pharmaceuticals">Vertex</span>
       </div>
       <div class="grid">
-        <div><label for="t_spons">Company / sponsor</label><input id="t_spons" placeholder="e.g. Moderna"></div>
-        <div><label for="t_cond">Condition</label><input id="t_cond" placeholder="e.g. melanoma"></div>
+        <div><label for="t_spons">Company / sponsor</label><input id="t_spons" placeholder="Moderna, Pfizer — comma to add more"></div>
+        <div><label for="t_cond">Condition</label><input id="t_cond" placeholder="melanoma, lymphoma — comma to add more"></div>
         <div><label for="t_intr">Drug / intervention</label><input id="t_intr" placeholder="e.g. mRNA-1345"></div>
         <div><label for="t_term">Keyword</label><input id="t_term" placeholder="any text"></div>
         <div><label for="t_status">Status</label>
@@ -412,10 +418,18 @@ function trialsFilters(){
     recent:$("t_recent").value, industry:$("t_industry").checked, sort:$("t_sort").value};
 }
 function trialsHasFilter(f){ return f.spons||f.cond||f.intr||f.term||f.status||f.phase||f.recent||f.industry; }
+// Turn a comma-separated field into a ClinicalTrials.gov Essie OR-expression, so
+// you can stack several conditions/companies/terms in one search.
+function orExpr(csv){
+  const t=(csv||"").split(",").map(s=>s.trim()).filter(Boolean);
+  if(t.length<=1) return t[0]||"";
+  return "("+t.map(x=>/\s/.test(x)?`"${x}"`:x).join(" OR ")+")";
+}
 function buildCtUrl(f, token){
   const p=new URLSearchParams();
   const add=(k,v)=>{ if(v) p.append(k,v); };
-  add("query.spons",f.spons); add("query.cond",f.cond); add("query.intr",f.intr); add("query.term",f.term);
+  add("query.spons",orExpr(f.spons)); add("query.cond",orExpr(f.cond));
+  add("query.intr",orExpr(f.intr)); add("query.term",orExpr(f.term));
   if(f.status) p.append("filter.overallStatus", f.status);
   const adv=[];
   if(f.phase) adv.push(`AREA[Phase]${f.phase}`);
@@ -763,9 +777,18 @@ document.querySelectorAll('.chips[data-for="shortages"] .chip').forEach(c=>c.onc
   searchShortages(true); syncUrl();
 });
 
+// Append (or remove) a value in a comma-separated field — lets chips stack.
+function toggleField(id, value){
+  const el=$(id); if(!el) return;
+  const parts=el.value.split(",").map(s=>s.trim()).filter(Boolean);
+  const i=parts.findIndex(p=>p.toLowerCase()===value.toLowerCase());
+  if(i>=0) parts.splice(i,1); else parts.push(value);
+  el.value=parts.join(", ");
+}
 document.querySelectorAll('.chips[data-for="trials"] .chip').forEach(c=>c.onclick=()=>{
-  if(c.dataset.cond) $("t_cond").value=c.dataset.cond;
-  if(c.dataset.spons) $("t_spons").value=c.dataset.spons;
+  const id=c.dataset.cond?"t_cond":c.dataset.spons?"t_spons":c.dataset.term?"t_term":null;
+  const val=c.dataset.cond||c.dataset.spons||c.dataset.term;
+  if(id&&val){ toggleField(id,val); c.classList.toggle("active"); }
   searchTrials(true); syncUrl();
 });
 document.querySelectorAll('.chips[data-for="recalls"] .chip').forEach(c=>c.onclick=()=>{

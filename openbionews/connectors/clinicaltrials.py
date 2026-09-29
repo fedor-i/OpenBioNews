@@ -21,7 +21,7 @@ API_URL = "https://clinicaltrials.gov/api/v2/studies"
 FIELDS = [
     "NCTId", "BriefTitle", "OverallStatus", "LastUpdatePostDate",
     "LeadSponsorName", "Condition", "InterventionName", "BriefSummary",
-    "Phase", "StudyType",
+    "Phase", "StudyType", "HasResults",
 ]
 
 
@@ -83,9 +83,15 @@ def study_to_item(study: dict, topic: str = "clinical_trials") -> Item | None:
     ]
     phases = _dig(ps, "designModule", "phases") or []
     summary = _dig(ps, "descriptionModule", "briefSummary") or ""
+    has_results = bool(study.get("hasResults"))
 
     link = f"https://clinicaltrials.gov/study/{nct}"
     tag_parts = [x for x in (_pretty_status(status), _pretty_phase(phases), sponsor) if x]
+
+    # Fields worth watching for change between runs (see history.py).
+    track = {"Status": _pretty_status(status) or status}
+    if has_results:
+        track["Results"] = "Posted"
 
     return Item(
         title=title.strip(),
@@ -104,6 +110,8 @@ def study_to_item(study: dict, topic: str = "clinical_trials") -> Item | None:
             "sponsor": sponsor,
             "conditions": conditions,
             "interventions": interventions,
+            "has_results": has_results,
+            "track": track,
         },
         age_exempt=True,
     )

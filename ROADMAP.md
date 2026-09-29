@@ -20,10 +20,14 @@ claim something.
 - [ ] A tiny **local web view** served from the latest digest.
 
 ## Curation
+- [x] **Change detection between runs** — flag what changed (trial Terminated,
+      results posted, recall reclassified), deterministically (no LLM).
 - [x] **Per-sentence citations** — each sentence of a brief bound to the source
       record it was lifted from, deterministically (no LLM).
 - [x] **Therapeutic-area presets** (oncology, cardiometabolic, rare disease,
       neuro, immunology, infectious) as one-tap watch-list seeds.
+- [x] **Thematic groups** (AI, NAM, gene/cell, CRISPR, mRNA, ADC, radiopharma,
+      GLP-1, psychedelics, longevity) seeding terms + company cohorts.
 - [ ] **Per-source trust weights** to bias ranking.
 - [ ] **Semantic de-duplication** using local embeddings (optional extra).
 - [ ] Optional **claim ↔ source verification** pass when an LLM is enabled.

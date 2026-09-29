@@ -7,6 +7,20 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Change detection between runs** — OpenBioNews now remembers each item's
+  salient state (by NCT id, recall number, EDGAR accession) and flags what
+  *changed* on the next run: a trial moved to Terminated, results posted, a recall
+  reclassified. Changed stories are boosted in ranking and badged (`🔔 Status:
+  Recruiting → Terminated`). Deterministic — a literal state comparison, **no LLM**.
+  New `openbionews/history.py`; state lives in `digest/state.json` (configurable).
+- **Thematic groups** (`sources.THEMES`) — one-tap watch-list seeds that cut
+  across diseases by *modality / approach / company cohort*: **AI in drug
+  discovery**, **New Approach Methodologies (NAM)**, gene & cell therapy, CRISPR,
+  mRNA, ADCs, radiopharmaceuticals, GLP-1/obesity, psychedelics, longevity. Each
+  seeds search terms and a lead-sponsor cohort. Wizard multi-select + web chips.
+- **Stackable web filters** — chips on the hosted page now *add* to a field
+  instead of replacing it, and multi-value fields become a ClinicalTrials.gov
+  `OR` query, so you can watch several conditions / companies / themes at once.
 - **Per-sentence citations** — every sentence of a story's brief is bound to the
   primary-source record it was lifted from, rendered as a numbered `[n]` / `<sup>`
   marker with a keyed source list beneath. Fully deterministic: the text is

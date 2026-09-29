@@ -529,6 +529,46 @@ def test_per_sentence_attribution():
     assert ordered and ordered[0][0] == 1   # numbering starts at 1
 
 
+def test_change_detection():
+    """State is remembered between runs and the diff is surfaced — no LLM."""
+    import os
+    import tempfile
+    from openbionews import history
+    from openbionews.connectors.clinicaltrials import parse_studies
+
+    def study(status):
+        return {"protocolSection": {
+            "identificationModule": {"nctId": "NCT09999999", "briefTitle": "Test Study"},
+            "statusModule": {"overallStatus": status,
+                             "lastUpdatePostDateStruct": {"date": "2026-09-20"}},
+            "descriptionModule": {"briefSummary": "A study. It has an endpoint."},
+            "designModule": {"phases": ["PHASE2"]},
+        }}
+
+    sp = os.path.join(tempfile.mkdtemp(), "state.json")
+
+    # First run: empty store, so nothing is flagged (avoids flagging everything).
+    store = history.StateStore(sp).load()
+    assert store.started_empty
+    run1 = parse_studies({"studies": [study("RECRUITING")]})
+    history.annotate(run1, store); store.save()
+    assert not run1[0].meta.get("change")
+
+    # Second run: the status moved — the diff is reported.
+    store = history.StateStore(sp).load()
+    assert not store.started_empty
+    run2 = parse_studies({"studies": [study("TERMINATED")]})
+    history.annotate(run2, store); store.save()
+    assert run2[0].meta.get("change") == "Status: Recruiting → Terminated"
+    assert run2[0].meta.get("change_kind") == "status"
+
+    # Third run: unchanged — no noise.
+    store = history.StateStore(sp).load()
+    run3 = parse_studies({"studies": [study("TERMINATED")]})
+    history.annotate(run3, store)
+    assert not run3[0].meta.get("change")
+
+
 def test_end_to_end_demo():
     from openbionews.demo import build_demo_digest
 

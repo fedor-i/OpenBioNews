@@ -19,6 +19,12 @@ sciences**, but you can point it at any topic.
   condition — and *every sentence* of every brief carries a numbered citation back
   to the exact source record. It's deterministic (verbatim from the record), so
   there's nothing to hallucinate — **no LLM required**. Plus any RSS/Atom feed.
+- 🔔 **Tells you what *changed*.** Remembers each trial/filing/record between runs
+  and surfaces the diff — a trial gone to *Terminated*, results posted, a recall
+  reclassified — so you read the change, not the same snapshot twice.
+- 🎯 **Watch by theme, not just disease.** One-tap groups seed your watch list:
+  therapeutic areas *and* thematic cohorts like **AI in drug discovery**, **NAM**,
+  gene/cell therapy, CRISPR, mRNA, ADCs, radiopharma, GLP-1/obesity. Stack several.
 - 🖥️ **Runs everywhere.** Windows, macOS, and Linux — pure Python, no build step.
 - 🔌 **Bring your own LLM — or none.** Works with a local model (Ollama), any
   OpenAI-compatible API, or with *no LLM at all* (it uses each article's own

@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from . import fetch, mailer, pipeline, render
+from . import fetch, history, mailer, pipeline, render
 from .compose import compose
 from .connectors import get_connectors
 from .llm import get_backend
@@ -59,6 +59,17 @@ def build_digest(cfg: dict[str, Any], log: Callable[[str], None] | None = None) 
                 _status(conn.label, 0, str(exc))
 
     result.item_count = len(items)
+
+    # Flag what changed since the last run (deterministic; no LLM). Runs on the
+    # full fetched set so state is recorded even for items later filtered out.
+    hist_cfg = cfg.get("history", {})
+    if hist_cfg.get("enabled", True):
+        store = history.StateStore(hist_cfg.get("path", "digest/state.json")).load()
+        history.annotate(items, store)
+        store.save()
+        changed = sum(1 for it in items if it.meta.get("change"))
+        if changed:
+            log(f"{changed} item(s) changed since last run.")
 
     items = pipeline.filter_items(items, filters)
     log(f"{len(items)} items after filtering.")

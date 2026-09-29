@@ -56,6 +56,13 @@ def default_config() -> dict[str, Any]:
             # Add a short "Why it matters:" note per story (LLM backends only).
             "why_it_matters": False,
         },
+        # Remember each item's state between runs and flag what CHANGED
+        # (a trial moved to Terminated, results posted, a recall reclassified).
+        # Deterministic; no LLM. State lives in a small JSON file.
+        "history": {
+            "enabled": True,
+            "path": "digest/state.json",
+        },
         "email": {
             # Set enabled: true and fill these to have `run` email the digest.
             # The SMTP password is read from an env var, never stored here.

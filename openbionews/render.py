@@ -65,6 +65,15 @@ def _citation_links_md(cluster: Cluster) -> str:
     return ", ".join(f"[{c.label}]({c.url})" for c in cites)
 
 
+def _change_text(cluster: Cluster) -> str:
+    """The 'what changed since last run' line for the canonical item, if any."""
+    meta = cluster.canonical.meta or {}
+    change = meta.get("change") or ""
+    if not change:
+        return ""
+    return "🆕 New" if meta.get("change_kind") == "new" else f"🔔 {change}"
+
+
 def _cited_body_md(cluster: Cluster) -> tuple[str, str]:
     """(brief, source-key) with a ``<sup>n</sup>`` marker after each sentence.
 
@@ -113,6 +122,9 @@ def render_markdown(digest: Digest, group_by: str = "topic") -> str:
             meta = " · ".join(x for x in (c.tag, note, when) if x)
             if meta:
                 out.append(f"*{meta}*")
+            change = _change_text(cluster)
+            if change:
+                out.append(f"**{change}**")
             if cluster.claims:
                 body, key = _cited_body_md(cluster)
                 out += ["", body]
@@ -155,6 +167,9 @@ def render_text(digest: Digest, group_by: str = "topic") -> str:
             out.append(f"* {c.title}")
             if c.tag:
                 out.append(f"  [{c.tag}]")
+            change = _change_text(cluster)
+            if change:
+                out.append(f"  {change}")
             if cluster.claims:
                 markers, ordered = cite.number_citations(cluster.claims)
                 sentences = []
@@ -200,6 +215,9 @@ def render_html(digest: Digest, group_by: str = "topic") -> str:
         ".card{border:1px solid #eee;border-radius:10px;padding:1rem;margin:.8rem 0}",
         ".sub{font-size:.8rem;color:#6b7280}.count{color:#6b7280;font-size:.9rem}",
         "sup.cite{font-size:.7em;line-height:0}sup.cite a{text-decoration:none;font-weight:600}",
+        ".change{display:inline-block;font-size:.8rem;font-weight:600;color:#9a3412;"
+        "background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:.05rem .4rem;margin:.1rem 0 .3rem}",
+        "@media (prefers-color-scheme:dark){.change{color:#fdba74;background:#2a1a0d;border-color:#7c2d12}}",
         ".srckey{font-size:.8rem;color:#6b7280;margin-top:.3rem}.srckey a{margin-right:.1rem}",
         "footer{margin-top:2rem;color:#9aa0a6;font-size:.85rem;border-top:1px solid #eee;padding-top:1rem}",
         "</style></head><body>",
@@ -226,6 +244,9 @@ def render_html(digest: Digest, group_by: str = "topic") -> str:
             meta = " · ".join(x for x in (c.tag, note, when) if x)
             if meta:
                 parts.append(f'<div class="meta">{esc(meta)}</div>')
+            change = _change_text(cluster)
+            if change:
+                parts.append(f'<div class="change">{esc(change)}</div>')
             if cluster.claims:
                 markers, ordered = cite.number_citations(cluster.claims)
                 spans = []
@@ -288,6 +309,9 @@ def render_rss(digest: Digest) -> str:
         body = []
         if c.tag:
             body.append(c.tag)
+        change = _change_text(cluster)
+        if change:
+            body.append(change)
         if cluster.claims:
             markers, ordered = cite.number_citations(cluster.claims)
             sentences = []

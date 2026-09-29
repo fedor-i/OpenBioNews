@@ -70,6 +70,8 @@ def record_to_item(rec: dict, topic: str = "fda_recalls") -> Item | None:
             "status": status,
             "firm": firm,
             "product": product,
+            "track": {k: v for k, v in
+                      (("Classification", classification), ("Status", status)) if v},
         },
         age_exempt=True,
     )

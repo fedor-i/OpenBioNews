@@ -114,6 +114,15 @@ def importance_score(cluster: Cluster, now: datetime | None = None) -> float:
     title_tokens = cluster.canonical.token_set()
     hits = len(title_tokens & SALIENT_TERMS)
     score += min(hits, 3) * 1.0
+
+    # A change since the last run is the highest-value signal: a status move
+    # (e.g. a trial Terminated) outranks a static record, and a brand-new item
+    # outranks an unchanged one.
+    kind = cluster.canonical.meta.get("change_kind", "") if cluster.canonical.meta else ""
+    if kind == "status":
+        score += 4.0
+    elif kind == "new":
+        score += 2.0
     return score
 
 

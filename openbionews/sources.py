@@ -136,6 +136,99 @@ THERAPEUTIC_AREAS: dict[str, dict] = {
 }
 
 
+# Thematic groups: cut across therapeutic areas by *modality, approach or
+# company cohort* rather than disease. Each seeds free-text search terms (and,
+# where the theme is a recognisable company cohort, lead-sponsor names) that
+# ClinicalTrials.gov, openFDA and EDGAR all understand. This is how a user says
+# "track AI-in-drug-discovery" or "new approach methodologies", not a disease.
+THEMES: dict[str, dict] = {
+    "ai": {
+        "label": "AI in drug discovery",
+        "terms": ["artificial intelligence", "machine learning", "deep learning",
+                  "AI drug discovery", "generative model"],
+        "sponsors": ["Recursion Pharmaceuticals", "Exscientia", "Insilico Medicine",
+                     "Schrödinger", "Absci", "BenevolentAI", "Isomorphic Labs",
+                     "Relay Therapeutics"],
+    },
+    "nam": {
+        "label": "New Approach Methodologies (NAM)",
+        "terms": ["new approach methodologies", "organ-on-a-chip",
+                  "microphysiological systems", "organoid", "in vitro model",
+                  "non-animal testing"],
+        "sponsors": ["Emulate", "CN Bio", "Hesperos"],
+    },
+    "gene_cell": {
+        "label": "Gene & cell therapy",
+        "terms": ["gene therapy", "cell therapy", "CAR-T", "AAV", "lentiviral"],
+        "sponsors": ["CRISPR Therapeutics", "Intellia Therapeutics", "Beam Therapeutics",
+                     "Sarepta Therapeutics", "bluebird bio"],
+    },
+    "crispr": {
+        "label": "Gene editing (CRISPR)",
+        "terms": ["CRISPR", "gene editing", "base editing", "prime editing"],
+        "sponsors": ["CRISPR Therapeutics", "Intellia Therapeutics",
+                     "Beam Therapeutics", "Editas Medicine", "Prime Medicine"],
+    },
+    "mrna": {
+        "label": "mRNA & RNA therapeutics",
+        "terms": ["mRNA", "messenger RNA", "siRNA", "antisense oligonucleotide", "RNA therapeutic"],
+        "sponsors": ["Moderna", "BioNTech", "Alnylam Pharmaceuticals", "Ionis Pharmaceuticals"],
+    },
+    "adc": {
+        "label": "Antibody-drug conjugates",
+        "terms": ["antibody-drug conjugate", "ADC", "bispecific antibody"],
+        "sponsors": ["Seagen", "ADC Therapeutics", "Daiichi Sankyo", "ImmunoGen"],
+    },
+    "radiopharma": {
+        "label": "Radiopharmaceuticals",
+        "terms": ["radiopharmaceutical", "radioligand therapy", "theranostic",
+                  "targeted radionuclide"],
+        "sponsors": ["Novartis", "Point Biopharma", "RayzeBio", "Lantheus"],
+    },
+    "obesity": {
+        "label": "GLP-1 / obesity",
+        "terms": ["GLP-1", "obesity", "semaglutide", "tirzepatide", "weight loss"],
+        "sponsors": ["Novo Nordisk", "Eli Lilly", "Amgen", "Viking Therapeutics", "Structure Therapeutics"],
+    },
+    "psychedelics": {
+        "label": "Psychedelic medicine",
+        "terms": ["psilocybin", "MDMA", "psychedelic", "ketamine"],
+        "sponsors": ["Compass Pathways", "atai Life Sciences", "MindMed"],
+    },
+    "longevity": {
+        "label": "Longevity & aging",
+        "terms": ["aging", "senescence", "senolytic", "longevity"],
+        "sponsors": ["Altos Labs", "Unity Biotechnology", "BioAge Labs"],
+    },
+}
+
+
+def theme_terms(keys: list[str]) -> list[str]:
+    """Flatten the free-text search terms for the given theme keys (deduped)."""
+    out: list[str] = []
+    for key in keys:
+        theme = THEMES.get(key)
+        if not theme:
+            continue
+        for term in theme.get("terms", []):
+            if term not in out:
+                out.append(term)
+    return out
+
+
+def theme_sponsors(keys: list[str]) -> list[str]:
+    """Flatten the lead-sponsor cohort for the given theme keys (deduped)."""
+    out: list[str] = []
+    for key in keys:
+        theme = THEMES.get(key)
+        if not theme:
+            continue
+        for sponsor in theme.get("sponsors", []):
+            if sponsor not in out:
+                out.append(sponsor)
+    return out
+
+
 def area_conditions(keys: list[str]) -> list[str]:
     """Flatten the conditions for the given therapeutic-area keys (deduped, ordered)."""
     out: list[str] = []

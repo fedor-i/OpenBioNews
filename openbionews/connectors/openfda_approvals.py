@@ -100,7 +100,8 @@ def application_items(app: dict, cutoff=None, include_supplements: bool = True,
             tag=" · ".join(x for x in ("New approval" if is_orig else "Supplement",
                                        priority, sponsor_disp) if x),
             meta={"application_number": appno, "sponsor": sponsor,
-                  "submission_type": stype, "priority": priority},
+                  "submission_type": stype, "priority": priority,
+                  "track": {"Type": "New approval" if is_orig else "Supplement"}},
             age_exempt=True,
         ))
     return out

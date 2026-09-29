@@ -164,9 +164,22 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
         if preset_conditions:
             print(f"  → seeded conditions: {', '.join(preset_conditions)}")
 
+        # Optional thematic groups (AI, NAM, modalities…) seed terms + companies.
+        theme_opts = [(k, v["label"]) for k, v in sources.THEMES.items()]
+        picked_themes = ask_multi(
+            "Start from thematic groups (AI, NAM, modalities)? (optional)", theme_opts, [])
+        preset_terms = sources.theme_terms(picked_themes)
+        preset_sponsors = sources.theme_sponsors(picked_themes)
+        if picked_themes:
+            print(f"  → seeded terms: {', '.join(preset_terms)}")
+            if preset_sponsors:
+                print(f"  → seeded companies: {', '.join(preset_sponsors)}")
+
         print("Build a watch list (comma-separated; leave blank to skip a line):")
+        existing_sponsors = wl.get("sponsors", [])
+        merged_sponsors = preset_sponsors + [s for s in existing_sponsors if s not in preset_sponsors]
         wl["sponsors"] = _csv(ask_text("  Companies / sponsors",
-                                        ", ".join(wl.get("sponsors", []))))
+                                        ", ".join(merged_sponsors)))
         existing_conditions = wl.get("conditions", [])
         # Merge presets with anything already configured, presets first.
         merged = preset_conditions + [c for c in existing_conditions if c not in preset_conditions]
@@ -174,8 +187,10 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
                                          ", ".join(merged)))
         wl["interventions"] = _csv(ask_text("  Drugs / interventions",
                                             ", ".join(wl.get("interventions", []))))
+        existing_terms = wl.get("terms", [])
+        merged_terms = preset_terms + [t for t in existing_terms if t not in preset_terms]
         wl["terms"] = _csv(ask_text("  Other search terms",
-                                    ", ".join(wl.get("terms", []))))
+                                    ", ".join(merged_terms)))
         days = ask_text("  Only developments within how many days?",
                         str(ct.get("recent_days", 30)))
         recent = int(days) if days.isdigit() else 30

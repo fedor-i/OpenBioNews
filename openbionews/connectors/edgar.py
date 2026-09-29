@@ -64,7 +64,8 @@ def hit_to_item(hit: dict, topic: str = "sec_filings") -> Item | None:
         guid=hit.get("_id", "") or accn,
         citations=[Citation(label=f"EDGAR {accn or 'filing'}", url=url, kind="filing")],
         tag=" · ".join(x for x in (form, ", ".join(names[1:3])) if x),
-        meta={"form": form, "ciks": ciks, "accession": accn},
+        meta={"form": form, "ciks": ciks, "accession": accn,
+              "track": ({"Form": form} if form else {})},
         age_exempt=True,
     )
 

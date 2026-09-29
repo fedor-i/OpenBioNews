@@ -37,7 +37,14 @@ def demo_items() -> list:
     rss_items, _ = fetch.fetch_all(feeds)
     items.extend(rss_items)
     # Primary-source fixtures, parsed by the real connector parsers.
-    items.extend(parse_studies(json.loads((DATA / "demo_clinicaltrials.json").read_text("utf-8"))))
+    trials = parse_studies(json.loads((DATA / "demo_clinicaltrials.json").read_text("utf-8")))
+    # Showcase change detection: on a live install, this line is produced by
+    # comparing today's run to the last one (see history.py). Here it is seeded
+    # so the offline demo shows what a status change looks like.
+    if trials:
+        trials[0].meta["change"] = "Status: Recruiting → Active, not recruiting"
+        trials[0].meta["change_kind"] = "status"
+    items.extend(trials)
     items.extend(parse_enforcement(json.loads((DATA / "demo_openfda.json").read_text("utf-8"))))
     # cutoff=None: keep every fixture approval regardless of its fixed date.
     items.extend(parse_approvals(json.loads((DATA / "demo_fda_approvals.json").read_text("utf-8")), cutoff=None))
