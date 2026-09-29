@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest an idea — a new source, filter, output, or improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Describe the use case. What are you trying to accomplish?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - New primary-source connector (registry / regulator / filings)
+        - New feed / source bundle
+        - Filtering / ranking
+        - Output / delivery (format, email, RSS, Slack…)
+        - Hosted web page
+        - Onboarding / config
+        - Other
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution (optional)
+      description: If you have an idea for how it could work, share it.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to help implement this
+          required: false

@@ -1,5 +1,10 @@
 # OpenBioNews
 
+[![CI](https://github.com/fedor-i/OpenBioNews/actions/workflows/ci.yml/badge.svg)](https://github.com/fedor-i/OpenBioNews/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](pyproject.toml)
+
 **A free, self-hosted news digest you run on your own computer.**
 
 OpenBioNews gathers stories from the sources you choose, groups the same story

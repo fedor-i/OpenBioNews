@@ -1,0 +1,50 @@
+name: Bug report
+description: Something isn't working
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report! Please fill in what you can.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+      placeholder: I ran `openbionews run` and…
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. openbionews setup …
+        2. openbionews run …
+    validations:
+      required: false
+  - type: input
+    id: command
+    attributes:
+      label: Command / config
+      description: The command you ran (and relevant config, with secrets removed).
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: macOS 14 / Windows 11 / Ubuntu 24.04
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "3.11"
+  - type: dropdown
+    id: backend
+    attributes:
+      label: LLM backend
+      options: ["none (default)", "ollama", "openai-compatible"]
+  - type: textarea
+    id: output
+    attributes:
+      label: Output / error
+      description: Paste the terminal output. Run `openbionews doctor` and include it if relevant.
+      render: shell
