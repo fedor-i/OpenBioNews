@@ -7,6 +7,13 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **LLM as a labelled interpretation layer** — with per-sentence citations now
+  the factual body, an enabled LLM (Ollama / OpenAI-compatible) no longer writes
+  the facts; it adds only a clearly-marked *"💡 Why it matters (AI analysis)"*
+  note beneath the deterministic cited claims (turn on `output.why_it_matters`).
+  The facts stay verbatim and cited — nothing to hallucinate — while the model
+  supplies interpretation you can tell apart at a glance. A failed note is dropped
+  with a warning; the cited body always renders. Runs across Markdown/HTML/text/RSS.
 - **Change detection between runs** — OpenBioNews now remembers each item's
   salient state (by NCT id, recall number, EDGAR accession) and flags what
   *changed* on the next run: a trial moved to Terminated, results posted, a recall

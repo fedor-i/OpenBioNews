@@ -44,10 +44,30 @@ def build_prompt(cluster: Cluster) -> str:
     return "\n".join(lines)
 
 
+def extract_significance(text: str) -> str:
+    """Pull just the 'Why it matters' clause from a significance summary.
+
+    The significance prompt returns a factual sentence followed by a
+    'Why it matters: …' sentence. The factual half is already covered — and
+    cited — by the deterministic claims, so we keep only the interpretation and
+    drop the label (the renderer adds its own)."""
+    if not text:
+        return ""
+    low = text.lower()
+    idx = low.find("why it matters")
+    if idx == -1:
+        return text.strip()
+    tail = text[idx + len("why it matters"):].lstrip(" :–-").strip()
+    return tail
+
+
 class Backend:
     """Common base. Subclasses implement ``summarize`` and ``available``."""
 
     name = "base"
+    # Whether this backend can write a meaningful "why it matters" note. The
+    # deterministic no-LLM backend cannot; the LLM backends can.
+    supports_significance = False
 
     def __init__(self, cfg: dict | None = None) -> None:
         self.cfg = cfg or {}

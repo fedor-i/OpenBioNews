@@ -16,6 +16,7 @@ from ._http import LLMError, post_json
 
 
 class OpenAICompatBackend(Backend):
+    supports_significance = True
     name = "openai-compatible"
 
     def __init__(self, cfg: dict) -> None:

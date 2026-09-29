@@ -61,6 +61,9 @@ class Cluster:
     blurb: str = ""
     # Per-sentence, source-bound brief (deterministic; see cite.py).
     claims: list[Claim] = field(default_factory=list)
+    # Optional LLM interpretation ("why it matters"). Analysis, not a cited fact —
+    # rendered as a clearly-labelled note below the deterministic claims.
+    significance: str = ""
 
     @property
     def canonical(self) -> Item:

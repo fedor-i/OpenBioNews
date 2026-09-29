@@ -13,6 +13,7 @@ from ._http import LLMError, post_json
 
 
 class OllamaBackend(Backend):
+    supports_significance = True
     name = "ollama"
 
     def __init__(self, cfg: dict) -> None:

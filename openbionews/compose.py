@@ -10,8 +10,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from . import cite
+from .llm import base
 from .llm.base import Backend
-from .llm.nollm import NoLLMBackend
 from .models import Cluster, Digest
 
 
@@ -25,22 +25,28 @@ def compose(
 ) -> tuple[Digest, list[str]]:
     """Build the Digest. Returns (digest, warnings)."""
     warnings: list[str] = []
-    fallback = NoLLMBackend()
+
+    # The deterministic cited claims are always the factual body. An LLM, when
+    # enabled and asked, adds only interpretation ("why it matters") on top —
+    # never the facts — so there is nothing for it to hallucinate into the record.
+    want_llm_note = want_significance and getattr(backend, "supports_significance", False)
 
     for i, cluster in enumerate(clusters):
         if not want_summaries:
             cluster.blurb = ""
             cluster.claims = []
+            cluster.significance = ""
             continue
-        # The source-bound, per-sentence brief is deterministic and backend-
-        # independent: it is lifted verbatim from the cited primary records, so
-        # it stands on its own even when an LLM blurb is also requested.
+        # Source-bound, per-sentence brief: verbatim from the cited records.
         cluster.claims = cite.attribute(cluster)
-        try:
-            cluster.blurb = backend.summarize(cluster, significance=want_significance)
-        except Exception as exc:  # noqa: BLE001 — any backend failure degrades gracefully
-            cluster.blurb = fallback.summarize(cluster)
-            warnings.append(f"'{cluster.canonical.title[:50]}': {exc}")
+        cluster.blurb = ""
+        cluster.significance = ""
+        if want_llm_note:
+            try:
+                text = backend.summarize(cluster, significance=True)
+                cluster.significance = base.extract_significance(text)
+            except Exception as exc:  # noqa: BLE001 — a failed note never sinks the run
+                warnings.append(f"'{cluster.canonical.title[:50]}': {exc}")
         if on_status:
             on_status(i + 1, len(clusters))
 

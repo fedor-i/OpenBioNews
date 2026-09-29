@@ -139,18 +139,52 @@ def test_nollm_summary():
 
 class _BoomBackend(Backend):
     name = "boom"
+    supports_significance = True
 
-    def summarize(self, cluster):
+    def summarize(self, cluster, significance=False):
         raise RuntimeError("simulated failure")
 
 
 def test_compose_falls_back_on_error():
+    # An LLM only adds the "why it matters" note; if that call fails, the run
+    # still yields the deterministic cited body and records a warning.
     clusters = pipeline.cluster_items(
         [_item("H", "https://ex.com/1", summary="Fallback works. Yes.")], threshold=0.5
     )
-    digest, warnings = compose.compose(clusters, _BoomBackend(), {"title": "T"})
-    assert "Fallback works." in digest.clusters[0].blurb
+    digest, warnings = compose.compose(
+        clusters, _BoomBackend(), {"title": "T"}, want_significance=True
+    )
+    cluster = digest.clusters[0]
+    assert cluster.significance == ""            # the failed note is dropped
+    assert any("Fallback works." in c.text for c in cluster.claims)  # facts survive
     assert len(warnings) == 1
+
+
+def test_llm_significance_note():
+    """An LLM adds a labelled 'why it matters' note on top of the cited facts."""
+    class _WhyBackend(Backend):
+        name = "why"
+        supports_significance = True
+        def summarize(self, cluster, significance=False):
+            return "A trial. Why it matters: it could change standard of care."
+
+    clusters = pipeline.cluster_items(
+        [_item("Big Story", "https://ex.com/1", summary="A big development happened.")],
+        threshold=0.5,
+    )
+    digest, warnings = compose.compose(
+        clusters, _WhyBackend(), {"title": "T"}, want_significance=True
+    )
+    c = digest.clusters[0]
+    assert c.significance == "it could change standard of care."
+    assert warnings == []
+    md = render.render(digest, "markdown")
+    assert "Why it matters" in md and "AI analysis" in md
+    html = render.render(digest, "html")
+    assert 'class="sig"' in html
+    # No-LLM backend produces no note.
+    d2, _ = compose.compose(clusters, NoLLMBackend(), {"title": "T"}, want_significance=True)
+    assert d2.clusters[0].significance == ""
 
 
 def test_render_formats():

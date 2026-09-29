@@ -26,9 +26,10 @@ sciences**, but you can point it at any topic.
   therapeutic areas *and* thematic cohorts like **AI in drug discovery**, **NAM**,
   gene/cell therapy, CRISPR, mRNA, ADCs, radiopharma, GLP-1/obesity. Stack several.
 - 🖥️ **Runs everywhere.** Windows, macOS, and Linux — pure Python, no build step.
-- 🔌 **Bring your own LLM — or none.** Works with a local model (Ollama), any
-  OpenAI-compatible API, or with *no LLM at all* (it uses each article's own
-  lead sentences).
+- 🔌 **Bring your own LLM — or none.** The cited facts are always deterministic;
+  an optional local model (Ollama) or OpenAI-compatible API only adds a clearly
+  labelled *"Why it matters"* interpretation on top — so the AI never touches the
+  record, and there's nothing to hallucinate into it. Runs fully offline.
 - 🧩 **Zero dependencies.** The core runs on the Python standard library. If you
   have Python, you can run it.
 - 🥇 **Curated, not a firehose.** Stories are de-duplicated across outlets and
