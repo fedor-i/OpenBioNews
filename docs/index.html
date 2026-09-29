@@ -33,7 +33,7 @@
   .brand{font:700 1.5rem/1.1 Georgia,"Times New Roman",serif;letter-spacing:-.01em}
   .brand small{font:400 .82rem/1.3 -apple-system,sans-serif;color:var(--muted);display:block;margin-top:.35rem}
   main{max-width:60rem;margin:0 auto;padding:0 1rem 3rem}
-  .tabs{display:flex;gap:.4rem;margin:1rem 0 .2rem;border-bottom:1px solid var(--line)}
+  .tabs{display:flex;flex-wrap:wrap;gap:.2rem .4rem;margin:1rem 0 .2rem;border-bottom:1px solid var(--line)}
   .tab{background:none;border:none;padding:.6rem .9rem;font-size:.98rem;font-weight:600;color:var(--muted);
     cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
   .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
@@ -83,14 +83,16 @@
 <header>
   <button class="toggle" id="themeBtn" title="Toggle light/dark">◐ theme</button>
   <div class="brand">OpenBioNews
-    <small>Filter clinical-trial developments and FDA drug recalls — live, free, and traced to the source record.</small>
+    <small>Filter clinical trials, FDA recalls · approvals · shortages, and SEC filings — live, free, and traced to the source record.</small>
   </div>
 </header>
 
 <main>
   <div class="tabs" role="tablist">
     <button class="tab" id="tab-trials" role="tab" aria-selected="true" aria-controls="panel-trials">Clinical trials</button>
-    <button class="tab" id="tab-recalls" role="tab" aria-selected="false" aria-controls="panel-recalls">FDA drug recalls</button>
+    <button class="tab" id="tab-recalls" role="tab" aria-selected="false" aria-controls="panel-recalls">FDA recalls</button>
+    <button class="tab" id="tab-approvals" role="tab" aria-selected="false" aria-controls="panel-approvals">FDA approvals</button>
+    <button class="tab" id="tab-shortages" role="tab" aria-selected="false" aria-controls="panel-shortages">FDA shortages</button>
     <button class="tab" id="tab-sec" role="tab" aria-selected="false" aria-controls="panel-sec">SEC filings</button>
   </div>
 
@@ -215,6 +217,65 @@
     </div>
   </section>
 
+  <!-- FDA APPROVALS -->
+  <section id="panel-approvals" role="tabpanel" hidden>
+    <div class="filters">
+      <div class="chips" data-for="approvals">
+        <span class="chip" data-drug="pembrolizumab">Pembrolizumab</span>
+        <span class="chip" data-spons="Moderna">Moderna</span>
+        <span class="chip" data-spons="Vertex">Vertex</span>
+      </div>
+      <div class="grid">
+        <div><label for="a_spons">Company / sponsor</label><input id="a_spons" placeholder="e.g. Vertex"></div>
+        <div><label for="a_drug">Drug (brand or generic)</label><input id="a_drug" placeholder="e.g. semaglutide"></div>
+        <div><label for="a_recent">Approved within</label>
+          <select id="a_recent">
+            <option value="90">90 days</option>
+            <option value="180">6 months</option>
+            <option value="365">1 year</option>
+            <option value="1095">3 years</option>
+          </select>
+        </div>
+        <div><label for="a_suppl">Include</label>
+          <select id="a_suppl">
+            <option value="1">Approvals + supplements</option>
+            <option value="0">New approvals only</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <button class="go" id="a_search">Search</button>
+        <button class="ghost" id="a_clear">Clear</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FDA SHORTAGES -->
+  <section id="panel-shortages" role="tabpanel" hidden>
+    <div class="filters">
+      <div class="chips" data-for="shortages">
+        <span class="chip" data-status="Current">Current</span>
+        <span class="chip" data-drug="cisplatin">Cisplatin</span>
+        <span class="chip" data-drug="amoxicillin">Amoxicillin</span>
+      </div>
+      <div class="grid">
+        <div><label for="h_drug">Drug (generic or brand)</label><input id="h_drug" placeholder="e.g. cisplatin"></div>
+        <div><label for="h_company">Company</label><input id="h_company" placeholder="e.g. Pfizer"></div>
+        <div><label for="h_status">Status</label>
+          <select id="h_status">
+            <option value="Current">Current</option>
+            <option value="Resolved">Resolved</option>
+            <option value="">Any status</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <button class="go" id="h_search">Search</button>
+        <button class="ghost" id="h_clear">Clear</button>
+      </div>
+    </div>
+  </section>
+
   <!-- SEC FILINGS -->
   <section id="panel-sec" role="tabpanel" hidden>
     <div class="filters">
@@ -280,11 +341,15 @@ const CT_API = "https://clinicaltrials.gov/api/v2/studies";
 const CT_FIELDS = ["NCTId","BriefTitle","OverallStatus","LastUpdatePostDate","LeadSponsorName",
   "Condition","InterventionName","BriefSummary","Phase","StudyType"].join(",");
 const FDA_API = "https://api.fda.gov/drug/enforcement.json";
+const FDA_APPROVALS_API = "https://api.fda.gov/drug/drugsfda.json";
+const FDA_SHORTAGES_API = "https://api.fda.gov/drug/shortages.json";
 const SEC_API = "https://efts.sec.gov/LATEST/search-index";
 
 let tab = "trials";
 let ctToken = null, ctParams = null;
 let fdaSkip = 0, fdaParams = null, fdaTotal = 0;
+let aprSkip = 0, aprParams = null;
+let shrSkip = 0, shrParams = null;
 let secFrom = 0, secParams = null, secTotal = 0;
 
 // ---- theme (per-viewer convenience) ----
@@ -304,7 +369,7 @@ function prettyStatus(s){ return s ? s.replace(/_/g," ").replace(/\b\w/g,c=>c.to
 function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&p!=="NA").map(p=>p.replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase ")).join("/"); }
 
 // ---- tab switching ----
-const TABS = ["trials","recalls","sec"];
+const TABS = ["trials","recalls","approvals","shortages","sec"];
 function selectTab(name, run){
   tab = name;
   for(const t of TABS){
@@ -451,6 +516,118 @@ function renderRecall(r){
   return el;
 }
 
+// ================= FDA APPROVALS (Drugs@FDA) =================
+function apprFilters(){
+  return {spons:$("a_spons").value.trim(), drug:$("a_drug").value.trim(),
+    recent:$("a_recent").value, suppl:$("a_suppl").value==="1"};
+}
+function apprHasFilter(f){ return f.spons||f.drug; }
+function buildApprUrl(f, skip){
+  const terms=['submissions.submission_status:"AP"'];
+  if(f.spons) terms.unshift(`sponsor_name:"${f.spons.replace(/"/g,"")}"`);
+  if(f.drug){ const d=f.drug.replace(/"/g,""); terms.unshift(`(openfda.brand_name:"${d}"+OR+openfda.generic_name:"${d}")`); }
+  const search=terms.join("+AND+");
+  return `${FDA_APPROVALS_API}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&limit=25&skip=${skip||0}`;
+}
+function approvalCards(app, cutoffMs, includeSuppl){
+  const of=app.openfda||{}; const first=v=>Array.isArray(v)?(v[0]||""):(v||"");
+  const brands=of.brand_name||[]; const generics=of.generic_name||[];
+  const products=app.products||[];
+  let name=first(brands)|| (products[0]&&products[0].brand_name) || first(generics) || app.application_number || "FDA drug";
+  if(name && name===name.toUpperCase()) name=name.replace(/\b\w+/g,w=>w[0]+w.slice(1).toLowerCase());
+  const appno=app.application_number||""; const digits=(appno.match(/\d+/)||[""])[0];
+  const url=digits?`https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo=${digits}`:"https://www.accessdata.fda.gov/scripts/cder/daf/";
+  const sponsor=(app.sponsor_name||""); const sponsorDisp=sponsor===sponsor.toUpperCase()?sponsor.replace(/\b\w+/g,w=>w[0]+w.slice(1).toLowerCase()):sponsor;
+  const form=products[0]?[products[0].dosage_form,products[0].route].filter(Boolean).join(" ").toLowerCase():"";
+  const cards=[];
+  for(const sub of (app.submissions||[])){
+    if(sub.submission_status!=="AP") continue;
+    const isOrig=(sub.submission_type||"").toUpperCase()!=="SUPPL";
+    if(!isOrig && !includeSuppl) continue;
+    const d=sub.submission_status_date||""; const dt=(d.length===8)?Date.UTC(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6,8)):NaN;
+    if(cutoffMs && !isNaN(dt) && dt<cutoffMs) continue;
+    const kind=isOrig?"FDA approval":"FDA supplemental approval";
+    const priority=(sub.review_priority||"").toUpperCase()==="PRIORITY"?"Priority review":"";
+    const tags=[isOrig?"New approval":"Supplement",priority,sponsorDisp].filter(Boolean);
+    const dateStr=(d.length===8)?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:"";
+    const el=document.createElement("article");
+    el.innerHTML=
+      `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)} — ${esc(kind)}</a></h2>`+
+      `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
+      `<div class="summary">${esc((sponsorDisp||"The sponsor")+" received "+(isOrig?"FDA approval":"a supplemental FDA approval")+" for "+name+(form?" ("+form+")":"")+".")}</div>`+
+      `<div class="src">${dateStr?`approved ${esc(dateStr)} · `:""}↳ Source: <a href="${esc(url)}" target="_blank" rel="noopener">Drugs@FDA ${esc(appno)}</a></div>`;
+    cards.push(el);
+  }
+  return cards;
+}
+async function searchApprovals(reset){
+  const f=apprFilters();
+  if(reset){ aprSkip=0; aprParams=f; $("results").innerHTML=""; }
+  if(!apprHasFilter(f)){ $("status").textContent="Enter a company or a drug name."; return; }
+  $("status").textContent="Searching Drugs@FDA…"; $("moreBtn").hidden=true;
+  const cutoffMs=Date.now()-(+ (aprParams||f).recent)*864e5;
+  try{
+    const data=await getJson(buildApprUrl(aprParams||f, reset?0:aprSkip), true);
+    if(data.__empty){ if($("results").children.length===0) $("status").textContent="No matching approvals."; $("moreBtn").hidden=true; return; }
+    const apps=data.results||[];
+    for(const app of apps) approvalCards(app, cutoffMs, (aprParams||f).suppl).forEach(c=>$("results").appendChild(c));
+    aprSkip += apps.length;
+    const total=dig(data,"meta","results","total")||0;
+    const have=$("results").children.length;
+    $("status").textContent = have ? `Showing ${have} approval(s) from ${Number(total).toLocaleString()} applications.` : "No approvals in this window (try a wider range).";
+    $("moreBtn").hidden = aprSkip>=total || apps.length===0;
+  }catch(err){ showErr("Drugs@FDA", err); }
+}
+
+// ================= FDA SHORTAGES =================
+function shrtFilters(){
+  return {drug:$("h_drug").value.trim(), company:$("h_company").value.trim(), status:$("h_status").value};
+}
+function shrtHasFilter(f){ return f.drug||f.company||f.status; }
+function buildShrtUrl(f, skip){
+  const terms=[];
+  if(f.drug){ const d=f.drug.replace(/"/g,""); terms.push(`(generic_name:"${d}"+OR+proprietary_name:"${d}")`); }
+  if(f.company) terms.push(`company_name:"${f.company.replace(/"/g,"")}"`);
+  if(f.status) terms.push(`status:"${f.status}"`);
+  const search=terms.join("+AND+");
+  const q=search?`search=${encodeURIComponent(search).replace(/%2B/g,"+")}&`:"";
+  return `${FDA_SHORTAGES_API}?${q}limit=25&skip=${skip||0}`;
+}
+function renderShortage(r){
+  const of=r.openfda||{}; const first=v=>Array.isArray(v)?(v[0]||""):(v||"");
+  const name=(first(r.proprietary_name)||first(of.brand_name)||first(r.generic_name)||first(of.generic_name)||"Drug shortage").trim();
+  const status=r.status||""; const company=r.company_name||"";
+  let cats=r.therapeutic_category||[]; if(typeof cats==="string") cats=[cats];
+  const reason=r.reason_for_shortage||r.availability||"";
+  const d=r.update_date||r.initial_posting_date||"";
+  const url=`https://dps.fda.gov/drugshortages/search?query=${encodeURIComponent(name)}`;
+  const tags=[status,(cats[0]||""),company].filter(Boolean);
+  const el=document.createElement("article");
+  el.innerHTML=
+    `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)} — shortage${status?` (${esc(status)})`:""}</a></h2>`+
+    `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
+    (reason?`<div class="summary">${esc(clip(reason,320))}</div>`:"")+
+    `<div class="src">${d?`updated ${esc(String(d).slice(0,10))} · `:""}↳ Source: <a href="${esc(url)}" target="_blank" rel="noopener">FDA Drug Shortages</a></div>`;
+  return el;
+}
+async function searchShortages(reset){
+  const f=shrtFilters();
+  if(reset){ shrSkip=0; shrParams=f; $("results").innerHTML=""; }
+  if(!shrtHasFilter(f)){ $("status").textContent="Pick a status, or enter a drug or company."; return; }
+  $("status").textContent="Searching openFDA shortages…"; $("moreBtn").hidden=true;
+  try{
+    const data=await getJson(buildShrtUrl(shrParams||f, reset?0:shrSkip), true);
+    if(data.__empty){ if($("results").children.length===0) $("status").textContent="No matching shortages."; $("moreBtn").hidden=true; return; }
+    const rows=data.results||[];
+    for(const r of rows) $("results").appendChild(renderShortage(r));
+    shrSkip += rows.length;
+    const total=dig(data,"meta","results","total")||0;
+    const have=$("results").children.length;
+    $("status").textContent = have ? `Showing ${have} of ${Number(total).toLocaleString()} shortages.` : "No matching shortages.";
+    $("moreBtn").hidden = have>=total || rows.length===0;
+  }catch(err){ showErr("openFDA shortages", err); }
+}
+
 // ================= SEC EDGAR =================
 function secFilters(){
   return {q:$("s_q").value.trim(), form:$("s_form").value, recent:$("s_recent").value};
@@ -543,18 +720,38 @@ function showErr(name, err){
 }
 
 // ---- current search dispatch ----
-function runSearch(reset){ return tab==="trials" ? searchTrials(reset) : tab==="recalls" ? searchRecalls(reset) : searchSec(reset); }
+function runSearch(reset){
+  return tab==="trials" ? searchTrials(reset) : tab==="recalls" ? searchRecalls(reset)
+    : tab==="approvals" ? searchApprovals(reset) : tab==="shortages" ? searchShortages(reset)
+    : searchSec(reset);
+}
 $("t_search").onclick=()=>{ searchTrials(true); syncUrl(); };
 $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
+$("a_search").onclick=()=>{ searchApprovals(true); syncUrl(); };
+$("h_search").onclick=()=>{ searchShortages(true); syncUrl(); };
 $("s_search").onclick=()=>{ searchSec(true); syncUrl(); };
 $("moreBtn").onclick=()=>runSearch(false);
 $("t_clear").onclick=()=>{ ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).value=""); $("t_status").value=""; $("t_phase").value=""; $("t_recent").value=""; $("t_industry").checked=false; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("r_clear").onclick=()=>{ ["r_firm","r_drug","r_reason"].forEach(id=>$(id).value=""); $("r_class").value=""; $("r_status").value=""; $("r_recent").value=""; $("r_type").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
+$("a_clear").onclick=()=>{ ["a_spons","a_drug"].forEach(id=>$(id).value=""); $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
+$("h_clear").onclick=()=>{ ["h_drug","h_company"].forEach(id=>$(id).value=""); $("h_status").value="Current"; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("s_clear").onclick=()=>{ $("s_q").value=""; $("s_form").value=""; $("s_recent").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 
 ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchTrials(true); syncUrl(); }}));
 ["r_firm","r_drug","r_reason"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchRecalls(true); syncUrl(); }}));
+["a_spons","a_drug"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchApprovals(true); syncUrl(); }}));
+["h_drug","h_company"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchShortages(true); syncUrl(); }}));
 $("s_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchSec(true); syncUrl(); }});
+document.querySelectorAll('.chips[data-for="approvals"] .chip').forEach(c=>c.onclick=()=>{
+  if(c.dataset.drug) $("a_drug").value=c.dataset.drug;
+  if(c.dataset.spons) $("a_spons").value=c.dataset.spons;
+  searchApprovals(true); syncUrl();
+});
+document.querySelectorAll('.chips[data-for="shortages"] .chip').forEach(c=>c.onclick=()=>{
+  if(c.dataset.drug) $("h_drug").value=c.dataset.drug;
+  if(c.dataset.status) $("h_status").value=c.dataset.status;
+  searchShortages(true); syncUrl();
+});
 
 document.querySelectorAll('.chips[data-for="trials"] .chip').forEach(c=>c.onclick=()=>{
   if(c.dataset.cond) $("t_cond").value=c.dataset.cond;
@@ -578,7 +775,12 @@ document.querySelectorAll('.chips[data-for="sec"] .chip').forEach(c=>c.onclick=(
 const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent",t_sort:"sort"};
 const R_FIELDS={r_firm:"firm",r_drug:"drug",r_reason:"reason",r_class:"class",r_status:"rstatus",r_recent:"rrecent",r_type:"rtype"};
 const S_FIELDS={s_q:"q",s_form:"form",s_recent:"srecent"};
-function fieldsFor(t){ return t==="trials"?T_FIELDS : t==="recalls"?R_FIELDS : S_FIELDS; }
+const A_FIELDS={a_spons:"aspons",a_drug:"adrug",a_recent:"arecent",a_suppl:"asuppl"};
+const H_FIELDS={h_drug:"hdrug",h_company:"hcompany",h_status:"hstatus"};
+function fieldsFor(t){
+  return t==="trials"?T_FIELDS : t==="recalls"?R_FIELDS : t==="approvals"?A_FIELDS
+    : t==="shortages"?H_FIELDS : S_FIELDS;
+}
 function syncUrl(){
   const p=new URLSearchParams(); p.set("tab",tab);
   for(const [id,key] of Object.entries(fieldsFor(tab))){ const v=$(id).value; if(v) p.set(key,v); }
@@ -594,12 +796,14 @@ $("copyLink").onclick=async()=>{
 function loadFromUrl(){
   const p=new URLSearchParams(location.search);
   const t=TABS.includes(p.get("tab"))?p.get("tab"):"trials";
-  for(const map of [T_FIELDS,R_FIELDS,S_FIELDS])
+  for(const map of [T_FIELDS,R_FIELDS,A_FIELDS,H_FIELDS,S_FIELDS])
     for(const [id,key] of Object.entries(map)) if(p.get(key)) $(id).value=p.get(key);
   $("t_industry").checked = p.get("industry")==="1";
   selectTab(t);
   if(t==="trials" && trialsHasFilter(trialsFilters())) searchTrials(true);
   else if(t==="recalls" && recallsHasFilter(recallsFilters())) searchRecalls(true);
+  else if(t==="approvals" && apprHasFilter(apprFilters())) searchApprovals(true);
+  else if(t==="shortages" && shrtHasFilter(shrtFilters())) searchShortages(true);
   else if(t==="sec" && secHasFilter(secFilters())) searchSec(true);
 }
 loadFromUrl();

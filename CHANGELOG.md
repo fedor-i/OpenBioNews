@@ -28,6 +28,9 @@ to follow [Semantic Versioning](https://semver.org/).
 - **openFDA drug-shortages connector** (`connectors.openfda_shortages`): current
   (or resolved) shortages by drug/company, cited to the FDA Drug Shortages
   database — completing the FDA trio (recalls + approvals + shortages).
+- **Hosted page parity**: the web app now has five tabs — Clinical trials, FDA
+  recalls, **FDA approvals**, **FDA shortages**, and SEC filings — matching the
+  CLI's source coverage, all client-side with shareable links.
 
 ### Fixed
 - Windows: the setup wizard and `doctor` could raise `UnicodeEncodeError` when

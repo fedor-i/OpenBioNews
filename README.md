@@ -210,6 +210,9 @@ in [`docs/index.html`](docs/index.html) with two tabs:
 - **FDA drug recalls** — filter openFDA enforcement reports by firm, product,
   reason, classification (Class I/II/III), status, **report-date recency**, and
   **voluntary vs. FDA-mandated**.
+- **FDA drug approvals** — Drugs@FDA approvals (original + supplemental) by
+  company or drug, within a chosen window.
+- **FDA drug shortages** — current/resolved shortages by drug or company.
 - **SEC filings** — full-text search SEC EDGAR by company/ticker/keyword,
   **filing type** (8-K, 10-K, S-1, 424B, 13D/G, DEF 14A, Form 4…), and
   **filed-within** recency; each result links to the filing document. (SEC does
