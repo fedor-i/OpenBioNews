@@ -155,6 +155,8 @@ conditions, drugs, terms) and switch on whichever official sources you want:
   cited to the NCT record.
 - **openFDA drug recalls** — enforcement reports (reason, Class I/II/III,
   status), cited to the FDA record.
+- **openFDA drug approvals** — Drugs@FDA approvals, original and supplemental
+  (new indication), cited to the Drugs@FDA page.
 - **SEC EDGAR** — filings (8-K, 10-K, S-1, 424B, 13D/G, DEF 14A, Form 4…), cited
   to the filing document. SEC asks for a contact User-Agent — set your email in
   `connectors.edgar.user_agent`.
@@ -167,10 +169,11 @@ conditions, drugs, terms) and switch on whichever official sources you want:
   "terms": []
 },
 "connectors": {
-  "clinicaltrials": { "enabled": true,  "recent_days": 30 },
-  "openfda":        { "enabled": true,  "recent_days": 30 },
-  "edgar":          { "enabled": true,  "recent_days": 30, "forms": ["8-K"],
-                      "user_agent": "Your Name your@email.com" }
+  "clinicaltrials":    { "enabled": true, "recent_days": 30 },
+  "openfda":           { "enabled": true, "recent_days": 30 },
+  "openfda_approvals": { "enabled": true, "recent_days": 90 },
+  "edgar":             { "enabled": true, "recent_days": 30, "forms": ["8-K"],
+                         "user_agent": "Your Name your@email.com" }
 }
 ```
 

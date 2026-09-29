@@ -16,6 +16,7 @@ PROJECT_URL = "https://github.com/fedor-i/OpenBioNews"
 _TOPIC_LABELS = {
     "clinical_trials": "Clinical Trials",
     "fda_recalls": "FDA Drug Recalls",
+    "fda_approvals": "FDA Drug Approvals",
     "sec_filings": "SEC Filings",
 }
 

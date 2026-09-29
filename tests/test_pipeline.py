@@ -384,6 +384,51 @@ def test_openfda_query():
     assert c.available()[0] is True
 
 
+APPROVAL_FIXTURE = {"results": [{
+    "application_number": "BLA761399", "sponsor_name": "HELIX THERAPEUTICS",
+    "openfda": {"brand_name": ["HELYXA"], "generic_name": ["hlx-car19"]},
+    "products": [{"brand_name": "HELYXA", "dosage_form": "SUSPENSION", "route": "INTRAVENOUS"}],
+    "submissions": [
+        {"submission_type": "ORIG", "submission_number": "1", "submission_status": "AP",
+         "submission_status_date": "20260926", "review_priority": "PRIORITY"},
+        {"submission_type": "SUPPL", "submission_number": "2", "submission_status": "AP",
+         "submission_status_date": "20200101"},   # too old — filtered by cutoff
+        {"submission_type": "ORIG", "submission_number": "0", "submission_status": "TENT",
+         "submission_status_date": "20260926"},    # not approved — skipped
+    ],
+}]}
+
+
+def test_openfda_approvals_parse():
+    from datetime import timedelta
+    from openbionews.connectors.openfda_approvals import parse_approvals
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    items = parse_approvals(APPROVAL_FIXTURE, cutoff=cutoff)
+    assert len(items) == 1                      # only the recent approved ORIG
+    it = items[0]
+    assert it.title == "Helyxa — FDA approval"  # brand title-cased
+    assert "New approval" in it.tag and "Priority review" in it.tag
+    assert it.source == "openFDA (Drug Approvals)" and it.topic == "fda_approvals"
+    assert it.age_exempt and it.published.day == 26
+    assert "accessdata.fda.gov" in it.citations[0].url and "761399" in it.citations[0].url
+
+
+def test_openfda_approvals_query_and_registry():
+    from openbionews.connectors.openfda_approvals import OpenFDAApprovalsConnector
+    from openbionews.connectors import get_connectors
+    c = OpenFDAApprovalsConnector({"recent_days": 90},
+                                  {"sponsors": ["Helix"], "interventions": ["car-t"]})
+    exprs = c._entity_exprs()
+    assert any(e.startswith('sponsor_name:') for e in exprs)
+    raw = c._raw_query(exprs[0])
+    assert 'submissions.submission_status:"AP"' in raw and "submission_status_date:[" in raw
+    assert c.available()[0] is True
+    cfg = config.default_config()
+    cfg["connectors"]["openfda_approvals"]["enabled"] = True
+    cfg["watchlist"]["sponsors"] = ["Helix"]
+    assert any(x.name == "openFDA (Drug Approvals)" for x in get_connectors(cfg))
+
+
 def test_edgar_parse():
     from openbionews.connectors.edgar import parse_hits
     items = parse_hits(SEC_FIXTURE)
@@ -443,11 +488,12 @@ def test_demo_covers_all_primary_sources():
 
     rendered, digest = build_demo_digest("markdown")
     topics = {c.topic for c in digest.clusters}
-    assert {"clinical_trials", "fda_recalls", "sec_filings"} <= topics
+    assert {"clinical_trials", "fda_recalls", "fda_approvals", "sec_filings"} <= topics
     # Each primary source contributes a citation line to the output.
     assert "NCT05012345" in rendered            # ClinicalTrials.gov record
-    assert "FDA recall D-0456-2026" in rendered  # openFDA record (Class I)
+    assert "FDA recall D-0456-2026" in rendered  # openFDA recall record (Class I)
     assert "D-0461-2026" in rendered             # both recalls survive dedup
+    assert "Drugs@FDA BLA761399" in rendered     # openFDA approval record
     assert "EDGAR 0001683168-26-006789" in rendered  # SEC filing
     # HTML variant renders too.
     html, _ = build_demo_digest("html")

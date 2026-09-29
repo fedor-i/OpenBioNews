@@ -18,6 +18,10 @@ to follow [Semantic Versioning](https://semver.org/).
 - **RSS feed output** (`--format rss`, or `output.format: rss`): writes a valid
   RSS 2.0 feed (`digest/latest.xml`) you can subscribe to in any reader, with a
   source citation in every item. Standard-library only. (Closes #2.)
+- **openFDA drug-approvals connector** (`connectors.openfda_approvals`): recent
+  Drugs@FDA approvals — original and supplemental (new indication) — cited to
+  the Drugs@FDA page. Wizard toggle, doctor check, and demo coverage included.
+  (Closes #1.)
 
 ### Fixed
 - Windows: the setup wizard and `doctor` could raise `UnicodeEncodeError` when

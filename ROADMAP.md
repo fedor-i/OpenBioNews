@@ -6,7 +6,7 @@ sources and feeds into a clean, cited daily brief. This is a living list —
 claim something.
 
 ## Primary sources (highest value)
-- [ ] **openFDA drug approvals** (Drugs@FDA) — new approvals as developments.
+- [x] **openFDA drug approvals** (Drugs@FDA) — new + supplemental approvals.
 - [ ] **openFDA drug shortages** — current/resolved shortages.
 - [ ] **SEC EDGAR via `data.sec.gov`** submissions per company (CIK) as an
       alternative to full-text search, for precise per-company filing feeds.

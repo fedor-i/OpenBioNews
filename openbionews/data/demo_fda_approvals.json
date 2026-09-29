@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+      "application_number": "BLA761399",
+      "sponsor_name": "HELIX THERAPEUTICS",
+      "openfda": {"brand_name": ["HELYXA"], "generic_name": ["hlx-car19 autoleucel"]},
+      "products": [{"brand_name": "HELYXA", "dosage_form": "SUSPENSION", "route": "INTRAVENOUS"}],
+      "submissions": [
+        {"submission_type": "ORIG", "submission_number": "1", "submission_status": "AP", "submission_status_date": "20260926", "review_priority": "PRIORITY"}
+      ]
+    }
+  ]
+}

@@ -132,6 +132,13 @@
       "max_total": 40,
       "classifications": []
     },
+    "openfda_approvals": {
+      "enabled": false,
+      "recent_days": 90,
+      "max_per_query": 20,
+      "max_total": 40,
+      "include_supplements": true
+    },
     "edgar": {
       "enabled": false,
       "recent_days": 30,

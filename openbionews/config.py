@@ -91,6 +91,13 @@ def default_config() -> dict[str, Any]:
                 "max_total": 40,
                 "classifications": [],    # e.g. ["Class I"]; empty = any severity
             },
+            "openfda_approvals": {
+                "enabled": False,
+                "recent_days": 90,        # approvals are less frequent; wider window
+                "max_per_query": 20,
+                "max_total": 40,
+                "include_supplements": True,  # also include new-indication supplements
+            },
             "edgar": {
                 "enabled": False,
                 "recent_days": 30,       # filings filed within N days
