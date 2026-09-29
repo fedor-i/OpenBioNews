@@ -207,10 +207,10 @@ def render_html(digest: Digest, group_by: str = "topic") -> str:
         ":root{color-scheme:light dark}",
         "body{font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"
         "max-width:44rem;margin:2rem auto;padding:0 1rem;color:#1a1a1a;background:#fff}",
-        "@media (prefers-color-scheme:dark){body{background:#15171a;color:#e6e6e6}"
-        "a{color:#8ab4f8}.meta{color:#9aa0a6}.card{border-color:#2c2f33}}",
-        "h1{font-size:1.7rem;margin-bottom:.2rem}h2{margin-top:2rem;border-bottom:2px solid #eee;padding-bottom:.3rem}",
-        "h3{font-size:1.1rem;margin:.2rem 0}a{color:#1a56db;text-decoration:none}a:hover{text-decoration:underline}",
+        "@media (prefers-color-scheme:dark){body{background:#0b1a18;color:#e6efec}"
+        "a{color:#2dd4bf}.meta{color:#8aa39e}.card{border-color:#22403b}}",
+        "h1{font-size:1.7rem;margin-bottom:.2rem}h2{margin-top:2rem;border-bottom:2px solid #d6e6e2;padding-bottom:.3rem}",
+        "h3{font-size:1.1rem;margin:.2rem 0}a{color:#0d9488;text-decoration:none}a:hover{text-decoration:underline}",
         ".meta{color:#6b7280;font-size:.85rem;margin:.1rem 0 .4rem}",
         ".card{border:1px solid #eee;border-radius:10px;padding:1rem;margin:.8rem 0}",
         ".sub{font-size:.8rem;color:#6b7280}.count{color:#6b7280;font-size:.9rem}",
