@@ -59,6 +59,9 @@ to follow [Semantic Versioning](https://semver.org/).
   recalls, **FDA approvals**, **FDA shortages**, and SEC filings — matching the
   CLI's source coverage, all client-side with shareable links.
 
+### Changed
+- Refresh broken built-in RSS feeds and add GEN and EMA human-medicine feeds.
+
 ### Fixed
 - Windows: the setup wizard and `doctor` could raise `UnicodeEncodeError` when
   invoked directly (bypassing the CLI entry point) because stdout defaulted to a
