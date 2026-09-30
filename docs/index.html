@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Some source sites (e.g. ClinicalTrials.gov) block cross-site clicks by
+     referrer; send none so a "Source" click looks like a direct visit. -->
+<meta name="referrer" content="no-referrer">
 <title>OpenBioNews — Bio Watch</title>
 <meta name="description" content="Filter clinical-trial developments and FDA drug recalls live, free, traced to the source.">
 <style>
@@ -336,11 +339,11 @@
 </main>
 
 <footer>
-  Data from <a href="https://clinicaltrials.gov" target="_blank" rel="noopener">ClinicalTrials.gov</a>,
-  <a href="https://open.fda.gov" target="_blank" rel="noopener">openFDA</a>, and
-  <a href="https://efts.sec.gov" target="_blank" rel="noopener">SEC EDGAR</a>, queried live in your
+  Data from <a href="https://clinicaltrials.gov" target="_blank" rel="noopener noreferrer">ClinicalTrials.gov</a>,
+  <a href="https://open.fda.gov" target="_blank" rel="noopener noreferrer">openFDA</a>, and
+  <a href="https://efts.sec.gov" target="_blank" rel="noopener noreferrer">SEC EDGAR</a>, queried live in your
   browser. Nothing is stored or tracked. Not investment or medical advice. ·
-  Built with <a href="https://github.com/fedor-i/OpenBioNews" target="_blank" rel="noopener">OpenBioNews</a> (free, open source).
+  Built with <a href="https://github.com/fedor-i/OpenBioNews" target="_blank" rel="noopener noreferrer">OpenBioNews</a> (free, open source).
 </footer>
 
 <script>
@@ -379,7 +382,7 @@ function citeSentences(text, url, label){
   const t=(text||"").trim();
   if(!t) return "";
   const parts=t.split(/(?<=[.!?])\s+(?=[A-Z0-9"'])/).filter(x=>x.trim());
-  const sup=`<sup class="cite"><a href="${esc(url)}" target="_blank" rel="noopener" title="${esc(label)}">1</a></sup>`;
+  const sup=`<sup class="cite"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${esc(label)}">1</a></sup>`;
   return parts.map(p=>esc(p.trim())+sup).join(" ");
 }
 function fmtFdaDate(d){ return (d&&d.length===8)?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:d||""; }
@@ -471,12 +474,12 @@ function renderTrial(st){
   const tags=[prettyStatus(status),prettyPhase(phases),spons].filter(Boolean);
   const el=document.createElement("article");
   el.innerHTML =
-    `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(title)}</a></h2>`+
+    `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(title)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
     (summary?`<div class="summary">${citeSentences(clip(summary,320),url,"ClinicalTrials.gov "+nct)}</div>`:"")+
     `<div class="src">${conds.length?esc(conds.slice(0,4).join(", "))+" · ":""}`+
     (date?`updated ${esc(date)} · `:"")+
-    `↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener">ClinicalTrials.gov ${esc(nct)}</a></div>`;
+    `↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">ClinicalTrials.gov ${esc(nct)}</a></div>`;
   return el;
 }
 
@@ -536,7 +539,7 @@ function renderRecall(r){
     (r.reason_for_recall?`<div class="summary">${citeSentences(clip(r.reason_for_recall,320),src,"FDA recall "+(num||"record"))}</div>`:"")+
     `<div class="src">${r.product_description?esc(clip(r.product_description,140))+" · ":""}`+
     (date?`reported ${esc(date)} · `:"")+
-    `↳ <sup class="cite">1</sup> <a href="${esc(src)}" target="_blank" rel="noopener">FDA recall ${esc(num||"record")}</a></div>`;
+    `↳ <sup class="cite">1</sup> <a href="${esc(src)}" target="_blank" rel="noopener noreferrer">FDA recall ${esc(num||"record")}</a></div>`;
   return el;
 }
 
@@ -579,10 +582,10 @@ function approvalCards(app, cutoffMs, includeSuppl){
     const dateStr=(d.length===8)?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:"";
     const el=document.createElement("article");
     el.innerHTML=
-      `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)} — ${esc(kind)}</a></h2>`+
+      `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} — ${esc(kind)}</a></h2>`+
       `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
       `<div class="summary">${citeSentences((sponsorDisp||"The sponsor")+" received "+(isOrig?"FDA approval":"a supplemental FDA approval")+" for "+name+(form?" ("+form+")":"")+".",url,"Drugs@FDA "+appno)}</div>`+
-      `<div class="src">${dateStr?`approved ${esc(dateStr)} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener">Drugs@FDA ${esc(appno)}</a></div>`;
+      `<div class="src">${dateStr?`approved ${esc(dateStr)} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Drugs@FDA ${esc(appno)}</a></div>`;
     cards.push(el);
   }
   return cards;
@@ -631,10 +634,10 @@ function renderShortage(r){
   const tags=[status,(cats[0]||""),company].filter(Boolean);
   const el=document.createElement("article");
   el.innerHTML=
-    `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)} — shortage${status?` (${esc(status)})`:""}</a></h2>`+
+    `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} — shortage${status?` (${esc(status)})`:""}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
     (reason?`<div class="summary">${citeSentences(clip(reason,320),url,"FDA Drug Shortages")}</div>`:"")+
-    `<div class="src">${d?`updated ${esc(String(d).slice(0,10))} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener">FDA Drug Shortages</a></div>`;
+    `<div class="src">${d?`updated ${esc(String(d).slice(0,10))} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">FDA Drug Shortages</a></div>`;
   return el;
 }
 async function searchShortages(reset){
@@ -686,7 +689,7 @@ function secFallbackCard(f, note){
     (note?`<div class="summary">${esc(note)}</div>`:"")+
     `<div class="src">SEC does not allow in-page results from other sites, so this opens the official `+
     `EDGAR full-text search with your filters already applied: `+
-    `<a href="${esc(url)}" target="_blank" rel="noopener">EDGAR full-text search ↗</a></div>`;
+    `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">EDGAR full-text search ↗</a></div>`;
   return el;
 }
 async function searchSec(reset){
@@ -703,7 +706,7 @@ async function searchSec(reset){
     const have=$("results").children.length;
     if(have){
       $("status").innerHTML = `Showing ${have} of ${Number(secTotal).toLocaleString()} filings · `+
-        `<a href="${esc(secUiLink(secParams||f))}" target="_blank" rel="noopener">open on EDGAR ↗</a>`;
+        `<a href="${esc(secUiLink(secParams||f))}" target="_blank" rel="noopener noreferrer">open on EDGAR ↗</a>`;
     }else{
       $("results").appendChild(secFallbackCard(secParams||f, "No results returned in-page."));
       $("status").textContent = "Use the EDGAR link below.";
@@ -732,11 +735,11 @@ function renderFiling(h){
   const tags = [form].concat(names.length>1 ? [`+${names.length-1} filer(s)`] : []);
   const el=document.createElement("article");
   el.innerHTML =
-    `<h2><a href="${esc(url)}" target="_blank" rel="noopener">${esc(company)} — ${esc(form)}</a></h2>`+
+    `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(company)} — ${esc(form)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
     (desc?`<div class="summary">${citeSentences(clip(desc,240),url,"EDGAR "+(accn||"filing"))}</div>`:"")+
     `<div class="src">${date?`filed ${esc(date)} · `:""}`+
-    `↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener">EDGAR ${esc(accn||"filing")}</a></div>`;
+    `↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">EDGAR ${esc(accn||"filing")}</a></div>`;
   return el;
 }
 
