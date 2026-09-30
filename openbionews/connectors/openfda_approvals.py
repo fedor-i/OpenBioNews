@@ -13,7 +13,6 @@ Docs: https://open.fda.gov/apis/drug/drugsfda/
 
 from __future__ import annotations
 
-import re
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
@@ -46,11 +45,15 @@ def _display_name(app: dict) -> str:
 
 
 def _appl_url(application_number: str) -> str:
-    digits = re.sub(r"\D", "", application_number or "")
-    if digits:
-        return ("https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm"
-                f"?event=overview.process&ApplNo={digits}")
-    return "https://www.accessdata.fda.gov/scripts/cder/daf/"
+    # Link to the openFDA record the data actually came from — it always resolves
+    # to this exact application. FDA's classic Drugs@FDA (accessdata) page can be
+    # rerouted to a generic hub by link-preview tools and gateways, so we cite the
+    # primary API record instead (as the recalls connector does).
+    appno = (application_number or "").strip()
+    if appno:
+        return ('https://api.fda.gov/drug/drugsfda.json?search=application_number:'
+                f'%22{urllib.parse.quote(appno)}%22')
+    return "https://api.fda.gov/drug/drugsfda.json"
 
 
 def application_items(app: dict, cutoff=None, include_supplements: bool = True,

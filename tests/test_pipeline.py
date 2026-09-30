@@ -455,7 +455,10 @@ def test_openfda_approvals_parse():
     assert "New approval" in it.tag and "Priority review" in it.tag
     assert it.source == "openFDA (Drug Approvals)" and it.topic == "fda_approvals"
     assert it.age_exempt and it.published.day == 26
-    assert "accessdata.fda.gov" in it.citations[0].url and "761399" in it.citations[0].url
+    # Cites the openFDA record (always resolves), keyed by application number.
+    assert "api.fda.gov/drug/drugsfda.json" in it.citations[0].url
+    assert "BLA761399" in it.citations[0].url
+    assert it.citations[0].label == "Drugs@FDA BLA761399"
 
 
 def test_openfda_approvals_query_and_registry():

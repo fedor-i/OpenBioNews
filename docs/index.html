@@ -559,8 +559,11 @@ function approvalCards(app, cutoffMs, includeSuppl){
   const products=app.products||[];
   let name=first(brands)|| (products[0]&&products[0].brand_name) || first(generics) || app.application_number || "FDA drug";
   if(name && name===name.toUpperCase()) name=name.replace(/\b\w+/g,w=>w[0]+w.slice(1).toLowerCase());
-  const appno=app.application_number||""; const digits=(appno.match(/\d+/)||[""])[0];
-  const url=digits?`https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo=${digits}`:"https://www.accessdata.fda.gov/scripts/cder/daf/";
+  const appno=app.application_number||"";
+  // Cite the openFDA record the data came from — it always resolves to this exact
+  // application. FDA's classic Drugs@FDA (accessdata) page gets rerouted to a
+  // generic hub by some link-preview tools/gateways, so we avoid it.
+  const url=appno?`${FDA_APPROVALS_API}?search=application_number:%22${encodeURIComponent(appno)}%22`:FDA_APPROVALS_API;
   const sponsor=(app.sponsor_name||""); const sponsorDisp=sponsor===sponsor.toUpperCase()?sponsor.replace(/\b\w+/g,w=>w[0]+w.slice(1).toLowerCase()):sponsor;
   const form=products[0]?[products[0].dosage_form,products[0].route].filter(Boolean).join(" ").toLowerCase():"";
   const cards=[];
