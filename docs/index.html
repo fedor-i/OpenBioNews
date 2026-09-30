@@ -58,6 +58,9 @@
   .chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
   .bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:1rem 0 .3rem}
   .status{color:var(--muted);font-size:.9rem;min-height:1.2em;flex:1;min-width:200px}
+  .auto{display:inline-flex;align-items:center;gap:.3rem;color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap}
+  .auto input{cursor:pointer}
+  .upd{color:var(--accent);font-size:.78rem;white-space:nowrap}
   .linkbtn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;
     padding:.35rem .6rem;font-size:.8rem;font-weight:500;cursor:pointer}
   article{background:var(--panel);border:1px solid var(--line);border-radius:14px;
@@ -336,6 +339,9 @@
 
   <div class="bar">
     <div class="status" id="status">Pick a filter and hit Search — or tap a chip above.</div>
+    <label class="auto" title="Re-run this search automatically every 15 minutes while the page is open">
+      <input type="checkbox" id="autoRefresh"> Auto-refresh (15 min)</label>
+    <span class="upd" id="updated" hidden></span>
     <button class="linkbtn" id="copyLink" title="Copy a shareable link to this view">🔗 Copy link</button>
   </div>
   <div id="results"></div>
@@ -780,6 +786,28 @@ function runSearch(reset){
     : tab==="approvals" ? searchApprovals(reset) : tab==="shortages" ? searchShortages(reset)
     : searchSec(reset);
 }
+
+// ---- auto-refresh: re-run the active search every 15 min while open ----
+const AUTO_MS = 15*60*1000;
+let autoTimer = null;
+function stamp(){ const el=$("updated"); if(el){ el.hidden=false; el.textContent="updated "+new Date().toLocaleTimeString(); } }
+function autoTick(){
+  // Only refresh when a search is actually showing results, so we never hammer
+  // the APIs with an empty query. SEC opens its results off-site, so skip it.
+  if(tab!=="sec" && $("results").children.length>0){ Promise.resolve(runSearch(true)).then(stamp); }
+}
+function setAuto(on){
+  if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
+  const el=$("updated");
+  if(on){
+    autoTimer=setInterval(autoTick, AUTO_MS);
+    if(el){ el.hidden=false;
+      el.textContent = $("results").children.length>0 ? ("updated "+new Date().toLocaleTimeString()) : "auto-refresh on"; }
+  } else if(el){ el.hidden=true; }
+  try{ localStorage.setItem("obn_auto", on?"1":"0"); }catch(e){}
+}
+$("autoRefresh").onchange = e => setAuto(e.target.checked);
+try{ if(localStorage.getItem("obn_auto")==="1"){ $("autoRefresh").checked=true; setAuto(true); } }catch(e){}
 $("t_search").onclick=()=>{ searchTrials(true); syncUrl(); };
 $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
 $("a_search").onclick=()=>{ searchApprovals(true); syncUrl(); };
