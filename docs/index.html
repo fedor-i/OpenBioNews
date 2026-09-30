@@ -79,6 +79,10 @@
   footer{max-width:60rem;margin:0 auto;padding:1.5rem 1rem 3rem;color:var(--muted);
     font-size:.82rem;border-top:1px solid var(--line)}
   footer a{color:var(--accent)}
+  .help{margin:0 auto 1rem;max-width:60rem;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:.5rem .9rem}
+  .help summary{cursor:pointer;font-weight:600;color:var(--ink)}
+  .help p{margin:.5rem 0}.help ul{margin:.3rem 0 .3rem 1.1rem;padding:0}.help li{margin:.25rem 0}
   .toggle{float:right;background:var(--chip);border:1px solid var(--line);color:var(--ink);
     border-radius:999px;padding:.3rem .7rem;font-size:.8rem;cursor:pointer;font-weight:500}
   .err{color:var(--crit)}
@@ -339,6 +343,27 @@
 </main>
 
 <footer>
+  <details class="help">
+    <summary>A “Source” link won’t open? (403 / redirect)</summary>
+    <p>Every card links to the real government record. When a link is blocked, it’s
+    the destination’s bot-protection (Akamai/CloudFront) refusing your browser — not
+    this site. Common culprits and fixes:</p>
+    <ul>
+      <li><b>Brave Shields</b> (or hardened privacy browsers): tap the 🦁 and lower
+      Shields for that site — its anti-fingerprinting trips the WAF.</li>
+      <li><b>Ad/tracker/privacy extensions</b> (uBlock strict, Ghostery, Privacy
+      Badger, AdGuard, DuckDuckGo): pause them for the government site.</li>
+      <li><b>VPN, Tor, or a datacenter/proxy IP</b>: gov WAFs flag these — turn it
+      off or switch to a residential connection.</li>
+      <li><b>In-app browsers</b> (opening from Instagram, X, LinkedIn, Slack): use
+      “Open in Safari/Chrome” instead of the app’s built-in viewer.</li>
+      <li><b>Blocked cookies/JavaScript or a strict content filter</b> (school,
+      hospital or corporate network, e.g. Zscaler): the WAF sets a cookie the page
+      needs — allow cookies/JS or try another network.</li>
+    </ul>
+    <p>Plain Safari, Chrome, Edge or Firefox with no blockers open every source
+    normally.</p>
+  </details>
   Data from <a href="https://clinicaltrials.gov" target="_blank" rel="noopener noreferrer">ClinicalTrials.gov</a>,
   <a href="https://open.fda.gov" target="_blank" rel="noopener noreferrer">openFDA</a>, and
   <a href="https://efts.sec.gov" target="_blank" rel="noopener noreferrer">SEC EDGAR</a>, queried live in your
