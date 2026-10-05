@@ -575,7 +575,7 @@ async function searchTrials(reset, fromWatch, termOverride){
   const f = trialsFilters();
   if(termOverride!=null) f.term = termOverride;   // watchlist query, without polluting the visible field
   if(reset){ ctToken=null; ctParams=f; $("results").innerHTML=""; }
-  if(!trialsHasFilter(f)){ $("status").textContent="Enter a company, condition, drug, keyword or status."; return; }
+  if(!trialsHasFilter(f)){ if(!fromWatch && watch.length) return runWatch(true); $("status").textContent="Enter a company, condition, drug, keyword or status — or add one to your watchlist above."; return; }
   $("status").textContent="Searching ClinicalTrials.gov…"; $("moreBtn").hidden=true;
   try{
     const data = await getJson(buildCtUrl(ctParams||f, reset?null:ctToken));
@@ -641,7 +641,7 @@ async function searchRecalls(reset){
   watchActive=false;
   const f=recallsFilters();
   if(reset){ fdaSkip=0; fdaParams=f; $("results").innerHTML=""; }
-  if(!recallsHasFilter(f)){ $("status").textContent="Enter a firm, drug, reason, class or status."; return; }
+  if(!recallsHasFilter(f)){ if(watch.length) return runWatch(true); $("status").textContent="Enter a firm, drug, reason, class or status — or add one to your watchlist above."; return; }
   $("status").textContent="Searching openFDA…"; $("moreBtn").hidden=true;
   try{
     const data = await getJson(buildFdaUrl(fdaParams||f, reset?0:fdaSkip), true);
@@ -729,7 +729,7 @@ async function searchApprovals(reset){
   watchActive=false;
   const f=apprFilters();
   if(reset){ aprSkip=0; aprParams=f; $("results").innerHTML=""; }
-  if(!apprHasFilter(f)){ $("status").textContent="Enter a company or a drug name."; return; }
+  if(!apprHasFilter(f)){ if(watch.length) return runWatch(true); $("status").textContent="Enter a company or a drug name — or add one to your watchlist above."; return; }
   $("status").textContent="Searching Drugs@FDA…"; $("moreBtn").hidden=true;
   const cutoffMs=Date.now()-(+ (aprParams||f).recent)*864e5;
   try{
@@ -789,7 +789,10 @@ async function searchShortages(reset){
   watchActive=false;
   const f=shrtFilters();
   if(reset){ shrSkip=0; shrParams=f; $("results").innerHTML=""; }
-  if(!shrtHasFilter(f)){ $("status").textContent="Pick a status, or enter a drug or company."; return; }
+  // No drug/company typed but a watchlist is set → drive from the watchlist, even
+  // though Status defaults to "Current" (so the tab is never strictly "empty").
+  if(!f.drug && !f.company && watch.length) return runWatch(true);
+  if(!shrtHasFilter(f)){ $("status").textContent="Pick a status, or enter a drug or company — or add one to your watchlist above."; return; }
   $("status").textContent="Searching openFDA shortages…"; $("moreBtn").hidden=true;
   try{
     const data=await getJson(buildShrtUrl(shrParams||f, reset?0:shrSkip), true);
@@ -844,7 +847,7 @@ async function searchSec(reset, fromWatch, qOverride){
   const f=secFilters();
   if(qOverride!=null) f.q = qOverride;            // watchlist query, without polluting the visible field
   if(reset){ secFrom=0; secParams=f; $("results").innerHTML=""; }
-  if(!secHasFilter(f)){ $("status").textContent="Enter a company, ticker or keyword to search filings."; return; }
+  if(!secHasFilter(f)){ if(!fromWatch && watch.length) return runWatch(true); $("status").textContent="Enter a company, ticker or keyword to search filings — or add one to your watchlist above."; return; }
   $("status").textContent="Searching SEC EDGAR…"; $("moreBtn").hidden=true;
   try{
     const data = await getJson(buildSecUrl(secParams||f, reset?0:secFrom));
