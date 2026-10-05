@@ -516,9 +516,10 @@ function buildCtUrl(f, token){
   if(token) p.append("pageToken", token);
   return CT_API+"?"+p.toString();
 }
-async function searchTrials(reset, fromWatch){
+async function searchTrials(reset, fromWatch, termOverride){
   if(!fromWatch) watchActive=false;
   const f = trialsFilters();
+  if(termOverride!=null) f.term = termOverride;   // watchlist query, without polluting the visible field
   if(reset){ ctToken=null; ctParams=f; $("results").innerHTML=""; }
   if(!trialsHasFilter(f)){ $("status").textContent="Enter a company, condition, drug, keyword or status."; return; }
   $("status").textContent="Searching ClinicalTrials.gov…"; $("moreBtn").hidden=true;
@@ -609,7 +610,7 @@ function renderRecall(r){
   const num=r.recall_number||"";
   const src = num ? `${FDA_API}?search=recall_number:%22${encodeURIComponent(num)}%22` : "https://www.fda.gov/drugs/drug-recalls";
   const el=document.createElement("article");
-  el.dataset.id="r:"+(num||clip(r.product_description,60)||r.recalling_firm||"");
+  el.dataset.id="r:"+(num||[clip(r.product_description,60),r.recalling_firm,r.report_date].filter(Boolean).join("|"));
   el.innerHTML =
     `<h2>${esc(title)}</h2>`+
     `<div class="tags">${tags.map((t,i)=>`<span class="tag${i===0&&clsN?` c${clsN}`:""}">${esc(t)}</span>`).join("")}</div>`+
@@ -712,7 +713,10 @@ function renderShortage(r){
   const url=`https://dps.fda.gov/drugshortages/search?query=${encodeURIComponent(name)}`;
   const tags=[status,(cats[0]||""),company].filter(Boolean);
   const el=document.createElement("article");
-  el.dataset.id="h:"+name+"|"+company+"|"+(first(r.generic_name)||"");
+  // Shortages carry no durable FDA id, so build one from the fields that
+  // distinguish one presentation from another (NDC when present, else strength +
+  // dosage form), to avoid collapsing distinct records to the same id.
+  el.dataset.id="h:"+[name,company,first(r.generic_name),first(r.package_ndc),first(r.strength),first(r.dosage_form)].filter(Boolean).join("|");
   el.innerHTML=
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} — shortage${status?` (${esc(status)})`:""}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
@@ -773,9 +777,10 @@ function secFallbackCard(f, note){
     `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">EDGAR full-text search ↗</a></div>`;
   return el;
 }
-async function searchSec(reset, fromWatch){
+async function searchSec(reset, fromWatch, qOverride){
   if(!fromWatch) watchActive=false;
   const f=secFilters();
+  if(qOverride!=null) f.q = qOverride;            // watchlist query, without polluting the visible field
   if(reset){ secFrom=0; secParams=f; $("results").innerHTML=""; }
   if(!secHasFilter(f)){ $("status").textContent="Enter a company, ticker or keyword to search filings."; return; }
   $("status").textContent="Searching SEC EDGAR…"; $("moreBtn").hidden=true;
@@ -946,20 +951,23 @@ function removeWatch(i){
 // drop the user's own term. Aliases are high-precision full names only (no bare
 // tickers, which would pull noise into the full-text sources).
 const CORP_SUFFIX = /[,\s]+(inc|inc\.|corp|corp\.|corporation|co|co\.|company|ltd|ltd\.|llc|plc|ag|sa|nv|holdings|group|limited)$/i;
+// Keys may be abbreviations a user would type; VALUES are full company names
+// only — never a bare ticker/abbreviation, which would pull noise into the
+// full-text (trials/SEC) searches.
 const WATCH_ALIASES = {
   "bms":["Bristol-Myers Squibb","Bristol Myers Squibb"],
-  "bristol-myers squibb":["Bristol Myers Squibb","BMS"],
-  "bristol myers squibb":["Bristol-Myers Squibb","BMS"],
+  "bristol-myers squibb":["Bristol Myers Squibb"],
+  "bristol myers squibb":["Bristol-Myers Squibb"],
   "j&j":["Johnson & Johnson","Janssen"],
   "jnj":["Johnson & Johnson","Janssen"],
-  "johnson & johnson":["Janssen","J&J"],
+  "johnson & johnson":["Janssen"],
   "lilly":["Eli Lilly"], "eli lilly":["Lilly"],
-  "gsk":["GlaxoSmithKline"], "glaxosmithkline":["GSK"],
+  "gsk":["GlaxoSmithKline"],
   "novo":["Novo Nordisk"],
   "regeneron":["Regeneron Pharmaceuticals"],
   "roche":["Genentech","Hoffmann-La Roche"], "genentech":["Roche"],
   "merck":["Merck Sharp & Dohme"],
-  "az":["AstraZeneca"], "astrazeneca":["AstraZeneca"],
+  "az":["AstraZeneca"],
 };
 function watchVariants(term){
   const out=[], push=v=>{ v=(v||"").trim(); if(v && !out.some(x=>x.toLowerCase()===v.toLowerCase())) out.push(v); };
@@ -1035,7 +1043,10 @@ function watchSig(){ return watch.map(s=>s.toLowerCase().trim()).filter(Boolean)
 // at load and whenever the list changes. Null means "first look" → nothing is new.
 function loadBaseline(){
   const cur = seenStore[watchSig()];
-  seenBaseline = cur ? Object.fromEntries(TABS.map(t=>[t, new Set(cur[t]||[])])) : null;
+  // A tab with NO recorded entry is a first look at that tab → baseline null →
+  // flag nothing. A recorded-but-empty entry ([]) is a real baseline (last visit
+  // showed nothing), so newly appearing items are correctly flagged.
+  seenBaseline = cur ? Object.fromEntries(TABS.map(t=>[t, cur[t] ? new Set(cur[t]) : null])) : null;
   for(const t of TABS){ newCount[t]=0; updateTabBadge(t); }
   updateWatchNew();
 }
@@ -1086,8 +1097,8 @@ function runWatch(reset){
   if(!watch.length) return;
   watchActive = true;
   if(reset){ $("results").innerHTML=""; ctToken=null; fdaSkip=0; aprSkip=0; shrSkip=0; secFrom=0; newCount[tab]=0; updateTabBadge(tab); }
-  if(tab==="trials"){ $("t_term").value = allWatchVariants().join(", "); return searchTrials(reset, true); }
-  if(tab==="sec"){ $("s_q").value = allWatchVariants().map(t=>/[\s&]/.test(t)?`"${t}"`:t).join(" OR "); return searchSec(reset, true); }
+  if(tab==="trials"){ return searchTrials(reset, true, allWatchVariants().join(", ")); }
+  if(tab==="sec"){ return searchSec(reset, true, allWatchVariants().map(t=>/[\s&]/.test(t)?`"${t}"`:t).join(" OR ")); }
   if(tab==="recalls") return wRecalls(reset);
   if(tab==="approvals") return wApprovals(reset);
   return wShortages(reset);
