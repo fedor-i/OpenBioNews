@@ -17,6 +17,14 @@ to follow [Semantic Versioning](https://semver.org/).
   Class, shortage Status, SEC form types) stay in their panels.
 
 ### Added
+- **Build-your-own topics (hosted page)** — a "+ New topic" builder on the
+  watchlist bar: name a topic and give it a bundle of terms and companies (e.g.
+  "My ADC competitors" → Seagen, Daiichi Sankyo, antibody-drug conjugate). Saved
+  in `localStorage`, it then behaves exactly like a built-in topic — add it once
+  and every tab searches all of its terms, matched by the topic's name anywhere
+  you'd type a watch term. Custom topics appear as quick-add chips (editable and
+  deletable), expand to the exact terms you listed (no acronym filtering — your
+  choices are respected), and need no backend or LLM.
 - **Sort control on every tab (hosted page)** — a single *Most recent / Most
   relevant* selector in the results bar, applied to the active tab and to the
   watchlist. Server-side where the API supports it (ClinicalTrials.gov

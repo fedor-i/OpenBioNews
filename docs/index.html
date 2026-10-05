@@ -74,6 +74,27 @@
   .seed{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;
     font-size:.8rem;color:var(--ink);cursor:pointer}
   .seed:hover{border-color:var(--accent)}
+  .seedsep{width:1px;align-self:stretch;background:var(--line);margin:.1rem .25rem}
+  .cseed{display:inline-flex;align-items:center;gap:.3rem;background:var(--chip);border:1px solid var(--accent2);
+    border-radius:999px;padding:.2rem .3rem .2rem .6rem;font-size:.8rem;color:var(--ink)}
+  .cseed .cadd{background:none;border:none;color:var(--ink);cursor:pointer;font:inherit;padding:0}
+  .cseed .cedit{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.72rem;padding:0 .15rem;border-radius:4px}
+  .cseed .cedit:hover{color:var(--accent2)}
+  .newtopic{background:none;border:1px dashed var(--accent2);color:var(--accent2);border-radius:999px;
+    padding:.2rem .6rem;font-size:.8rem;font-weight:600;cursor:pointer}
+  .newtopic:hover{background:var(--chip)}
+  .topicedit{max-width:60rem;margin:0 auto;padding:.3rem 1rem .8rem;display:flex;flex-direction:column;gap:.4rem}
+  .te-title{font-weight:700;font-size:.85rem;color:var(--ink)}
+  .te-name,.te-term{padding:.4rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:.86rem}
+  .te-name{max-width:22rem}
+  .te-terms{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;border:1px solid var(--line);border-radius:8px;padding:.35rem;background:var(--bg)}
+  .te-term{flex:1;min-width:160px;border:none;padding:.2rem .4rem}
+  .te-chips{display:flex;flex-wrap:wrap;gap:.3rem}
+  .te-chip{display:inline-flex;align-items:center;gap:.3rem;background:var(--accent2);color:#fff;border-radius:999px;padding:.12rem .5rem;font-size:.78rem}
+  .te-chip b{cursor:pointer;opacity:.85}.te-chip b:hover{opacity:1}
+  .te-hint{color:var(--muted);font-size:.78rem}
+  .te-actions{display:flex;gap:.5rem;align-items:center}
+  .te-del{margin-left:auto;color:var(--warn)}
   .watchnew{color:var(--accent);font-weight:700;font-size:.82rem;white-space:nowrap}
   .tbadge{display:inline-block;margin-left:.3rem;min-width:1.1em;padding:0 .35em;border-radius:999px;
     background:var(--warn);color:#fff;font-size:.68rem;font-weight:700;line-height:1.5;text-align:center;vertical-align:middle}
@@ -152,6 +173,23 @@
     <button class="seed" data-add="radiopharmaceutical">Radiopharma</button>
     <button class="seed" data-add="GLP-1">GLP-1</button>
     <button class="seed" data-add="Moderna">Moderna</button>
+    <span class="seedsep" aria-hidden="true"></span>
+    <span id="customSeeds"></span>
+    <button class="newtopic" id="newTopicBtn" title="Build your own topic — a saved bundle of terms and companies">+ New topic</button>
+  </div>
+  <div class="topicedit" id="topicEdit" hidden>
+    <div class="te-title" id="te_title">New topic</div>
+    <input id="te_name" class="te-name" placeholder="Topic name — e.g. My ADC competitors" autocomplete="off">
+    <div class="te-terms">
+      <span class="te-chips" id="te_chips"></span>
+      <input id="te_term" class="te-term" placeholder="Add a company, drug or term, press Enter" autocomplete="off">
+    </div>
+    <div class="te-hint">Added to a watchlist, this topic searches all of these across every tab.</div>
+    <div class="te-actions">
+      <button class="wadd" id="te_save">Save topic</button>
+      <button class="ghost" id="te_cancel">Cancel</button>
+      <button class="ghost te-del" id="te_delete" hidden>Delete</button>
+    </div>
   </div>
 </div>
 
@@ -966,7 +1004,59 @@ function renderWatchChips(){
   const seeds=$("watchSeeds"); if(seeds) seeds.hidden = watch.length>0;
 }
 // Quick-add seed chips feed the universal watchlist (topics expand automatically).
-$("watchSeeds").onclick = e => { const b=e.target.closest("button[data-add]"); if(b) addWatch(b.dataset.add); };
+// Seed row clicks: edit a custom topic, start a new one, or add a seed/topic.
+$("watchSeeds").onclick = e => {
+  const ed=e.target.closest("[data-edit]"); if(ed){ openTopicEditor(+ed.dataset.edit); return; }
+  if(e.target.closest("#newTopicBtn")){ openTopicEditor(-1); return; }
+  const b=e.target.closest("button[data-add]"); if(b) addWatch(b.dataset.add);
+};
+// ---- custom topic builder ----
+function renderCustomSeeds(){
+  const box=$("customSeeds"); if(!box) return;
+  box.innerHTML="";
+  userTopics.forEach((t,i)=>{
+    const span=document.createElement("span"); span.className="cseed";
+    const add=document.createElement("button"); add.className="cadd"; add.dataset.add=t.label;
+    add.textContent="🏷 "+t.label; add.title="Add to watchlist — searches: "+(t.terms||[]).join(", ");
+    const ed=document.createElement("button"); ed.className="cedit"; ed.dataset.edit=i; ed.textContent="✎"; ed.title="Edit topic";
+    span.appendChild(add); span.appendChild(ed); box.appendChild(span);
+  });
+}
+let teEditing=-1, teTerms=[];
+function renderTeChips(){
+  const box=$("te_chips"); box.innerHTML="";
+  teTerms.forEach((t,i)=>{ const c=document.createElement("span"); c.className="te-chip"; c.textContent=t+" ";
+    const b=document.createElement("b"); b.dataset.i=i; b.textContent="✕"; b.title="Remove"; c.appendChild(b); box.appendChild(c); });
+}
+function addTeTerm(v){ v=(v||"").trim(); if(v && !teTerms.some(x=>x.toLowerCase()===v.toLowerCase())) teTerms.push(v); renderTeChips(); }
+function openTopicEditor(i){
+  teEditing=i; const t=i>=0?userTopics[i]:null;
+  teTerms = t ? (t.terms||[]).slice() : [];
+  $("te_title").textContent = t ? "Edit topic" : "New topic";
+  $("te_name").value = t ? t.label : ""; $("te_term").value="";
+  $("te_delete").hidden = !t; renderTeChips();
+  $("topicEdit").hidden=false; $("te_name").focus();
+}
+function closeTopicEditor(){ $("topicEdit").hidden=true; teEditing=-1; teTerms=[]; }
+function saveTopic(){
+  const name=$("te_name").value.trim();
+  const pend=$("te_term").value.trim(); if(pend) addTeTerm(pend); $("te_term").value="";
+  if(!name){ $("te_name").focus(); return; }
+  if(!teTerms.length){ $("te_term").focus(); return; }
+  const entry={label:name, terms:teTerms.slice()};
+  if(teEditing>=0) userTopics[teEditing]=entry;
+  else { const ex=userTopics.findIndex(t=>(t.label||"").toLowerCase()===name.toLowerCase());
+    if(ex>=0) userTopics[ex]=entry; else userTopics.push(entry); }
+  saveUserTopics(); renderCustomSeeds(); closeTopicEditor();
+  if(watch.some(w=>w.toLowerCase()===entry.label.toLowerCase())){ loadBaseline(); runWatch(true); }
+}
+function deleteTopic(){ if(teEditing>=0){ userTopics.splice(teEditing,1); saveUserTopics(); renderCustomSeeds(); } closeTopicEditor(); }
+$("newTopicBtn").onclick=()=>openTopicEditor(-1);
+$("te_save").onclick=saveTopic;
+$("te_cancel").onclick=closeTopicEditor;
+$("te_delete").onclick=deleteTopic;
+$("te_term").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===","){ e.preventDefault(); addTeTerm($("te_term").value); $("te_term").value=""; }});
+$("te_chips").onclick=e=>{ const b=e.target.closest("b[data-i]"); if(b){ teTerms.splice(+b.dataset.i,1); renderTeChips(); } };
 function addWatch(v){
   v=(v||"").trim(); if(!v) return;
   if(!watch.some(x=>x.toLowerCase()===v.toLowerCase())) watch.push(v);
@@ -1052,21 +1142,33 @@ const WATCH_TOPICS = {
     terms:["aging","senescence","senolytic","longevity"],
     sponsors:["Altos Labs","Unity Biotechnology","BioAge Labs"]},
 };
+// User-built topics: named bundles of terms the user saves (localStorage). They
+// behave like built-in topics — matched by their label — and expand to exactly
+// the terms the user listed (no acronym filtering; we respect their choices).
+let userTopics = [];
+try { userTopics = JSON.parse(localStorage.getItem("obn_topics")||"[]") || []; } catch(e) { userTopics = []; }
+function saveUserTopics(){ try{ localStorage.setItem("obn_topics", JSON.stringify(userTopics)); }catch(e){} }
+function customTopicFor(term){
+  const k=(term||"").toLowerCase().trim();
+  const t=userTopics.find(x=>(x.label||"").toLowerCase().trim()===k);
+  return t ? {label:t.label, terms:t.terms||[], custom:true} : null;
+}
 function topicFor(term){
   const k=(term||"").toLowerCase().trim();
   for(const key in WATCH_TOPICS) if(WATCH_TOPICS[key].match.includes(k)) return WATCH_TOPICS[key];
-  return null;
+  return customTopicFor(term);
 }
 function watchVariants(term){
   const out=[], push=v=>{ v=(v||"").trim(); if(v && !out.some(x=>x.toLowerCase()===v.toLowerCase())) out.push(v); };
   const topic=topicFor(term);
   if(topic){
-    // Search the concept's phrases + lead companies, NOT the bare token. Drop
-    // ultra-short single-word acronyms (<=3 chars, e.g. "ADC", "AAV"), which have
-    // the same product-name-collision problem the topic is meant to avoid.
-    const keep=v=>v.length>3 || /[\s\-]/.test(v);
-    topic.terms.filter(keep).forEach(push);
-    topic.sponsors.forEach(push);
+    // Search the concept's phrases + lead companies, NOT the bare token. For
+    // built-in topics drop ultra-short single-word acronyms (<=3 chars, e.g.
+    // "ADC"/"AAV") that collide with product names; for a user's own topic we
+    // keep every term they listed.
+    const keep=v=>topic.custom || v.length>3 || /[\s\-]/.test(v);
+    (topic.terms||[]).filter(keep).forEach(push);
+    (topic.sponsors||[]).forEach(push);
     return out.length ? out : [term];
   }
   push(term);
@@ -1216,6 +1318,7 @@ $("watchClear").onclick=()=>{ watch=[]; saveWatch(); renderWatchChips(); syncUrl
   $("results").innerHTML=""; $("moreBtn").hidden=true; watchActive=false; loadBaseline();
   $("status").textContent="Watchlist cleared. Add a company, drug or topic, or use a tab's filters."; };
 renderWatchChips();
+renderCustomSeeds();
 
 // ---- shareable URL state ----
 const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent"};
