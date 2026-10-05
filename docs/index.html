@@ -93,6 +93,7 @@
   .te-chip{display:inline-flex;align-items:center;gap:.3rem;background:var(--accent2);color:#fff;border-radius:999px;padding:.12rem .5rem;font-size:.78rem}
   .te-chip b{cursor:pointer;opacity:.85}.te-chip b:hover{opacity:1}
   .te-hint{color:var(--muted);font-size:.78rem}
+  .te-warn{color:var(--warn);font-size:.78rem;font-weight:600}
   .te-actions{display:flex;gap:.5rem;align-items:center}
   .te-del{margin-left:auto;color:var(--warn)}
   .watchnew{color:var(--accent);font-weight:700;font-size:.82rem;white-space:nowrap}
@@ -185,6 +186,7 @@
       <input id="te_term" class="te-term" placeholder="Add a company, drug or term, press Enter" autocomplete="off">
     </div>
     <div class="te-hint">Added to a watchlist, this topic searches all of these across every tab.</div>
+    <div class="te-warn" id="te_warn" hidden></div>
     <div class="te-actions">
       <button class="wadd" id="te_save">Save topic</button>
       <button class="ghost" id="te_cancel">Cancel</button>
@@ -1030,33 +1032,67 @@ function renderTeChips(){
     const b=document.createElement("b"); b.dataset.i=i; b.textContent="✕"; b.title="Remove"; c.appendChild(b); box.appendChild(c); });
 }
 function addTeTerm(v){ v=(v||"").trim(); if(v && !teTerms.some(x=>x.toLowerCase()===v.toLowerCase())) teTerms.push(v); renderTeChips(); }
+function teWarn(msg){ const el=$("te_warn"); if(!el) return; el.textContent=msg||""; el.hidden=!msg; }
+// A custom name that matches a built-in topic token can never resolve (built-ins
+// win in topicFor), so block it rather than silently shadow the user's terms.
+function builtinTopicConflict(name){
+  const k=(name||"").toLowerCase().trim();
+  for(const key in WATCH_TOPICS) if(WATCH_TOPICS[key].match.includes(k)) return WATCH_TOPICS[key].label;
+  return null;
+}
+// Re-point / drop a watchlist entry after its custom topic is renamed or deleted,
+// then re-render chips and re-run so the change takes effect immediately.
+function reconcileWatch(oldLabel, newLabel){
+  const wi=watch.findIndex(w=>w.toLowerCase()===(oldLabel||"").toLowerCase());
+  renderWatchChips();                 // always refresh (tooltip/terms may have changed)
+  if(wi<0) return;
+  if(newLabel){ watch[wi]=newLabel; } else { watch.splice(wi,1); }
+  saveWatch(); syncUrl(); renderWatchChips(); loadBaseline();
+  if(watch.length){ runWatch(true); }
+  else { $("results").innerHTML=""; $("moreBtn").hidden=true; watchActive=false;
+    $("status").textContent="Watchlist cleared. Add a company, drug or topic, or use a tab's filters."; }
+}
 function openTopicEditor(i){
   teEditing=i; const t=i>=0?userTopics[i]:null;
   teTerms = t ? (t.terms||[]).slice() : [];
   $("te_title").textContent = t ? "Edit topic" : "New topic";
-  $("te_name").value = t ? t.label : ""; $("te_term").value="";
+  $("te_name").value = t ? t.label : ""; $("te_term").value=""; teWarn("");
   $("te_delete").hidden = !t; renderTeChips();
   $("topicEdit").hidden=false; $("te_name").focus();
 }
-function closeTopicEditor(){ $("topicEdit").hidden=true; teEditing=-1; teTerms=[]; }
+function closeTopicEditor(){ $("topicEdit").hidden=true; teEditing=-1; teTerms=[]; teWarn(""); }
 function saveTopic(){
-  const name=$("te_name").value.trim();
+  // Drop the URL/seen-state delimiters from the name so a topic name can't corrupt
+  // ?w= sharing (~) or the seen-state key (|).
+  const name=$("te_name").value.replace(/[~|]/g," ").replace(/\s+/g," ").trim();
+  if(!name){ teWarn("Give the topic a name."); $("te_name").focus(); return; }
+  const clash=builtinTopicConflict(name);
+  if(clash){ teWarn('That name matches the built-in "'+clash+'" topic — pick a different name.'); $("te_name").focus(); return; }
   const pend=$("te_term").value.trim(); if(pend) addTeTerm(pend); $("te_term").value="";
-  if(!name){ $("te_name").focus(); return; }
-  if(!teTerms.length){ $("te_term").focus(); return; }
+  if(!teTerms.length){ teWarn("Add at least one term or company."); $("te_term").focus(); return; }
+  const oldLabel = teEditing>=0 ? (userTopics[teEditing].label||"") : null;
   const entry={label:name, terms:teTerms.slice()};
   if(teEditing>=0) userTopics[teEditing]=entry;
   else { const ex=userTopics.findIndex(t=>(t.label||"").toLowerCase()===name.toLowerCase());
     if(ex>=0) userTopics[ex]=entry; else userTopics.push(entry); }
   saveUserTopics(); renderCustomSeeds(); closeTopicEditor();
-  if(watch.some(w=>w.toLowerCase()===entry.label.toLowerCase())){ loadBaseline(); runWatch(true); }
+  // If this topic is in the watchlist, re-point the entry to the (possibly new)
+  // name and re-run so the chip and its search reflect the edit.
+  if(oldLabel!==null) reconcileWatch(oldLabel, name);
 }
-function deleteTopic(){ if(teEditing>=0){ userTopics.splice(teEditing,1); saveUserTopics(); renderCustomSeeds(); } closeTopicEditor(); }
+function deleteTopic(){
+  if(teEditing<0){ closeTopicEditor(); return; }
+  const label=userTopics[teEditing].label||"";
+  userTopics.splice(teEditing,1); saveUserTopics(); renderCustomSeeds(); closeTopicEditor();
+  reconcileWatch(label, null);        // drop it from the watchlist if it was there
+}
 $("newTopicBtn").onclick=()=>openTopicEditor(-1);
 $("te_save").onclick=saveTopic;
 $("te_cancel").onclick=closeTopicEditor;
 $("te_delete").onclick=deleteTopic;
 $("te_term").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===","){ e.preventDefault(); addTeTerm($("te_term").value); $("te_term").value=""; }});
+$("te_name").addEventListener("input",()=>teWarn(""));
+$("te_name").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); saveTopic(); }});
 $("te_chips").onclick=e=>{ const b=e.target.closest("b[data-i]"); if(b){ teTerms.splice(+b.dataset.i,1); renderTeChips(); } };
 function addWatch(v){
   v=(v||"").trim(); if(!v) return;
