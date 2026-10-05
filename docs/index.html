@@ -848,8 +848,10 @@ function renderFiling(h){
 }
 
 // Order the currently-loaded cards by date desc, for sources whose API has no
-// server-side date sort (Drugs@FDA approvals, SEC EDGAR). Cards carry data-date
-// as YYYYMMDD; ones without a date sink to the bottom.
+// server-side date sort (Drugs@FDA approvals, SEC EDGAR). Only cards that carry a
+// data-date (YYYYMMDD) are reordered; among them an empty date sinks to the
+// bottom. Cards without the attribute (e.g. the SEC fallback card) aren't matched
+// and stay where they are — fine today, since that card is only shown alone.
 function sortLoadedByDate(){
   const box=$("results");
   const arts=[...box.querySelectorAll("article[data-date]")];
@@ -1253,9 +1255,15 @@ function loadFromUrl(){
   const w=p.get("w");
   if(w){ watch = w.split("~").map(s=>s.trim()).filter(Boolean); saveWatch(); }
   renderWatchChips(); loadBaseline();
-  // Restore sort from URL, else the last choice from localStorage.
+  // Sort resolution: a shared link must reproduce the sharer's view, so when the
+  // page is opened with ANY query state (a copied/replaceState link) the URL wins
+  // — its sort if present, else the default "recent" (the sharer omits a default
+  // sort). Only a bare visit (no query at all) falls back to this viewer's own
+  // saved preference.
   let sortSaved=null; try{ sortSaved=localStorage.getItem("obn_sort"); }catch(e){}
-  const sortVal = (p.get("sort")==="relevant"||p.get("sort")==="recent") ? p.get("sort") : (sortSaved||"recent");
+  const urlSort = (p.get("sort")==="relevant"||p.get("sort")==="recent") ? p.get("sort") : null;
+  const sharedLink = location.search.length>1;
+  const sortVal = urlSort || (sharedLink ? "recent" : (sortSaved||"recent"));
   if($("sortBy")) $("sortBy").value = sortVal;
   for(const map of [T_FIELDS,R_FIELDS,A_FIELDS,H_FIELDS,S_FIELDS])
     for(const [id,key] of Object.entries(map)) if(p.get(key)) $(id).value=p.get(key);
