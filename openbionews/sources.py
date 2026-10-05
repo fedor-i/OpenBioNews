@@ -147,7 +147,7 @@ THEMES: dict[str, dict] = {
         "terms": ["artificial intelligence", "machine learning", "deep learning",
                   "AI drug discovery", "generative model"],
         "sponsors": ["Recursion Pharmaceuticals", "Exscientia", "Insilico Medicine",
-                     "Schrödinger", "Absci", "BenevolentAI", "Isomorphic Labs",
+                     "Schrodinger", "Absci", "BenevolentAI", "Isomorphic Labs",
                      "Relay Therapeutics"],
     },
     "nam": {

@@ -481,7 +481,13 @@ TABS.forEach(t => { $("tab-"+t).onclick = () => { selectTab(t); syncUrl(); }; })
 async function getJson(url, noMatchOn404){
   const res = await fetch(url, {headers:{"Accept":"application/json"}});
   if(res.status===404 && noMatchOn404) return {__empty:true};
-  if(!res.ok) throw new Error("HTTP "+res.status);
+  if(!res.ok){
+    // openFDA puts the real reason in the body ({"error":{"message":"…"}}) —
+    // surface it so a bad query says *why*, not just "HTTP 400".
+    let detail="";
+    try{ const e=await res.json(); if(e&&e.error&&e.error.message) detail=": "+e.error.message; }catch(_){}
+    throw new Error("HTTP "+res.status+detail);
+  }
   return res.json();
 }
 
@@ -1008,7 +1014,7 @@ const WATCH_TOPICS = {
   ai:{label:"AI in drug discovery",
     match:["ai","a.i.","artificial intelligence","ai drug discovery","machine learning","ml"],
     terms:["artificial intelligence","machine learning","deep learning","AI drug discovery","generative model"],
-    sponsors:["Recursion Pharmaceuticals","Exscientia","Insilico Medicine","Schrödinger","Absci","BenevolentAI","Isomorphic Labs","Relay Therapeutics"]},
+    sponsors:["Recursion Pharmaceuticals","Exscientia","Insilico Medicine","Schrodinger","Absci","BenevolentAI","Isomorphic Labs","Relay Therapeutics"]},
   nam:{label:"New Approach Methodologies (NAM)",
     match:["nam","new approach methodologies","organ-on-a-chip","organ on a chip","microphysiological systems","organoid","non-animal testing"],
     terms:["new approach methodologies","organ-on-a-chip","microphysiological systems","organoid","in vitro model","non-animal testing"],
