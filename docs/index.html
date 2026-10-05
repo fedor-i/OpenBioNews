@@ -713,8 +713,10 @@ function buildShrtUrl(f, skip){
   if(f.status) terms.push(`status:"${f.status}"`);
   const search=terms.join("+AND+");
   const q=search?`search=${encodeURIComponent(search).replace(/%2B/g,"+")}&`:"";
-  const sort = sortRelevant() ? "" : "sort=update_date:desc&";
-  return `${FDA_SHORTAGES_API}?${q}${sort}limit=25&skip=${skip||0}`;
+  // No server sort: the shortages endpoint rejects sort=update_date (HTTP 400) —
+  // its date fields aren't reliably sortable — so "most recent" is done
+  // client-side (see sortLoadedByDate), as the Python connector also does.
+  return `${FDA_SHORTAGES_API}?${q}limit=25&skip=${skip||0}`;
 }
 function renderShortage(r){
   const of=r.openfda||{}; const first=v=>Array.isArray(v)?(v[0]||""):(v||"");
@@ -730,6 +732,7 @@ function renderShortage(r){
   // distinguish one presentation from another (NDC when present, else strength +
   // dosage form), to avoid collapsing distinct records to the same id.
   el.dataset.id="h:"+[name,company,first(r.generic_name),first(r.package_ndc),first(r.strength),first(r.dosage_form)].filter(Boolean).join("|");
+  el.dataset.date=String(d).replace(/[^0-9]/g,"").slice(0,8);   // YYYYMMDD, for client-side "most recent" sort
   el.innerHTML=
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} — shortage${status?` (${esc(status)})`:""}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
@@ -748,6 +751,7 @@ async function searchShortages(reset){
     if(data.__empty){ if($("results").children.length===0) $("status").textContent="No matching shortages."; $("moreBtn").hidden=true; return; }
     const rows=data.results||[];
     for(const r of rows) $("results").appendChild(renderShortage(r));
+    if(!sortRelevant()) sortLoadedByDate();
     shrSkip += rows.length;
     const total=dig(data,"meta","results","total")||0;
     const have=$("results").children.length;
@@ -1098,11 +1102,10 @@ function fdaFetchUrl(base, search, skip){
   // Server-side date sort for recalls/shortages; approvals have no sortable
   // top-level date, so those are ordered client-side (see sortLoadedByDate).
   // "Most relevant" omits the sort so openFDA ranks by match score.
-  let sort="";
-  if(!sortRelevant()){
-    if(base===FDA_API) sort="sort=report_date:desc&";
-    else if(base===FDA_SHORTAGES_API) sort="sort=update_date:desc&";
-  }
+  // Only recalls (enforcement) has a reliably sortable date field. Shortages
+  // rejects sort=update_date (HTTP 400) and approvals has no top-level date, so
+  // both are ordered client-side (see sortLoadedByDate).
+  const sort = (!sortRelevant() && base===FDA_API) ? "sort=report_date:desc&" : "";
   return `${base}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&${sort}limit=25&skip=${skip||0}`;
 }
 async function wRecalls(reset){
@@ -1140,6 +1143,7 @@ async function wShortages(reset){
     const data=await getJson(fdaFetchUrl(FDA_SHORTAGES_API, fdaClause(["company_name","generic_name","proprietary_name"]), skip), true);
     if(data.__empty){ if($("results").children.length===0)$("status").textContent="No shortages match your watchlist."; $("moreBtn").hidden=true; return; }
     const rows=data.results||[]; for(const r of rows) $("results").appendChild(renderShortage(r));
+    if(!sortRelevant()) sortLoadedByDate();
     shrSkip=skip+rows.length; const total=dig(data,"meta","results","total")||0;
     const have=$("results").children.length;
     $("status").textContent = have?`Showing ${have} of ${Number(total).toLocaleString()} shortages for your watchlist.`:"No shortages match your watchlist.";
