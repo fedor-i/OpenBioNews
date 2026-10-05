@@ -63,6 +63,7 @@
   .wchip{display:inline-flex;align-items:center;gap:.35rem;background:var(--accent);color:#fff;
     border-radius:999px;padding:.2rem .6rem;font-size:.84rem;font-weight:600}
   .wchip b{cursor:pointer;opacity:.85;font-weight:700}.wchip b:hover{opacity:1}
+  .wchip.topicchip{background:var(--accent2)}  /* topics (AI, GLP-1…) vs teal company/drug chips */
   .watchbar input{flex:1;min-width:150px;max-width:280px;padding:.4rem .6rem;border:1px solid var(--line);
     border-radius:999px;background:var(--bg);color:var(--ink);font-size:.88rem}
   .wadd{background:var(--accent);color:#fff;border:none;border-radius:999px;padding:.4rem .9rem;font-weight:600;cursor:pointer;font-size:.85rem}
@@ -927,7 +928,12 @@ function renderWatchChips(){
   const box=$("watchChips"); box.innerHTML="";
   watch.forEach((t,i)=>{
     const c=document.createElement("span"); c.className="wchip";
-    c.innerHTML = esc(t)+' <b data-i="'+i+'" title="Remove">✕</b>';
+    const tp=topicFor(t);
+    if(tp){
+      c.classList.add("topicchip");
+      c.title="Topic: "+tp.label+" — searches "+tp.terms.slice(0,4).join(", ")+" and lead companies (not the literal \""+t+"\")";
+    }
+    c.innerHTML = (tp?'🏷 ':'')+esc(t)+' <b data-i="'+i+'" title="Remove">✕</b>';
     box.appendChild(c);
   });
   $("watchClear").hidden = watch.length===0;
@@ -969,8 +975,72 @@ const WATCH_ALIASES = {
   "merck":["Merck Sharp & Dohme"],
   "az":["AstraZeneca"],
 };
+// Topic expansion. A short topic word like "AI" is useless as a raw keyword — it
+// matches the token "AI" inside product names (e.g. the "Sureclick AI" auto-
+// injector), not the concept. When a watch term names a known topic we search
+// its meaningful phrases and lead companies instead of the bare token. Mirrors
+// openbionews/sources.py THEMES. `match` = what a user might type; `terms` =
+// concept phrases (full-text + drug-name hits); `sponsors` = lead companies
+// (so the topic still returns that firm's recalls / approvals / filings).
+const WATCH_TOPICS = {
+  ai:{label:"AI in drug discovery",
+    match:["ai","a.i.","artificial intelligence","ai drug discovery","machine learning","ml"],
+    terms:["artificial intelligence","machine learning","deep learning","AI drug discovery","generative model"],
+    sponsors:["Recursion Pharmaceuticals","Exscientia","Insilico Medicine","Schrödinger","Absci","BenevolentAI","Isomorphic Labs","Relay Therapeutics"]},
+  nam:{label:"New Approach Methodologies (NAM)",
+    match:["nam","new approach methodologies","organ-on-a-chip","organ on a chip","microphysiological systems","organoid","non-animal testing"],
+    terms:["new approach methodologies","organ-on-a-chip","microphysiological systems","organoid","in vitro model","non-animal testing"],
+    sponsors:["Emulate","CN Bio","Hesperos"]},
+  gene_cell:{label:"Gene & cell therapy",
+    match:["gene therapy","cell therapy","gene & cell therapy","gene and cell therapy","car-t","car t","cgt"],
+    terms:["gene therapy","cell therapy","CAR-T","AAV vector","lentiviral"],
+    sponsors:["CRISPR Therapeutics","Intellia Therapeutics","Beam Therapeutics","Sarepta Therapeutics","bluebird bio"]},
+  crispr:{label:"Gene editing (CRISPR)",
+    match:["crispr","gene editing","base editing","prime editing"],
+    terms:["CRISPR","gene editing","base editing","prime editing"],
+    sponsors:["CRISPR Therapeutics","Intellia Therapeutics","Beam Therapeutics","Editas Medicine","Prime Medicine"]},
+  mrna:{label:"mRNA & RNA therapeutics",
+    match:["mrna","messenger rna","rna therapeutics","sirna","antisense"],
+    terms:["mRNA","messenger RNA","siRNA","antisense oligonucleotide","RNA therapeutic"],
+    sponsors:["Moderna","BioNTech","Alnylam Pharmaceuticals","Ionis Pharmaceuticals"]},
+  adc:{label:"Antibody-drug conjugates",
+    match:["adc","antibody-drug conjugate","antibody drug conjugate","bispecific"],
+    terms:["antibody-drug conjugate","bispecific antibody"],
+    sponsors:["Seagen","ADC Therapeutics","Daiichi Sankyo","ImmunoGen"]},
+  radiopharma:{label:"Radiopharmaceuticals",
+    match:["radiopharma","radiopharmaceutical","radioligand","theranostic","radionuclide"],
+    terms:["radiopharmaceutical","radioligand therapy","theranostic","targeted radionuclide"],
+    sponsors:["Novartis","Point Biopharma","RayzeBio","Lantheus"]},
+  obesity:{label:"GLP-1 / obesity",
+    match:["obesity","glp-1","glp1","weight loss","semaglutide","tirzepatide"],
+    terms:["GLP-1","obesity","semaglutide","tirzepatide","weight loss"],
+    sponsors:["Novo Nordisk","Eli Lilly","Amgen","Viking Therapeutics","Structure Therapeutics"]},
+  psychedelics:{label:"Psychedelic medicine",
+    match:["psychedelics","psychedelic","psilocybin","mdma","ketamine"],
+    terms:["psilocybin","MDMA","psychedelic","ketamine"],
+    sponsors:["Compass Pathways","atai Life Sciences","MindMed"]},
+  longevity:{label:"Longevity & aging",
+    match:["longevity","aging","ageing","senescence","senolytic"],
+    terms:["aging","senescence","senolytic","longevity"],
+    sponsors:["Altos Labs","Unity Biotechnology","BioAge Labs"]},
+};
+function topicFor(term){
+  const k=(term||"").toLowerCase().trim();
+  for(const key in WATCH_TOPICS) if(WATCH_TOPICS[key].match.includes(k)) return WATCH_TOPICS[key];
+  return null;
+}
 function watchVariants(term){
   const out=[], push=v=>{ v=(v||"").trim(); if(v && !out.some(x=>x.toLowerCase()===v.toLowerCase())) out.push(v); };
+  const topic=topicFor(term);
+  if(topic){
+    // Search the concept's phrases + lead companies, NOT the bare token. Drop
+    // ultra-short single-word acronyms (<=3 chars, e.g. "ADC", "AAV"), which have
+    // the same product-name-collision problem the topic is meant to avoid.
+    const keep=v=>v.length>3 || /[\s\-]/.test(v);
+    topic.terms.filter(keep).forEach(push);
+    topic.sponsors.forEach(push);
+    return out.length ? out : [term];
+  }
   push(term);
   const stripped=term.replace(CORP_SUFFIX,"").trim();
   push(stripped);

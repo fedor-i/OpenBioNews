@@ -20,6 +20,16 @@ to follow [Semantic Versioning](https://semver.org/).
     suffix stripped (`Moderna Inc` also matches `Moderna`) plus a small
     high-precision alias map; the extra variants are OR'd in, so expansion only
     adds true matches and never drops your own term.
+  - **Topic expansion** — a short topic word like "AI" is useless as a raw
+    keyword (it matches the token "AI" inside product names such as the
+    "Sureclick AI" auto-injector, not the concept). When a watch term names a
+    known topic (AI in drug discovery, NAM, gene & cell therapy, CRISPR, mRNA,
+    ADCs, radiopharma, GLP-1/obesity, psychedelics, longevity) it now searches
+    the concept's meaningful phrases plus its lead companies instead of the bare
+    token — so the topic returns real cross-agency results and the device-name
+    collisions disappear. Ultra-short acronyms (≤3 chars, e.g. "ADC", "AAV") are
+    dropped from the expansion for the same reason. Topic chips are tinted and
+    carry a tooltip showing what they expand to. Mirrors `sources.THEMES`.
   - **"What's new since last visit"** — the page remembers which items you have
     already seen for a watchlist (per source, in `localStorage`) and, on your next
     visit, flags only the genuinely new ones: a `NEW` badge on each new card, a
