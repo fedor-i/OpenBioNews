@@ -79,6 +79,8 @@
   .status{color:var(--muted);font-size:.9rem;min-height:1.2em;flex:1;min-width:200px}
   .auto{display:inline-flex;align-items:center;gap:.3rem;color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap}
   .auto input{cursor:pointer}
+  .sortby{display:inline-flex;align-items:center;gap:.35rem;color:var(--muted);font-size:.82rem;white-space:nowrap}
+  .sortby select{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:.2rem .4rem;font-size:.82rem}
   .upd{color:var(--accent);font-size:.78rem;white-space:nowrap}
   .linkbtn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;
     padding:.35rem .6rem;font-size:.8rem;font-weight:500;cursor:pointer}
@@ -202,13 +204,6 @@
           <input type="checkbox" id="t_industry" style="width:auto;min-width:0"> Industry-sponsored only
         </label>
         <div style="flex:1"></div>
-        <div style="min-width:150px"><label for="t_sort">Sort</label>
-          <select id="t_sort">
-            <option value="LastUpdatePostDate:desc">Recently updated</option>
-            <option value="StudyFirstPostDate:desc">Newest registered</option>
-            <option value="@relevance">Best match</option>
-          </select>
-        </div>
       </div>
     </div>
   </section>
@@ -370,6 +365,11 @@
 
   <div class="bar">
     <div class="status" id="status">Pick a filter and hit Search — or tap a chip above.</div>
+    <label class="sortby" title="Most recent sorts by the source's date; Most relevant uses the best text match">Sort
+      <select id="sortBy">
+        <option value="recent">Most recent</option>
+        <option value="relevant">Most relevant</option>
+      </select></label>
     <label class="auto" title="Re-run this search automatically every 15 minutes while the page is open">
       <input type="checkbox" id="autoRefresh"> Auto-refresh (15 min)</label>
     <span class="upd" id="updated" hidden></span>
@@ -486,12 +486,20 @@ async function getJson(url, noMatchOn404){
   return res.json();
 }
 
+// ---- global sort (applies to the active tab, and to the watchlist) ----
+// "recent" = the source's date field; "relevant" = best text match. openFDA and
+// EDGAR rank by relevance when no sort is given, so "relevant" just omits the
+// date sort; ClinicalTrials.gov takes an explicit @relevance.
+function currentSort(){ return $("sortBy") ? $("sortBy").value : "recent"; }
+function sortRelevant(){ return currentSort()==="relevant"; }
+
 // ================= TRIALS =================
 function daysAgoISO(n){ return new Date(Date.now()-n*864e5).toISOString().slice(0,10); }
 function trialsFilters(){
   return {spons:$("t_spons").value.trim(), cond:$("t_cond").value.trim(), intr:$("t_intr").value.trim(),
     term:$("t_term").value.trim(), status:$("t_status").value, phase:$("t_phase").value,
-    recent:$("t_recent").value, industry:$("t_industry").checked, sort:$("t_sort").value};
+    recent:$("t_recent").value, industry:$("t_industry").checked,
+    sort:(sortRelevant()?"@relevance":"LastUpdatePostDate:desc")};
 }
 function trialsHasFilter(f){ return f.spons||f.cond||f.intr||f.term||f.status||f.phase||f.recent||f.industry; }
 // Turn a comma-separated field into a ClinicalTrials.gov Essie OR-expression, so
@@ -581,7 +589,8 @@ function buildFdaUrl(f, skip){
     terms.push(`report_date:[${s} TO ${e}]`);
   }
   const search = terms.join("+AND+");
-  return `${FDA_API}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&sort=report_date:desc&limit=25&skip=${skip||0}`;
+  const sort = sortRelevant() ? "" : "sort=report_date:desc&";
+  return `${FDA_API}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&${sort}limit=25&skip=${skip||0}`;
 }
 async function searchRecalls(reset){
   watchActive=false;
@@ -661,6 +670,7 @@ function approvalCards(app, cutoffMs, includeSuppl){
     const dateStr=(d.length===8)?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:"";
     const el=document.createElement("article");
     el.dataset.id="a:"+appno+":"+(isOrig?"o":"s")+":"+(sub.submission_number||d||"");
+    el.dataset.date=d;   // YYYYMMDD, for client-side "most recent" sort
     el.innerHTML=
       `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} — ${esc(kind)}</a></h2>`+
       `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
@@ -682,6 +692,7 @@ async function searchApprovals(reset){
     if(data.__empty){ if($("results").children.length===0) $("status").textContent="No matching approvals."; $("moreBtn").hidden=true; return; }
     const apps=data.results||[];
     for(const app of apps) approvalCards(app, cutoffMs, (aprParams||f).suppl).forEach(c=>$("results").appendChild(c));
+    if(!sortRelevant()) sortLoadedByDate();
     aprSkip += apps.length;
     const total=dig(data,"meta","results","total")||0;
     const have=$("results").children.length;
@@ -702,7 +713,8 @@ function buildShrtUrl(f, skip){
   if(f.status) terms.push(`status:"${f.status}"`);
   const search=terms.join("+AND+");
   const q=search?`search=${encodeURIComponent(search).replace(/%2B/g,"+")}&`:"";
-  return `${FDA_SHORTAGES_API}?${q}limit=25&skip=${skip||0}`;
+  const sort = sortRelevant() ? "" : "sort=update_date:desc&";
+  return `${FDA_SHORTAGES_API}?${q}${sort}limit=25&skip=${skip||0}`;
 }
 function renderShortage(r){
   const of=r.openfda||{}; const first=v=>Array.isArray(v)?(v[0]||""):(v||"");
@@ -790,6 +802,7 @@ async function searchSec(reset, fromWatch, qOverride){
     const hits = dig(data,"hits","hits")||[];
     secTotal = dig(data,"hits","total","value")||0;
     for(const h of hits){ const c=renderFiling(h); if(c) $("results").appendChild(c); }
+    if(!sortRelevant()) sortLoadedByDate();   // efts has no date-sort param; order the loaded page client-side
     secFrom += hits.length;
     const have=$("results").children.length;
     if(have){
@@ -824,6 +837,7 @@ function renderFiling(h){
   const tags = [form].concat(names.length>1 ? [`+${names.length-1} filer(s)`] : []);
   const el=document.createElement("article");
   el.dataset.id="s:"+((h._id)||accn||(company+"|"+date));
+  el.dataset.date=(date||"").replace(/-/g,"");   // YYYYMMDD, for client-side "most recent" sort
   el.innerHTML =
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(company)} — ${esc(form)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
@@ -831,6 +845,17 @@ function renderFiling(h){
     `<div class="src">${date?`filed ${esc(date)} · `:""}`+
     `↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">EDGAR ${esc(accn||"filing")}</a></div>`;
   return el;
+}
+
+// Order the currently-loaded cards by date desc, for sources whose API has no
+// server-side date sort (Drugs@FDA approvals, SEC EDGAR). Cards carry data-date
+// as YYYYMMDD; ones without a date sink to the bottom.
+function sortLoadedByDate(){
+  const box=$("results");
+  const arts=[...box.querySelectorAll("article[data-date]")];
+  if(arts.length<2) return;
+  arts.sort((a,b)=>(b.dataset.date||"").localeCompare(a.dataset.date||""));
+  arts.forEach(a=>box.appendChild(a));
 }
 
 // ---- errors ----
@@ -867,6 +892,13 @@ function setAuto(on){
 }
 $("autoRefresh").onchange = e => setAuto(e.target.checked);
 try{ if(localStorage.getItem("obn_auto")==="1"){ $("autoRefresh").checked=true; setAuto(true); } }catch(e){}
+// Sort control: re-run the active view (watchlist or manual) with the new order.
+$("sortBy").onchange = () => {
+  try{ localStorage.setItem("obn_sort", currentSort()); }catch(e){}
+  syncUrl();
+  if(watchActive) runWatch(true);
+  else if($("results").children.length>0) runSearch(true);
+};
 $("t_search").onclick=()=>{ searchTrials(true); syncUrl(); };
 $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
 $("a_search").onclick=()=>{ searchApprovals(true); syncUrl(); };
@@ -1061,7 +1093,14 @@ function fdaClause(fields){
   return parts.length? "("+parts.join("+OR+")+")" : "";
 }
 function fdaFetchUrl(base, search, skip){
-  const sort = base===FDA_API ? "sort=report_date:desc&" : "";
+  // Server-side date sort for recalls/shortages; approvals have no sortable
+  // top-level date, so those are ordered client-side (see sortLoadedByDate).
+  // "Most relevant" omits the sort so openFDA ranks by match score.
+  let sort="";
+  if(!sortRelevant()){
+    if(base===FDA_API) sort="sort=report_date:desc&";
+    else if(base===FDA_SHORTAGES_API) sort="sort=update_date:desc&";
+  }
   return `${base}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&${sort}limit=25&skip=${skip||0}`;
 }
 async function wRecalls(reset){
@@ -1085,6 +1124,7 @@ async function wApprovals(reset){
     if(data.__empty){ if($("results").children.length===0)$("status").textContent="No approvals match your watchlist."; $("moreBtn").hidden=true; return; }
     const apps=data.results||[];
     for(const app of apps) approvalCards(app, 0, true).forEach(c=>$("results").appendChild(c));
+    if(!sortRelevant()) sortLoadedByDate();
     aprSkip=skip+apps.length; const total=dig(data,"meta","results","total")||0;
     const have=$("results").children.length;
     $("status").textContent = have?`Showing ${have} approval(s) for your watchlist.`:"No approvals match your watchlist.";
@@ -1182,7 +1222,7 @@ $("watchClear").onclick=()=>{ watch=[]; saveWatch(); renderWatchChips(); syncUrl
 renderWatchChips();
 
 // ---- shareable URL state ----
-const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent",t_sort:"sort"};
+const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent"};
 const R_FIELDS={r_firm:"firm",r_drug:"drug",r_reason:"reason",r_class:"class",r_status:"rstatus",r_recent:"rrecent",r_type:"rtype"};
 const S_FIELDS={s_q:"q",s_form:"form",s_recent:"srecent"};
 const A_FIELDS={a_spons:"aspons",a_drug:"adrug",a_recent:"arecent",a_suppl:"asuppl"};
@@ -1194,6 +1234,7 @@ function fieldsFor(t){
 function syncUrl(){
   const p=new URLSearchParams(); p.set("tab",tab);
   if(watch.length) p.set("w", watch.join("~"));
+  if(currentSort()!=="recent") p.set("sort", currentSort());
   if(!watchActive){
     for(const [id,key] of Object.entries(fieldsFor(tab))){ const v=$(id).value; if(v) p.set(key,v); }
     if(tab==="trials" && $("t_industry").checked) p.set("industry","1");
@@ -1212,6 +1253,10 @@ function loadFromUrl(){
   const w=p.get("w");
   if(w){ watch = w.split("~").map(s=>s.trim()).filter(Boolean); saveWatch(); }
   renderWatchChips(); loadBaseline();
+  // Restore sort from URL, else the last choice from localStorage.
+  let sortSaved=null; try{ sortSaved=localStorage.getItem("obn_sort"); }catch(e){}
+  const sortVal = (p.get("sort")==="relevant"||p.get("sort")==="recent") ? p.get("sort") : (sortSaved||"recent");
+  if($("sortBy")) $("sortBy").value = sortVal;
   for(const map of [T_FIELDS,R_FIELDS,A_FIELDS,H_FIELDS,S_FIELDS])
     for(const [id,key] of Object.entries(map)) if(p.get(key)) $(id).value=p.get(key);
   $("t_industry").checked = p.get("industry")==="1";

@@ -7,6 +7,14 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Sort control on every tab (hosted page)** — a single *Most recent / Most
+  relevant* selector in the results bar, applied to the active tab and to the
+  watchlist. Server-side where the API supports it (ClinicalTrials.gov
+  `@relevance`; openFDA recalls by `report_date`, shortages by `update_date`;
+  "relevant" omits the date sort so openFDA/EDGAR rank by match score), and
+  client-side by date for sources with no date-sort parameter (Drugs@FDA
+  approvals, SEC EDGAR). The choice is shareable in the URL (`?sort=`) and
+  remembered in `localStorage`. (Replaces the trials-only sort dropdown.)
 - **Cross-tab watchlist (hosted page)** — a persistent bar at the top where you
   add companies, drugs or topics once; every tab then shows that agency's news
   for them. Each term is matched across the right fields per source (company *or*
