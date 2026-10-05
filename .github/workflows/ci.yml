@@ -33,3 +33,34 @@ jobs:
           pip install .
           openbionews --version
           openbionews run --demo --quiet --stdout
+
+  distros:
+    name: distro (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Prove the pure-stdlib core runs across Linux distributions and libc
+        # flavours: Debian (glibc), Alpine (musl) and Fedora.
+        image:
+          - "python:3.12-slim-bookworm"   # Debian 12, glibc
+          - "python:3.11-slim-bullseye"   # Debian 11, glibc
+          - "python:3.12-alpine"           # Alpine, musl libc
+          - "fedora:40"                    # Fedora (installs python3)
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python on Fedora
+        if: startsWith(matrix.image, 'fedora')
+        run: dnf install -y python3 python3-pip
+      - name: Show interpreter
+        run: python3 --version
+      - name: Byte-compile all modules
+        run: python3 -m compileall -q openbionews
+      - name: Run the test suite (standard library only)
+        run: python3 tests/test_pipeline.py
+      - name: Verify the package installs and the CLI runs
+        run: |
+          python3 -m pip install --break-system-packages . || python3 -m pip install .
+          openbionews --version
+          openbionews run --demo --quiet --stdout
