@@ -919,11 +919,47 @@ function removeWatch(i){
   else { $("results").innerHTML=""; $("moreBtn").hidden=true; watchActive=false;
     $("status").textContent="Watchlist cleared. Add a company, drug or topic, or use a tab's filters."; }
 }
-// Build an openFDA OR clause matching each watch term across several fields:
-//   (f1:"a" OR f2:"a" OR f1:"b" OR f2:"b")
+// A watch term often appears under different names across agencies — SEC files
+// as "BRISTOL MYERS SQUIBB CO", ClinicalTrials.gov lists "Bristol-Myers Squibb".
+// We expand each term into extra name variants so one list matches everywhere.
+// Expansion is strictly ADDITIVE (OR'd in): it can only add true matches, never
+// drop the user's own term. Aliases are high-precision full names only (no bare
+// tickers, which would pull noise into the full-text sources).
+const CORP_SUFFIX = /[,\s]+(inc|inc\.|corp|corp\.|corporation|co|co\.|company|ltd|ltd\.|llc|plc|ag|sa|nv|holdings|group|limited)$/i;
+const WATCH_ALIASES = {
+  "bms":["Bristol-Myers Squibb","Bristol Myers Squibb"],
+  "bristol-myers squibb":["Bristol Myers Squibb","BMS"],
+  "bristol myers squibb":["Bristol-Myers Squibb","BMS"],
+  "j&j":["Johnson & Johnson","Janssen"],
+  "jnj":["Johnson & Johnson","Janssen"],
+  "johnson & johnson":["Janssen","J&J"],
+  "lilly":["Eli Lilly"], "eli lilly":["Lilly"],
+  "gsk":["GlaxoSmithKline"], "glaxosmithkline":["GSK"],
+  "novo":["Novo Nordisk"],
+  "regeneron":["Regeneron Pharmaceuticals"],
+  "roche":["Genentech","Hoffmann-La Roche"], "genentech":["Roche"],
+  "merck":["Merck Sharp & Dohme"],
+  "az":["AstraZeneca"], "astrazeneca":["AstraZeneca"],
+};
+function watchVariants(term){
+  const out=[], push=v=>{ v=(v||"").trim(); if(v && !out.some(x=>x.toLowerCase()===v.toLowerCase())) out.push(v); };
+  push(term);
+  const stripped=term.replace(CORP_SUFFIX,"").trim();
+  push(stripped);
+  (WATCH_ALIASES[term.toLowerCase().trim()]||[]).forEach(push);
+  if(stripped.toLowerCase()!==term.toLowerCase()) (WATCH_ALIASES[stripped.toLowerCase()]||[]).forEach(push);
+  return out;
+}
+function allWatchVariants(){
+  const seen=new Set(), res=[];
+  for(const t of watch) for(const v of watchVariants(t)){ const k=v.toLowerCase(); if(!seen.has(k)){ seen.add(k); res.push(v); } }
+  return res;
+}
+// Build an openFDA OR clause matching each watch term (and its name variants)
+// across several fields: (f1:"a" OR f2:"a" OR f1:"b" OR f2:"b")
 function fdaClause(fields){
   const parts=[];
-  for(const t of watch){ const v=t.replace(/"/g,""); for(const f of fields) parts.push(`${f}:"${v}"`); }
+  for(const t of watch){ for(const vr of watchVariants(t)){ const v=vr.replace(/"/g,""); for(const f of fields) parts.push(`${f}:"${v}"`); } }
   return parts.length? "("+parts.join("+OR+")+")" : "";
 }
 function fdaFetchUrl(base, search, skip){
@@ -975,8 +1011,8 @@ function runWatch(reset){
   if(!watch.length) return;
   watchActive = true;
   if(reset){ $("results").innerHTML=""; ctToken=null; fdaSkip=0; aprSkip=0; shrSkip=0; secFrom=0; }
-  if(tab==="trials"){ $("t_term").value = watch.join(", "); return searchTrials(reset, true); }
-  if(tab==="sec"){ $("s_q").value = watch.map(t=>/\s/.test(t)?`"${t}"`:t).join(" OR "); return searchSec(reset, true); }
+  if(tab==="trials"){ $("t_term").value = allWatchVariants().join(", "); return searchTrials(reset, true); }
+  if(tab==="sec"){ $("s_q").value = allWatchVariants().map(t=>/[\s&]/.test(t)?`"${t}"`:t).join(" OR "); return searchSec(reset, true); }
   if(tab==="recalls") return wRecalls(reset);
   if(tab==="approvals") return wApprovals(reset);
   return wShortages(reset);

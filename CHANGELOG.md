@@ -14,6 +14,12 @@ to follow [Semantic Versioning](https://semver.org/).
   shortages and SEC EDGAR. Persists in `localStorage`, is shareable via the URL
   (`?w=…`), and works with Load-more and auto-refresh. A manual search in any tab
   temporarily overrides the watchlist for that tab.
+  - **Name-variant expansion** so one list matches across agencies that record a
+    company differently (SEC's "BRISTOL MYERS SQUIBB CO" vs ClinicalTrials.gov's
+    "Bristol-Myers Squibb" vs "BMS"). Each term is widened with its corporate
+    suffix stripped (`Moderna Inc` also matches `Moderna`) plus a small
+    high-precision alias map; the extra variants are OR'd in, so expansion only
+    adds true matches and never drops your own term.
 
 ## [0.4.0]
 
