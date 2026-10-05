@@ -1000,8 +1000,9 @@ function renderWatchChips(){
   });
   $("watchClear").hidden = watch.length===0;
   $("watchHint").hidden = watch.length>0;
-  // Seeds are onboarding suggestions — show only while the watchlist is empty.
-  const seeds=$("watchSeeds"); if(seeds) seeds.hidden = watch.length>0;
+  // Keep the quick-add row visible so you can stack several topics/companies and
+  // still reach "+ New topic"; only the one-time explanatory hint hides.
+  const seeds=$("watchSeeds"); if(seeds) seeds.hidden = false;
 }
 // Quick-add seed chips feed the universal watchlist (topics expand automatically).
 // Seed row clicks: edit a custom topic, start a new one, or add a seed/topic.
