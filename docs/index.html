@@ -68,6 +68,12 @@
   .wadd{background:var(--accent);color:#fff;border:none;border-radius:999px;padding:.4rem .9rem;font-weight:600;cursor:pointer;font-size:.85rem}
   .wclear{border-radius:999px;padding:.4rem .8rem;font-size:.85rem}
   .watchhint{max-width:60rem;margin:0 auto;padding:0 1rem .55rem;color:var(--muted);font-size:.8rem}
+  .watchnew{color:var(--accent);font-weight:700;font-size:.82rem;white-space:nowrap}
+  .tbadge{display:inline-block;margin-left:.3rem;min-width:1.1em;padding:0 .35em;border-radius:999px;
+    background:var(--warn);color:#fff;font-size:.68rem;font-weight:700;line-height:1.5;text-align:center;vertical-align:middle}
+  .newflag{display:inline-block;background:var(--warn);color:#fff;border-radius:6px;padding:.05rem .4rem;
+    font-size:.68rem;font-weight:700;letter-spacing:.02em;margin-right:.35rem;vertical-align:middle}
+  article.isnew{border-left:3px solid var(--warn);padding-left:.9rem}
   .bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:1rem 0 .3rem}
   .status{color:var(--muted);font-size:.9rem;min-height:1.2em;flex:1;min-width:200px}
   .auto{display:inline-flex;align-items:center;gap:.3rem;color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap}
@@ -119,6 +125,7 @@
     <input id="watchInput" placeholder="Add a company, drug or topic…" autocomplete="off" aria-label="Add to watchlist">
     <button class="wadd" id="watchAdd">Add</button>
     <button class="ghost wclear" id="watchClear" hidden>Clear</button>
+    <span class="watchnew" id="watchNew" hidden></span>
   </div>
   <div class="watchhint" id="watchHint">Add companies, drugs or topics once — then every tab shows that agency's news for them.</div>
 </div>
@@ -415,6 +422,12 @@ let tab = "trials";
 let watch = [];
 try { const s = localStorage.getItem("obn_watch"); if (s) watch = JSON.parse(s) || []; } catch(e) {}
 let watchActive = false;  // true when results on screen came from the watchlist
+// "What's new since last visit": per-watchlist, per-tab sets of item ids we have
+// already shown. seenBaseline is frozen at load; anything not in it is flagged NEW.
+let seenStore = {};
+try { seenStore = JSON.parse(localStorage.getItem("obn_seen")||"{}") || {}; } catch(e) { seenStore = {}; }
+let seenBaseline = null;            // {tab: Set(id)} snapshot for the current watchlist, or null on first look
+const newCount = {};                // new items currently shown per tab
 let ctToken = null, ctParams = null;
 let fdaSkip = 0, fdaParams = null, fdaTotal = 0;
 let aprSkip = 0, aprParams = null;
@@ -518,6 +531,7 @@ async function searchTrials(reset, fromWatch){
     $("status").textContent = have ? `Showing ${have} of ~${total} matching studies.` :
       "No matching studies (try a broader filter or different phase).";
     $("moreBtn").hidden = !ctToken;
+    if(fromWatch) markWatchNew();
   }catch(err){ showErr("ClinicalTrials.gov", err); }
 }
 function renderTrial(st){
@@ -533,6 +547,7 @@ function renderTrial(st){
   const url="https://clinicaltrials.gov/study/"+nct;
   const tags=[prettyStatus(status),prettyPhase(phases),spons].filter(Boolean);
   const el=document.createElement("article");
+  el.dataset.id="t:"+nct;
   el.innerHTML =
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(title)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
@@ -594,6 +609,7 @@ function renderRecall(r){
   const num=r.recall_number||"";
   const src = num ? `${FDA_API}?search=recall_number:%22${encodeURIComponent(num)}%22` : "https://www.fda.gov/drugs/drug-recalls";
   const el=document.createElement("article");
+  el.dataset.id="r:"+(num||clip(r.product_description,60)||r.recalling_firm||"");
   el.innerHTML =
     `<h2>${esc(title)}</h2>`+
     `<div class="tags">${tags.map((t,i)=>`<span class="tag${i===0&&clsN?` c${clsN}`:""}">${esc(t)}</span>`).join("")}</div>`+
@@ -642,6 +658,7 @@ function approvalCards(app, cutoffMs, includeSuppl){
     const tags=[isOrig?"New approval":"Supplement",priority,sponsorDisp].filter(Boolean);
     const dateStr=(d.length===8)?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:"";
     const el=document.createElement("article");
+    el.dataset.id="a:"+appno+":"+(isOrig?"o":"s")+":"+(sub.submission_number||d||"");
     el.innerHTML=
       `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} — ${esc(kind)}</a></h2>`+
       `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
@@ -695,6 +712,7 @@ function renderShortage(r){
   const url=`https://dps.fda.gov/drugshortages/search?query=${encodeURIComponent(name)}`;
   const tags=[status,(cats[0]||""),company].filter(Boolean);
   const el=document.createElement("article");
+  el.dataset.id="h:"+name+"|"+company+"|"+(first(r.generic_name)||"");
   el.innerHTML=
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} — shortage${status?` (${esc(status)})`:""}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
@@ -776,6 +794,7 @@ async function searchSec(reset, fromWatch){
       $("status").textContent = "Use the EDGAR link below.";
     }
     $("moreBtn").hidden = have>=secTotal || hits.length===0;
+    if(fromWatch) markWatchNew();
   }catch(err){
     $("results").appendChild(secFallbackCard(secParams||f,
       "In-browser search was blocked by SEC ("+err.message+")."));
@@ -798,6 +817,7 @@ function renderFiling(h){
   const desc = s.file_description || "";
   const tags = [form].concat(names.length>1 ? [`+${names.length-1} filer(s)`] : []);
   const el=document.createElement("article");
+  el.dataset.id="s:"+((h._id)||accn||(company+"|"+date));
   el.innerHTML =
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(company)} — ${esc(form)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
@@ -911,10 +931,10 @@ function renderWatchChips(){
 function addWatch(v){
   v=(v||"").trim(); if(!v) return;
   if(!watch.some(x=>x.toLowerCase()===v.toLowerCase())) watch.push(v);
-  saveWatch(); renderWatchChips(); syncUrl(); runWatch(true);
+  saveWatch(); renderWatchChips(); syncUrl(); loadBaseline(); runWatch(true);
 }
 function removeWatch(i){
-  watch.splice(i,1); saveWatch(); renderWatchChips(); syncUrl();
+  watch.splice(i,1); saveWatch(); renderWatchChips(); syncUrl(); loadBaseline();
   if(watch.length){ runWatch(true); }
   else { $("results").innerHTML=""; $("moreBtn").hidden=true; watchActive=false;
     $("status").textContent="Watchlist cleared. Add a company, drug or topic, or use a tab's filters."; }
@@ -976,6 +996,7 @@ async function wRecalls(reset){
     const have=$("results").children.length;
     $("status").textContent = have?`Showing ${have} of ${Number(fdaTotal).toLocaleString()} recalls for your watchlist.`:"No recalls match your watchlist.";
     $("moreBtn").hidden = have>=fdaTotal;
+    markWatchNew();
   }catch(err){ showErr("openFDA", err); }
 }
 async function wApprovals(reset){
@@ -990,6 +1011,7 @@ async function wApprovals(reset){
     const have=$("results").children.length;
     $("status").textContent = have?`Showing ${have} approval(s) for your watchlist.`:"No approvals match your watchlist.";
     $("moreBtn").hidden = aprSkip>=total || apps.length===0;
+    markWatchNew();
   }catch(err){ showErr("Drugs@FDA", err); }
 }
 async function wShortages(reset){
@@ -1002,7 +1024,60 @@ async function wShortages(reset){
     const have=$("results").children.length;
     $("status").textContent = have?`Showing ${have} of ${Number(total).toLocaleString()} shortages for your watchlist.`:"No shortages match your watchlist.";
     $("moreBtn").hidden = have>=total || rows.length===0;
+    markWatchNew();
   }catch(err){ showErr("openFDA shortages", err); }
+}
+// ---- "what's new since last visit" (watchlist only) ----
+// A stable signature for the current watchlist, so the seen-state resets when the
+// list changes rather than flagging an unrelated list's items as new.
+function watchSig(){ return watch.map(s=>s.toLowerCase().trim()).filter(Boolean).sort().join("|"); }
+// Freeze the baseline (what we had already seen) for the current watchlist. Called
+// at load and whenever the list changes. Null means "first look" → nothing is new.
+function loadBaseline(){
+  const cur = seenStore[watchSig()];
+  seenBaseline = cur ? Object.fromEntries(TABS.map(t=>[t, new Set(cur[t]||[])])) : null;
+  for(const t of TABS){ newCount[t]=0; updateTabBadge(t); }
+  updateWatchNew();
+}
+function updateTabBadge(t){
+  const btn=$("tab-"+t); if(!btn) return;
+  let b=btn.querySelector(".tbadge");
+  const n=newCount[t]||0;
+  if(n>0){ if(!b){ b=document.createElement("span"); b.className="tbadge"; btn.appendChild(b); } b.textContent=n; }
+  else if(b){ b.remove(); }
+}
+function updateWatchNew(){
+  const el=$("watchNew"); if(!el) return;
+  const total=TABS.reduce((s,t)=>s+(newCount[t]||0),0);
+  if(watchActive && total>0){ el.hidden=false; el.textContent="🆕 "+total+" new since your last visit"; }
+  else{ el.hidden=true; el.textContent=""; }
+}
+// After a watchlist render appends cards, flag the ones not in the baseline and
+// record everything shown so the next visit diffs against it.
+function markWatchNew(){
+  if(!watchActive) return;
+  const t=tab, sig=watchSig();
+  const base = seenBaseline && seenBaseline[t];
+  const fresh=[...$("results").querySelectorAll("article[data-id]:not([data-wn])")];
+  for(const c of fresh){
+    c.setAttribute("data-wn","1");
+    const id=c.getAttribute("data-id");
+    if(base && id && !base.has(id)){
+      c.classList.add("isnew");
+      const h=c.querySelector("h2");
+      if(h && !h.querySelector(".newflag")) h.insertAdjacentHTML("afterbegin",'<span class="newflag">NEW</span>');
+      newCount[t]=(newCount[t]||0)+1;
+    }
+  }
+  updateTabBadge(t); updateWatchNew();
+  // Persist the union of everything shown on this tab (new + old), capped, keeping
+  // only the current watchlist signature so storage stays small.
+  const shown=[...$("results").querySelectorAll("article[data-id]")].map(c=>c.getAttribute("data-id"));
+  const prev=new Set((seenStore[sig]&&seenStore[sig][t])||[]);
+  shown.forEach(id=>prev.add(id));
+  const entry=seenStore[sig]||{}; entry[t]=[...prev].slice(-400);
+  seenStore={[sig]:entry};
+  try{ localStorage.setItem("obn_seen", JSON.stringify(seenStore)); }catch(e){}
 }
 // Run the active tab from the watchlist. Trials and SEC reuse their own search by
 // pre-filling the field (both already support OR); the openFDA tabs use the
@@ -1010,7 +1085,7 @@ async function wShortages(reset){
 function runWatch(reset){
   if(!watch.length) return;
   watchActive = true;
-  if(reset){ $("results").innerHTML=""; ctToken=null; fdaSkip=0; aprSkip=0; shrSkip=0; secFrom=0; }
+  if(reset){ $("results").innerHTML=""; ctToken=null; fdaSkip=0; aprSkip=0; shrSkip=0; secFrom=0; newCount[tab]=0; updateTabBadge(tab); }
   if(tab==="trials"){ $("t_term").value = allWatchVariants().join(", "); return searchTrials(reset, true); }
   if(tab==="sec"){ $("s_q").value = allWatchVariants().map(t=>/[\s&]/.test(t)?`"${t}"`:t).join(" OR "); return searchSec(reset, true); }
   if(tab==="recalls") return wRecalls(reset);
@@ -1021,7 +1096,7 @@ $("watchAdd").onclick=()=>{ addWatch($("watchInput").value); $("watchInput").val
 $("watchInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ addWatch($("watchInput").value); $("watchInput").value=""; }});
 $("watchChips").onclick=e=>{ const b=e.target.closest("b[data-i]"); if(b) removeWatch(+b.dataset.i); };
 $("watchClear").onclick=()=>{ watch=[]; saveWatch(); renderWatchChips(); syncUrl();
-  $("results").innerHTML=""; $("moreBtn").hidden=true; watchActive=false;
+  $("results").innerHTML=""; $("moreBtn").hidden=true; watchActive=false; loadBaseline();
   $("status").textContent="Watchlist cleared. Add a company, drug or topic, or use a tab's filters."; };
 renderWatchChips();
 
@@ -1055,7 +1130,7 @@ function loadFromUrl(){
   const t=TABS.includes(p.get("tab"))?p.get("tab"):"trials";
   const w=p.get("w");
   if(w){ watch = w.split("~").map(s=>s.trim()).filter(Boolean); saveWatch(); }
-  renderWatchChips();
+  renderWatchChips(); loadBaseline();
   for(const map of [T_FIELDS,R_FIELDS,A_FIELDS,H_FIELDS,S_FIELDS])
     for(const [id,key] of Object.entries(map)) if(p.get(key)) $(id).value=p.get(key);
   $("t_industry").checked = p.get("industry")==="1";

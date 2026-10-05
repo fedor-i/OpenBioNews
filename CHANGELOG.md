@@ -20,6 +20,13 @@ to follow [Semantic Versioning](https://semver.org/).
     suffix stripped (`Moderna Inc` also matches `Moderna`) plus a small
     high-precision alias map; the extra variants are OR'd in, so expansion only
     adds true matches and never drops your own term.
+  - **"What's new since last visit"** — the page remembers which items you have
+    already seen for a watchlist (per source, in `localStorage`) and, on your next
+    visit, flags only the genuinely new ones: a `NEW` badge on each new card, a
+    count badge on the agency tab, and a total in the watchlist bar. Deterministic,
+    client-side, no backend — the free counterpart to a paid alert feed. Resets
+    cleanly when you change the list; your own term is the baseline, so a brand-new
+    watchlist flags nothing until something actually changes.
 
 ## [0.4.0]
 
