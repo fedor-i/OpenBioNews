@@ -56,6 +56,18 @@
     padding:.28rem .7rem;font-size:.82rem;cursor:pointer;color:var(--ink)}
   .chip:hover{border-color:var(--accent)}
   .chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .watchbar{background:var(--panel);border-bottom:1px solid var(--line)}
+  .watchrow{max-width:60rem;margin:0 auto;padding:.6rem 1rem .2rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+  .watchlabel{font-weight:700;color:var(--ink);font-size:.9rem;white-space:nowrap}
+  .watchchips{display:flex;flex-wrap:wrap;gap:.35rem}
+  .wchip{display:inline-flex;align-items:center;gap:.35rem;background:var(--accent);color:#fff;
+    border-radius:999px;padding:.2rem .6rem;font-size:.84rem;font-weight:600}
+  .wchip b{cursor:pointer;opacity:.85;font-weight:700}.wchip b:hover{opacity:1}
+  .watchbar input{flex:1;min-width:150px;max-width:280px;padding:.4rem .6rem;border:1px solid var(--line);
+    border-radius:999px;background:var(--bg);color:var(--ink);font-size:.88rem}
+  .wadd{background:var(--accent);color:#fff;border:none;border-radius:999px;padding:.4rem .9rem;font-weight:600;cursor:pointer;font-size:.85rem}
+  .wclear{border-radius:999px;padding:.4rem .8rem;font-size:.85rem}
+  .watchhint{max-width:60rem;margin:0 auto;padding:0 1rem .55rem;color:var(--muted);font-size:.8rem}
   .bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:1rem 0 .3rem}
   .status{color:var(--muted);font-size:.9rem;min-height:1.2em;flex:1;min-width:200px}
   .auto{display:inline-flex;align-items:center;gap:.3rem;color:var(--muted);font-size:.82rem;cursor:pointer;white-space:nowrap}
@@ -99,6 +111,17 @@
     <small>Filter clinical trials, FDA recalls · approvals · shortages, and SEC filings — live, free, and traced to the source record.</small>
   </div>
 </header>
+
+<div class="watchbar">
+  <div class="watchrow">
+    <span class="watchlabel">📌 Watchlist</span>
+    <span class="watchchips" id="watchChips"></span>
+    <input id="watchInput" placeholder="Add a company, drug or topic…" autocomplete="off" aria-label="Add to watchlist">
+    <button class="wadd" id="watchAdd">Add</button>
+    <button class="ghost wclear" id="watchClear" hidden>Clear</button>
+  </div>
+  <div class="watchhint" id="watchHint">Add companies, drugs or topics once — then every tab shows that agency's news for them.</div>
+</div>
 
 <main>
   <div class="tabs" role="tablist">
@@ -388,6 +411,10 @@ const FDA_SHORTAGES_API = "https://api.fda.gov/drug/shortages.json";
 const SEC_API = "https://efts.sec.gov/LATEST/search-index";
 
 let tab = "trials";
+// Cross-tab watchlist: companies / drugs / topics the user tracks everywhere.
+let watch = [];
+try { const s = localStorage.getItem("obn_watch"); if (s) watch = JSON.parse(s) || []; } catch(e) {}
+let watchActive = false;  // true when results on screen came from the watchlist
 let ctToken = null, ctParams = null;
 let fdaSkip = 0, fdaParams = null, fdaTotal = 0;
 let aprSkip = 0, aprParams = null;
@@ -431,8 +458,9 @@ function selectTab(name, run){
   }
   $("results").innerHTML = "";
   $("moreBtn").hidden = true;
-  $("status").textContent = "Pick a filter and hit Search — or tap a chip above.";
-  if(run) run();
+  if(run){ watchActive = false; run(); }
+  else if(watch.length){ runWatch(true); }
+  else { $("status").textContent = "Pick a filter and hit Search — or tap a chip above."; }
 }
 TABS.forEach(t => { $("tab-"+t).onclick = () => { selectTab(t); syncUrl(); }; });
 
@@ -475,7 +503,8 @@ function buildCtUrl(f, token){
   if(token) p.append("pageToken", token);
   return CT_API+"?"+p.toString();
 }
-async function searchTrials(reset){
+async function searchTrials(reset, fromWatch){
+  if(!fromWatch) watchActive=false;
   const f = trialsFilters();
   if(reset){ ctToken=null; ctParams=f; $("results").innerHTML=""; }
   if(!trialsHasFilter(f)){ $("status").textContent="Enter a company, condition, drug, keyword or status."; return; }
@@ -538,6 +567,7 @@ function buildFdaUrl(f, skip){
   return `${FDA_API}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&sort=report_date:desc&limit=25&skip=${skip||0}`;
 }
 async function searchRecalls(reset){
+  watchActive=false;
   const f=recallsFilters();
   if(reset){ fdaSkip=0; fdaParams=f; $("results").innerHTML=""; }
   if(!recallsHasFilter(f)){ $("status").textContent="Enter a firm, drug, reason, class or status."; return; }
@@ -622,6 +652,7 @@ function approvalCards(app, cutoffMs, includeSuppl){
   return cards;
 }
 async function searchApprovals(reset){
+  watchActive=false;
   const f=apprFilters();
   if(reset){ aprSkip=0; aprParams=f; $("results").innerHTML=""; }
   if(!apprHasFilter(f)){ $("status").textContent="Enter a company or a drug name."; return; }
@@ -672,6 +703,7 @@ function renderShortage(r){
   return el;
 }
 async function searchShortages(reset){
+  watchActive=false;
   const f=shrtFilters();
   if(reset){ shrSkip=0; shrParams=f; $("results").innerHTML=""; }
   if(!shrtHasFilter(f)){ $("status").textContent="Pick a status, or enter a drug or company."; return; }
@@ -723,7 +755,8 @@ function secFallbackCard(f, note){
     `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">EDGAR full-text search ↗</a></div>`;
   return el;
 }
-async function searchSec(reset){
+async function searchSec(reset, fromWatch){
+  if(!fromWatch) watchActive=false;
   const f=secFilters();
   if(reset){ secFrom=0; secParams=f; $("results").innerHTML=""; }
   if(!secHasFilter(f)){ $("status").textContent="Enter a company, ticker or keyword to search filings."; return; }
@@ -794,7 +827,7 @@ function stamp(){ const el=$("updated"); if(el){ el.hidden=false; el.textContent
 function autoTick(){
   // Only refresh when a search is actually showing results, so we never hammer
   // the APIs with an empty query. SEC opens its results off-site, so skip it.
-  if(tab!=="sec" && $("results").children.length>0){ Promise.resolve(runSearch(true)).then(stamp); }
+  if(tab!=="sec" && $("results").children.length>0){ Promise.resolve(watchActive ? runWatch(true) : runSearch(true)).then(stamp); }
 }
 function setAuto(on){
   if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
@@ -813,7 +846,7 @@ $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
 $("a_search").onclick=()=>{ searchApprovals(true); syncUrl(); };
 $("h_search").onclick=()=>{ searchShortages(true); syncUrl(); };
 $("s_search").onclick=()=>{ searchSec(true); syncUrl(); };
-$("moreBtn").onclick=()=>runSearch(false);
+$("moreBtn").onclick=()=> (watchActive ? runWatch(false) : runSearch(false));
 $("t_clear").onclick=()=>{ ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).value=""); $("t_status").value=""; $("t_phase").value=""; $("t_recent").value=""; $("t_industry").checked=false; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("r_clear").onclick=()=>{ ["r_firm","r_drug","r_reason"].forEach(id=>$(id).value=""); $("r_class").value=""; $("r_status").value=""; $("r_recent").value=""; $("r_type").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("a_clear").onclick=()=>{ ["a_spons","a_drug"].forEach(id=>$(id).value=""); $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
@@ -863,6 +896,99 @@ document.querySelectorAll('.chips[data-for="sec"] .chip').forEach(c=>c.onclick=(
   searchSec(true); syncUrl();
 });
 
+// ================= WATCHLIST (drives every tab) =================
+function saveWatch(){ try{ localStorage.setItem("obn_watch", JSON.stringify(watch)); }catch(e){} }
+function renderWatchChips(){
+  const box=$("watchChips"); box.innerHTML="";
+  watch.forEach((t,i)=>{
+    const c=document.createElement("span"); c.className="wchip";
+    c.innerHTML = esc(t)+' <b data-i="'+i+'" title="Remove">✕</b>';
+    box.appendChild(c);
+  });
+  $("watchClear").hidden = watch.length===0;
+  $("watchHint").hidden = watch.length>0;
+}
+function addWatch(v){
+  v=(v||"").trim(); if(!v) return;
+  if(!watch.some(x=>x.toLowerCase()===v.toLowerCase())) watch.push(v);
+  saveWatch(); renderWatchChips(); syncUrl(); runWatch(true);
+}
+function removeWatch(i){
+  watch.splice(i,1); saveWatch(); renderWatchChips(); syncUrl();
+  if(watch.length){ runWatch(true); }
+  else { $("results").innerHTML=""; $("moreBtn").hidden=true; watchActive=false;
+    $("status").textContent="Watchlist cleared. Add a company, drug or topic, or use a tab's filters."; }
+}
+// Build an openFDA OR clause matching each watch term across several fields:
+//   (f1:"a" OR f2:"a" OR f1:"b" OR f2:"b")
+function fdaClause(fields){
+  const parts=[];
+  for(const t of watch){ const v=t.replace(/"/g,""); for(const f of fields) parts.push(`${f}:"${v}"`); }
+  return parts.length? "("+parts.join("+OR+")+")" : "";
+}
+function fdaFetchUrl(base, search, skip){
+  const sort = base===FDA_API ? "sort=report_date:desc&" : "";
+  return `${base}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&${sort}limit=25&skip=${skip||0}`;
+}
+async function wRecalls(reset){
+  const skip=reset?0:fdaSkip; $("status").textContent="Loading recalls for your watchlist…"; $("moreBtn").hidden=true;
+  try{
+    const data=await getJson(fdaFetchUrl(FDA_API, fdaClause(["recalling_firm","product_description"]), skip), true);
+    if(data.__empty){ if(reset)$("results").innerHTML=""; $("status").textContent="No recalls match your watchlist."; $("moreBtn").hidden=true; return; }
+    const rows=data.results||[]; for(const r of rows) $("results").appendChild(renderRecall(r));
+    fdaSkip=skip+rows.length; fdaTotal=dig(data,"meta","results","total")||0;
+    const have=$("results").children.length;
+    $("status").textContent = have?`Showing ${have} of ${Number(fdaTotal).toLocaleString()} recalls for your watchlist.`:"No recalls match your watchlist.";
+    $("moreBtn").hidden = have>=fdaTotal;
+  }catch(err){ showErr("openFDA", err); }
+}
+async function wApprovals(reset){
+  const skip=reset?0:aprSkip; $("status").textContent="Loading approvals for your watchlist…"; $("moreBtn").hidden=true;
+  try{
+    const search=[fdaClause(["sponsor_name","openfda.brand_name","openfda.generic_name"]),'submissions.submission_status:"AP"'].join("+AND+");
+    const data=await getJson(fdaFetchUrl(FDA_APPROVALS_API, search, skip), true);
+    if(data.__empty){ if($("results").children.length===0)$("status").textContent="No approvals match your watchlist."; $("moreBtn").hidden=true; return; }
+    const apps=data.results||[];
+    for(const app of apps) approvalCards(app, 0, true).forEach(c=>$("results").appendChild(c));
+    aprSkip=skip+apps.length; const total=dig(data,"meta","results","total")||0;
+    const have=$("results").children.length;
+    $("status").textContent = have?`Showing ${have} approval(s) for your watchlist.`:"No approvals match your watchlist.";
+    $("moreBtn").hidden = aprSkip>=total || apps.length===0;
+  }catch(err){ showErr("Drugs@FDA", err); }
+}
+async function wShortages(reset){
+  const skip=reset?0:shrSkip; $("status").textContent="Loading shortages for your watchlist…"; $("moreBtn").hidden=true;
+  try{
+    const data=await getJson(fdaFetchUrl(FDA_SHORTAGES_API, fdaClause(["company_name","generic_name","proprietary_name"]), skip), true);
+    if(data.__empty){ if($("results").children.length===0)$("status").textContent="No shortages match your watchlist."; $("moreBtn").hidden=true; return; }
+    const rows=data.results||[]; for(const r of rows) $("results").appendChild(renderShortage(r));
+    shrSkip=skip+rows.length; const total=dig(data,"meta","results","total")||0;
+    const have=$("results").children.length;
+    $("status").textContent = have?`Showing ${have} of ${Number(total).toLocaleString()} shortages for your watchlist.`:"No shortages match your watchlist.";
+    $("moreBtn").hidden = have>=total || rows.length===0;
+  }catch(err){ showErr("openFDA shortages", err); }
+}
+// Run the active tab from the watchlist. Trials and SEC reuse their own search by
+// pre-filling the field (both already support OR); the openFDA tabs use the
+// cross-field builders above so a term matches as a company OR a drug.
+function runWatch(reset){
+  if(!watch.length) return;
+  watchActive = true;
+  if(reset){ $("results").innerHTML=""; ctToken=null; fdaSkip=0; aprSkip=0; shrSkip=0; secFrom=0; }
+  if(tab==="trials"){ $("t_term").value = watch.join(", "); return searchTrials(reset, true); }
+  if(tab==="sec"){ $("s_q").value = watch.map(t=>/\s/.test(t)?`"${t}"`:t).join(" OR "); return searchSec(reset, true); }
+  if(tab==="recalls") return wRecalls(reset);
+  if(tab==="approvals") return wApprovals(reset);
+  return wShortages(reset);
+}
+$("watchAdd").onclick=()=>{ addWatch($("watchInput").value); $("watchInput").value=""; };
+$("watchInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ addWatch($("watchInput").value); $("watchInput").value=""; }});
+$("watchChips").onclick=e=>{ const b=e.target.closest("b[data-i]"); if(b) removeWatch(+b.dataset.i); };
+$("watchClear").onclick=()=>{ watch=[]; saveWatch(); renderWatchChips(); syncUrl();
+  $("results").innerHTML=""; $("moreBtn").hidden=true; watchActive=false;
+  $("status").textContent="Watchlist cleared. Add a company, drug or topic, or use a tab's filters."; };
+renderWatchChips();
+
 // ---- shareable URL state ----
 const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent",t_sort:"sort"};
 const R_FIELDS={r_firm:"firm",r_drug:"drug",r_reason:"reason",r_class:"class",r_status:"rstatus",r_recent:"rrecent",r_type:"rtype"};
@@ -875,8 +1001,11 @@ function fieldsFor(t){
 }
 function syncUrl(){
   const p=new URLSearchParams(); p.set("tab",tab);
-  for(const [id,key] of Object.entries(fieldsFor(tab))){ const v=$(id).value; if(v) p.set(key,v); }
-  if(tab==="trials" && $("t_industry").checked) p.set("industry","1");
+  if(watch.length) p.set("w", watch.join("~"));
+  if(!watchActive){
+    for(const [id,key] of Object.entries(fieldsFor(tab))){ const v=$(id).value; if(v) p.set(key,v); }
+    if(tab==="trials" && $("t_industry").checked) p.set("industry","1");
+  }
   history.replaceState(null,"","?"+p.toString());
 }
 $("copyLink").onclick=async()=>{
@@ -888,10 +1017,14 @@ $("copyLink").onclick=async()=>{
 function loadFromUrl(){
   const p=new URLSearchParams(location.search);
   const t=TABS.includes(p.get("tab"))?p.get("tab"):"trials";
+  const w=p.get("w");
+  if(w){ watch = w.split("~").map(s=>s.trim()).filter(Boolean); saveWatch(); }
+  renderWatchChips();
   for(const map of [T_FIELDS,R_FIELDS,A_FIELDS,H_FIELDS,S_FIELDS])
     for(const [id,key] of Object.entries(map)) if(p.get(key)) $(id).value=p.get(key);
   $("t_industry").checked = p.get("industry")==="1";
-  selectTab(t);
+  selectTab(t);                       // auto-runs the watchlist when present
+  if(watch.length) return;            // watchlist drives the view
   if(t==="trials" && trialsHasFilter(trialsFilters())) searchTrials(true);
   else if(t==="recalls" && recallsHasFilter(recallsFilters())) searchRecalls(true);
   else if(t==="approvals" && apprHasFilter(apprFilters())) searchApprovals(true);

@@ -6,6 +6,15 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Cross-tab watchlist (hosted page)** — a persistent bar at the top where you
+  add companies, drugs or topics once; every tab then shows that agency's news
+  for them. Each term is matched across the right fields per source (company *or*
+  drug *or* topic): ClinicalTrials.gov, FDA recalls, Drugs@FDA approvals, FDA
+  shortages and SEC EDGAR. Persists in `localStorage`, is shareable via the URL
+  (`?w=…`), and works with Load-more and auto-refresh. A manual search in any tab
+  temporarily overrides the watchlist for that tab.
+
 ## [0.4.0]
 
 ### Added
