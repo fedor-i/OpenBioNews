@@ -789,9 +789,10 @@ async function searchShortages(reset){
   watchActive=false;
   const f=shrtFilters();
   if(reset){ shrSkip=0; shrParams=f; $("results").innerHTML=""; }
-  // No drug/company typed but a watchlist is set → drive from the watchlist, even
-  // though Status defaults to "Current" (so the tab is never strictly "empty").
-  if(!f.drug && !f.company && watch.length) return runWatch(true);
+  // Bare default (no drug/company typed, Status still at its "Current" default) +
+  // a watchlist → drive from the watchlist. A deliberately-chosen status (Resolved
+  // / Any) counts as a manual search and is honoured, so it is NOT diverted.
+  if(!f.drug && !f.company && f.status==="Current" && watch.length) return runWatch(true);
   if(!shrtHasFilter(f)){ $("status").textContent="Pick a status, or enter a drug or company — or add one to your watchlist above."; return; }
   $("status").textContent="Searching openFDA shortages…"; $("moreBtn").hidden=true;
   try{
