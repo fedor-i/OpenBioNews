@@ -69,6 +69,11 @@
   .wadd{background:var(--accent);color:#fff;border:none;border-radius:999px;padding:.4rem .9rem;font-weight:600;cursor:pointer;font-size:.85rem}
   .wclear{border-radius:999px;padding:.4rem .8rem;font-size:.85rem}
   .watchhint{max-width:60rem;margin:0 auto;padding:0 1rem .55rem;color:var(--muted);font-size:.8rem}
+  .watchseeds{max-width:60rem;margin:0 auto;padding:0 1rem .6rem;display:flex;flex-wrap:wrap;align-items:center;gap:.35rem}
+  .seedlabel{color:var(--muted);font-size:.78rem;margin-right:.1rem}
+  .seed{background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:.2rem .6rem;
+    font-size:.8rem;color:var(--ink);cursor:pointer}
+  .seed:hover{border-color:var(--accent)}
   .watchnew{color:var(--accent);font-weight:700;font-size:.82rem;white-space:nowrap}
   .tbadge{display:inline-block;margin-left:.3rem;min-width:1.1em;padding:0 .35em;border-radius:999px;
     background:var(--warn);color:#fff;font-size:.68rem;font-weight:700;line-height:1.5;text-align:center;vertical-align:middle}
@@ -131,6 +136,23 @@
     <span class="watchnew" id="watchNew" hidden></span>
   </div>
   <div class="watchhint" id="watchHint">Add companies, drugs or topics once — then every tab shows that agency's news for them.</div>
+  <div class="watchseeds" id="watchSeeds">
+    <span class="seedlabel">Quick add:</span>
+    <button class="seed" data-add="oncology">Oncology</button>
+    <button class="seed" data-add="type 2 diabetes">Cardiometabolic</button>
+    <button class="seed" data-add="Alzheimer disease">Neurology</button>
+    <button class="seed" data-add="rheumatoid arthritis">Immunology</button>
+    <button class="seed" data-add="rare disease">Rare disease</button>
+    <button class="seed" data-add="AI">AI</button>
+    <button class="seed" data-add="NAM">NAM</button>
+    <button class="seed" data-add="gene therapy">Gene &amp; cell</button>
+    <button class="seed" data-add="CRISPR">CRISPR</button>
+    <button class="seed" data-add="mRNA">mRNA</button>
+    <button class="seed" data-add="ADC">ADC</button>
+    <button class="seed" data-add="radiopharmaceutical">Radiopharma</button>
+    <button class="seed" data-add="GLP-1">GLP-1</button>
+    <button class="seed" data-add="Moderna">Moderna</button>
+  </div>
 </div>
 
 <main>
@@ -145,21 +167,6 @@
   <!-- TRIALS -->
   <section id="panel-trials" role="tabpanel">
     <div class="filters">
-      <div class="chips" data-for="trials">
-        <span class="chip" data-cond="oncology">Oncology</span>
-        <span class="chip" data-cond="type 2 diabetes">Cardiometabolic</span>
-        <span class="chip" data-cond="rare disease">Rare disease</span>
-        <span class="chip" data-cond="Alzheimer disease">Neurology</span>
-        <span class="chip" data-cond="rheumatoid arthritis">Immunology</span>
-        <span class="chip" data-cond="HIV">Infectious</span>
-        <span class="chip" data-term="artificial intelligence">AI</span>
-        <span class="chip" data-term="organ-on-a-chip">NAM</span>
-        <span class="chip" data-term="CAR-T">Gene &amp; cell</span>
-        <span class="chip" data-term="GLP-1">GLP-1</span>
-        <span class="chip" data-term="radioligand therapy">Radiopharma</span>
-        <span class="chip" data-spons="Moderna">Moderna</span>
-        <span class="chip" data-spons="Vertex Pharmaceuticals">Vertex</span>
-      </div>
       <div class="grid">
         <div><label for="t_spons">Company / sponsor</label><input id="t_spons" placeholder="Moderna, Pfizer — comma to add more"></div>
         <div><label for="t_cond">Condition</label><input id="t_cond" placeholder="melanoma, lymphoma — comma to add more"></div>
@@ -215,7 +222,6 @@
         <span class="chip" data-class="1">Class I (most serious)</span>
         <span class="chip" data-reason="contamination">Contamination</span>
         <span class="chip" data-reason="mislabel">Mislabeling</span>
-        <span class="chip" data-firm="Pfizer">Pfizer</span>
       </div>
       <div class="grid">
         <div><label for="r_firm">Recalling firm</label><input id="r_firm" placeholder="e.g. Pfizer"></div>
@@ -264,11 +270,6 @@
   <!-- FDA APPROVALS -->
   <section id="panel-approvals" role="tabpanel" hidden>
     <div class="filters">
-      <div class="chips" data-for="approvals">
-        <span class="chip" data-drug="pembrolizumab">Pembrolizumab</span>
-        <span class="chip" data-spons="Moderna">Moderna</span>
-        <span class="chip" data-spons="Vertex">Vertex</span>
-      </div>
       <div class="grid">
         <div><label for="a_spons">Company / sponsor</label><input id="a_spons" placeholder="e.g. Vertex"></div>
         <div><label for="a_drug">Drug (brand or generic)</label><input id="a_drug" placeholder="e.g. semaglutide"></div>
@@ -299,8 +300,7 @@
     <div class="filters">
       <div class="chips" data-for="shortages">
         <span class="chip" data-status="Current">Current</span>
-        <span class="chip" data-drug="cisplatin">Cisplatin</span>
-        <span class="chip" data-drug="amoxicillin">Amoxicillin</span>
+        <span class="chip" data-status="Resolved">Resolved</span>
       </div>
       <div class="grid">
         <div><label for="h_drug">Drug (generic or brand)</label><input id="h_drug" placeholder="e.g. cisplatin"></div>
@@ -328,7 +328,6 @@
         <span class="chip" data-form="S-1">S-1 (IPO / registration)</span>
         <span class="chip" data-form="424B5">424B (offering)</span>
         <span class="chip" data-form="SC 13D">13D (activist stake)</span>
-        <span class="chip" data-q="Moderna">Moderna</span>
       </div>
       <div class="grid">
         <div><label for="s_q">Company, ticker, or keyword</label><input id="s_q" placeholder="e.g. Moderna, or a phrase"></div>
@@ -922,31 +921,12 @@ $("s_clear").onclick=()=>{ $("s_q").value=""; $("s_form").value=""; $("s_recent"
 ["a_spons","a_drug"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchApprovals(true); syncUrl(); }}));
 ["h_drug","h_company"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchShortages(true); syncUrl(); }}));
 $("s_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchSec(true); syncUrl(); }});
-document.querySelectorAll('.chips[data-for="approvals"] .chip').forEach(c=>c.onclick=()=>{
-  if(c.dataset.drug) $("a_drug").value=c.dataset.drug;
-  if(c.dataset.spons) $("a_spons").value=c.dataset.spons;
-  searchApprovals(true); syncUrl();
-});
 document.querySelectorAll('.chips[data-for="shortages"] .chip').forEach(c=>c.onclick=()=>{
   if(c.dataset.drug) $("h_drug").value=c.dataset.drug;
   if(c.dataset.status) $("h_status").value=c.dataset.status;
   searchShortages(true); syncUrl();
 });
 
-// Append (or remove) a value in a comma-separated field — lets chips stack.
-function toggleField(id, value){
-  const el=$(id); if(!el) return;
-  const parts=el.value.split(",").map(s=>s.trim()).filter(Boolean);
-  const i=parts.findIndex(p=>p.toLowerCase()===value.toLowerCase());
-  if(i>=0) parts.splice(i,1); else parts.push(value);
-  el.value=parts.join(", ");
-}
-document.querySelectorAll('.chips[data-for="trials"] .chip').forEach(c=>c.onclick=()=>{
-  const id=c.dataset.cond?"t_cond":c.dataset.spons?"t_spons":c.dataset.term?"t_term":null;
-  const val=c.dataset.cond||c.dataset.spons||c.dataset.term;
-  if(id&&val){ toggleField(id,val); c.classList.toggle("active"); }
-  searchTrials(true); syncUrl();
-});
 document.querySelectorAll('.chips[data-for="recalls"] .chip').forEach(c=>c.onclick=()=>{
   if(c.dataset.firm) $("r_firm").value=c.dataset.firm;
   if(c.dataset.reason) $("r_reason").value=c.dataset.reason;
@@ -976,7 +956,11 @@ function renderWatchChips(){
   });
   $("watchClear").hidden = watch.length===0;
   $("watchHint").hidden = watch.length>0;
+  // Seeds are onboarding suggestions — show only while the watchlist is empty.
+  const seeds=$("watchSeeds"); if(seeds) seeds.hidden = watch.length>0;
 }
+// Quick-add seed chips feed the universal watchlist (topics expand automatically).
+$("watchSeeds").onclick = e => { const b=e.target.closest("button[data-add]"); if(b) addWatch(b.dataset.add); };
 function addWatch(v){
   v=(v||"").trim(); if(!v) return;
   if(!watch.some(x=>x.toLowerCase()===v.toLowerCase())) watch.push(v);

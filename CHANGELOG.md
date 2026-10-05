@@ -6,6 +6,16 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **Preset chips now feed the watchlist (hosted page)**. The per-tab topic /
+  area / company example chips used to fill one tab's fields; they duplicated the
+  watchlist but without its cross-agency reach, persistence, topic expansion or
+  "what's new." They're replaced by a single **"Quick add"** seed row on the
+  watchlist bar (shown while the list is empty) — one click adds that
+  area/topic/company to the universal watchlist, so topics get proper expansion
+  and every tab updates at once. The genuinely tab-specific filter chips (recall
+  Class, shortage Status, SEC form types) stay in their panels.
+
 ### Added
 - **Sort control on every tab (hosted page)** — a single *Most recent / Most
   relevant* selector in the results bar, applied to the active tab and to the
