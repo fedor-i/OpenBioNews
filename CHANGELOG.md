@@ -6,6 +6,8 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0]
+
 ### Added
 - **LLM as a labelled interpretation layer** — with per-sentence citations now
   the factual body, an enabled LLM (Ollama / OpenAI-compatible) no longer writes

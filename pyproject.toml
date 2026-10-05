@@ -4,20 +4,30 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openbionews"
-version = "0.3.0"
-description = "Free, self-hosted CLI that turns news feeds and primary sources (ClinicalTrials.gov, openFDA recalls, SEC EDGAR) into a cited daily digest. Bring your own LLM, or use none."
+version = "0.4.0"
+description = "Free, self-hosted tool that turns biopharma primary sources (ClinicalTrials.gov, openFDA, SEC EDGAR) into a daily brief with per-sentence citations. Deterministic by default; bring your own LLM, or none."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "OpenBioNews contributors" }]
-keywords = ["news", "rss", "digest", "llm", "ollama", "self-hosted", "biotech"]
+keywords = [
+    "biotech", "pharma", "fda", "clinical-trials", "sec-edgar", "regulatory",
+    "news", "rss", "digest", "citations", "self-hosted", "ollama",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Topic :: Communications",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
 ]
 # The core pipeline uses only the Python standard library — no runtime deps.
@@ -29,8 +39,10 @@ feeds = ["feedparser>=6.0"]
 dev = ["pytest>=7.0"]
 
 [project.urls]
-Homepage = "https://github.com/fedor-i/OpenBioNews"
+Homepage = "https://fedor-i.github.io/OpenBioNews/"
+Repository = "https://github.com/fedor-i/OpenBioNews"
 Issues = "https://github.com/fedor-i/OpenBioNews/issues"
+Changelog = "https://github.com/fedor-i/OpenBioNews/blob/main/CHANGELOG.md"
 
 [project.scripts]
 openbionews = "openbionews.cli:main"
