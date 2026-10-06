@@ -17,6 +17,24 @@ to follow [Semantic Versioning](https://semver.org/).
   Class, shortage Status, SEC form types) stay in their panels.
 
 ### Added
+- **Insights (beta) — a deterministic, no-LLM cross-agency digest (hosted page)**.
+  A new **📊 Insights** tab gathers a broad recent sample of the primary-source
+  records for your watchlist (or a typed subject) across all five agencies at once
+  and summarizes them with *classical, state-of-the-art text-mining* — no LLM, so
+  nothing is invented and every figure is counted from the records, which are
+  listed beneath (each cited to its source):
+  - **TextRank** (Mihalcea & Tarau, 2004) ranks terms by centrality in a word
+    co-occurrence graph — the **word cloud** is sized by salience, not raw count.
+  - **YAKE!** (Campos et al., 2020) extracts the **key phrases** (unsupervised,
+    statistical; casing + position + frequency + dispersion + context).
+  - **LexRank** (Erkan & Radev, 2004) builds the **extractive summary** by PageRank
+    over a graph of sentences linked by TF-IDF cosine similarity.
+  - **BM25** (Robertson / Spärck Jones) ranks the source records by relevance to
+    the subject (and picks the most on-topic records to summarize).
+  - Counted **stats** — records by source, top companies, top therapeutic areas,
+    trial phases — plus a **"since last you checked"** highlight over a chosen
+    window (7 / 30 / 90 / 365 days) or everything new since your last visit. All
+    client-side, zero-dependency, shareable by URL.
 - **Build-your-own topics (hosted page)** — a "+ New topic" builder on the
   watchlist bar: name a topic and give it a bundle of terms and companies (e.g.
   "My ADC competitors" → Seagen, Daiichi Sankyo, antibody-drug conjugate). Saved

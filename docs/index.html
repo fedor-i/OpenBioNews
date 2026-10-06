@@ -137,6 +137,38 @@
   .toggle{float:right;background:var(--chip);border:1px solid var(--line);color:var(--ink);
     border-radius:999px;padding:.3rem .7rem;font-size:.8rem;cursor:pointer;font-weight:500}
   .err{color:var(--crit)}
+  /* ---- Insights (beta) ---- */
+  .ibeta{font-size:.6rem;font-weight:700;color:var(--accent2);border:1px solid var(--accent2);
+    border-radius:999px;padding:.02rem .32rem;margin-left:.35rem;vertical-align:middle;letter-spacing:.03em}
+  .iwrap{margin:.4rem 0}
+  .isum{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1rem 1.1rem;box-shadow:var(--shadow);margin:.4rem 0 .6rem}
+  .isum h2{margin:.1rem 0 .3rem;font-size:1.2rem;line-height:1.25}
+  .imeta{color:var(--muted);font-size:.86rem;margin:0 0 .4rem}
+  .imeta b{color:var(--accent)}
+  .ilabel{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:.5rem 0 .1rem;font-weight:700}
+  .idigest{margin:.15rem 0 0;padding-left:1.1rem}
+  .idigest li{margin:.35rem 0;font-size:.95rem}
+  .imethods{color:var(--muted);font-size:.73rem;margin-top:.6rem;border-top:1px dashed var(--line);padding-top:.5rem}
+  .istats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.7rem;margin:.6rem 0}
+  .icard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.85rem 1rem;box-shadow:var(--shadow)}
+  .icard h3{margin:0 0 .55rem;font-size:.92rem}
+  .istat{display:flex;align-items:center;gap:.5rem;margin:.3rem 0;font-size:.87rem}
+  .istat .lbl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .istat .bar2{height:.5rem;border-radius:999px;background:var(--accent)}
+  .istat .bar2.a2{background:var(--accent2)}
+  .istat .cnt{color:var(--muted);font-variant-numeric:tabular-nums;min-width:2.2em;text-align:right}
+  .icloud{line-height:2.1}
+  .cw{display:inline-block;margin:.12rem .32rem;color:var(--accent);font-weight:700}
+  .cw.a2{color:var(--accent2)}
+  .kphrase{display:inline-block;background:var(--tag);color:var(--tagink);border-radius:6px;padding:.15rem .5rem;
+    margin:.15rem .2rem;font-size:.82rem;font-weight:600}
+  .kphrase b{opacity:.55;font-weight:700;margin-left:.15rem}
+  .isrc-h{margin:1.3rem 0 .2rem;font-size:1rem}
+  .iempty{color:var(--muted);padding:1rem 0}
+  .ierr{color:var(--warn);font-size:.84rem;margin:.4rem 0 0}
+  article.iperiod{border-left:3px solid var(--accent);padding-left:.9rem}
+  .perflag{display:inline-block;background:var(--accent);color:#fff;border-radius:6px;padding:.05rem .4rem;
+    font-size:.68rem;font-weight:700;letter-spacing:.02em;margin-right:.35rem;vertical-align:middle}
   [hidden]{display:none!important}
 </style>
 </head>
@@ -202,6 +234,7 @@
     <button class="tab" id="tab-approvals" role="tab" aria-selected="false" aria-controls="panel-approvals">FDA approvals</button>
     <button class="tab" id="tab-shortages" role="tab" aria-selected="false" aria-controls="panel-shortages">FDA shortages</button>
     <button class="tab" id="tab-sec" role="tab" aria-selected="false" aria-controls="panel-sec">SEC filings</button>
+    <button class="tab" id="tab-insights" role="tab" aria-selected="false" aria-controls="panel-insights">📊 Insights<span class="ibeta">beta</span></button>
   </div>
 
   <!-- TRIALS -->
@@ -402,7 +435,31 @@
     </div>
   </section>
 
-  <div class="bar">
+  <!-- INSIGHTS (beta) — deterministic cross-agency digest -->
+  <section id="panel-insights" role="tabpanel" hidden>
+    <div class="filters">
+      <div class="grid">
+        <div><label for="i_q">Topic / subject</label><input id="i_q" placeholder="Defaults to your watchlist — or type a subject (e.g. CRISPR, Moderna)"></div>
+        <div><label for="i_period">Highlight activity</label>
+          <select id="i_period">
+            <option value="visit">Since my last visit</option>
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last year</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <button class="go" id="i_run">Summarize</button>
+        <button class="ghost" id="i_clear">Clear</button>
+        <span class="te-hint">Deterministic analysis — term frequency + TF-IDF over the primary-source records, no LLM. Every figure is counted from the sources listed beneath it.</span>
+      </div>
+    </div>
+    <div id="insights"><div class="iempty">Add companies, drugs or topics to your watchlist above (or type a subject), then hit <b>Summarize</b> for a cross-agency digest, key stats and a word cloud — built live from ClinicalTrials.gov, openFDA and SEC EDGAR, with every item cited to its source record.</div></div>
+  </section>
+
+  <div class="bar" id="resultsBar">
     <div class="status" id="status">Pick a filter and hit Search — or tap a chip above.</div>
     <label class="sortby" title="Most recent sorts by the source's date; Most relevant uses the best text match">Sort
       <select id="sortBy">
@@ -501,21 +558,25 @@ function prettyStatus(s){ return s ? s.replace(/_/g," ").replace(/\b\w/g,c=>c.to
 function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&p!=="NA").map(p=>p.replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase ")).join("/"); }
 
 // ---- tab switching ----
-const TABS = ["trials","recalls","approvals","shortages","sec"];
+const TABS = ["trials","recalls","approvals","shortages","sec"];   // data agencies (seen-state, analytics)
+const VIEW_TABS = TABS.concat("insights");                         // + the Insights analysis view
 function selectTab(name, run){
   tab = name;
-  for(const t of TABS){
+  for(const t of VIEW_TABS){
     const on = t===name;
     $("tab-"+t).setAttribute("aria-selected", on);
     $("panel-"+t).hidden = !on;
   }
   $("results").innerHTML = "";
   $("moreBtn").hidden = true;
+  const onInsights = name==="insights";
+  $("resultsBar").hidden = onInsights;          // sort / auto-refresh / copy-link don't apply to Insights
+  if(onInsights){ maybeAutoInsights(); return; }
   if(run){ watchActive = false; run(); }
   else if(watch.length){ runWatch(true); }
   else { $("status").textContent = "Pick a filter and hit Search — or tap a chip above."; }
 }
-TABS.forEach(t => { $("tab-"+t).onclick = () => { selectTab(t); syncUrl(); }; });
+VIEW_TABS.forEach(t => { $("tab-"+t).onclick = () => { selectTab(t); syncUrl(); }; });
 
 // ---- shared fetch helper (openFDA returns 404 for "no matches") ----
 async function getJson(url, noMatchOn404){
@@ -933,7 +994,7 @@ function stamp(){ const el=$("updated"); if(el){ el.hidden=false; el.textContent
 function autoTick(){
   // Only refresh when a search is actually showing results, so we never hammer
   // the APIs with an empty query. SEC opens its results off-site, so skip it.
-  if(tab!=="sec" && $("results").children.length>0){ Promise.resolve(watchActive ? runWatch(true) : runSearch(true)).then(stamp); }
+  if(tab!=="sec" && tab!=="insights" && $("results").children.length>0){ Promise.resolve(watchActive ? runWatch(true) : runSearch(true)).then(stamp); }
 }
 function setAuto(on){
   if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
@@ -1050,6 +1111,7 @@ function reconcileWatch(oldLabel, newLabel){
   const wi=watch.findIndex(w=>w.toLowerCase()===(oldLabel||"").toLowerCase());
   renderWatchChips();                 // always refresh (tooltip/terms may have changed)
   if(wi<0) return;
+  iRecords=[];                        // subject changed → drop cached Insights
   if(newLabel){ watch[wi]=newLabel; } else { watch.splice(wi,1); }
   saveWatch(); syncUrl(); renderWatchChips(); loadBaseline();
   if(watch.length){ runWatch(true); }
@@ -1101,10 +1163,11 @@ $("te_chips").onclick=e=>{ const b=e.target.closest("b[data-i]"); if(b){ teTerms
 function addWatch(v){
   v=(v||"").trim(); if(!v) return;
   if(!watch.some(x=>x.toLowerCase()===v.toLowerCase())) watch.push(v);
+  iRecords=[];                                   // subject changed → drop cached Insights
   saveWatch(); renderWatchChips(); syncUrl(); loadBaseline(); runWatch(true);
 }
 function removeWatch(i){
-  watch.splice(i,1); saveWatch(); renderWatchChips(); syncUrl(); loadBaseline();
+  watch.splice(i,1); iRecords=[]; saveWatch(); renderWatchChips(); syncUrl(); loadBaseline();
   if(watch.length){ runWatch(true); }
   else { $("results").innerHTML=""; $("moreBtn").hidden=true; watchActive=false;
     $("status").textContent="Watchlist cleared. Add a company, drug or topic, or use a tab's filters."; }
@@ -1343,7 +1406,7 @@ function markWatchNew(){
 // pre-filling the field (both already support OR); the openFDA tabs use the
 // cross-field builders above so a term matches as a company OR a drug.
 function runWatch(reset){
-  if(!watch.length) return;
+  if(!watch.length || !TABS.includes(tab)) return;   // Insights has its own gather path
   watchActive = true;
   if(reset){ $("results").innerHTML=""; ctToken=null; fdaSkip=0; aprSkip=0; shrSkip=0; secFrom=0; newCount[tab]=0; updateTabBadge(tab); }
   if(tab==="trials"){ return searchTrials(reset, true, allWatchVariants().join(", ")); }
@@ -1355,11 +1418,406 @@ function runWatch(reset){
 $("watchAdd").onclick=()=>{ addWatch($("watchInput").value); $("watchInput").value=""; };
 $("watchInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ addWatch($("watchInput").value); $("watchInput").value=""; }});
 $("watchChips").onclick=e=>{ const b=e.target.closest("b[data-i]"); if(b) removeWatch(+b.dataset.i); };
-$("watchClear").onclick=()=>{ watch=[]; saveWatch(); renderWatchChips(); syncUrl();
+$("watchClear").onclick=()=>{ watch=[]; iRecords=[]; saveWatch(); renderWatchChips(); syncUrl();
   $("results").innerHTML=""; $("moreBtn").hidden=true; watchActive=false; loadBaseline();
-  $("status").textContent="Watchlist cleared. Add a company, drug or topic, or use a tab's filters."; };
+  $("status").textContent="Watchlist cleared. Add a company, drug or topic, or use a tab's filters.";
+  if(tab==="insights") maybeAutoInsights(); };
 renderWatchChips();
 renderCustomSeeds();
+
+// ================= INSIGHTS (beta) — deterministic cross-agency digest =================
+// "Traditional" text analytics over the primary-source records: term frequency,
+// TF-IDF sentence scoring for an extractive summary, and counted stats. No LLM —
+// every figure is derived from the records fetched, which are listed beneath so
+// each number stays auditable. Runs entirely in the browser.
+const I_STOP = new Set(("a an and or the of to in for on at by from with without as is are was were be been being "+
+  "this that these those it its their our your his her they them we you i he she will would can could may might must should "+
+  "not no than then there here into over under about also more most less least new news per via due after before during between "+
+  "study studies trial trials phase phases patient patients subject subjects drug drugs treatment treatments disease diseases "+
+  "clinical use used using based within following include including such other others both each any all some many has have had "+
+  "inc corp corporation co company companies ltd llc plc ag sa nv holdings group limited pharmaceuticals pharmaceutical pharma "+
+  "therapeutics therapeutic sciences science bio biosciences health healthcare medical medicine medicines product products "+
+  "report reports recall recalled recalls approval approved approvals supplement supplemental filing filings form forms "+
+  "current resolved ongoing completed terminated status reason firm dose doses daily data results result received "+
+  "evaluate evaluation assess assessment efficacy safety open label randomized placebo controlled multicenter versus "+
+  "fda openfda sec edgar lot lots one two three four five numbers number day days week weeks month months year years").split(/\s+/).filter(Boolean));
+
+let iRecords = [], iErrors = [], iSubjectLabel = "", iBusy = false;
+
+function prettyPhase1(p){ return (p||"").replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase "); }
+function isoFromYmd(d){ d=String(d||"").replace(/[^0-9]/g,""); return d.length>=8 ? `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}` : ""; }
+function ctOrExpr(terms){ return terms.length ? "("+terms.map(x=>/\s/.test(x)?`"${x}"`:x).join(" OR ")+")" : ""; }
+function fdaOrExpr(terms, fields){
+  const parts=[];
+  for(const t of terms){ const v=String(t).replace(/"/g,""); if(!v) continue; for(const f of fields) parts.push(`${f}:"${v}"`); }
+  return parts.length ? "("+parts.join("+OR+")+")" : "";
+}
+function fdaInsightUrl(base, search, limit){ return `${base}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&limit=${limit}`; }
+
+// What are we summarizing? The watchlist (expanded to its variants) if set, else
+// whatever is typed in the Insights box (also topic-expanded).
+function insightTerms(){
+  if(watch.length) return allWatchVariants();
+  const q=$("i_q").value.trim();
+  return q ? watchVariants(q) : [];
+}
+function insightLabel(){
+  if(watch.length) return watch.map(t=>{ const tp=topicFor(t); return tp?tp.label:t; }).join(", ");
+  const q=$("i_q").value.trim(); if(!q) return ""; const tp=topicFor(q); return tp?tp.label:q;
+}
+
+// ---- normalizers: raw API item -> common record {agency,id,url,date,title,text,company,areas[]} ----
+// ids mirror the per-tab card scheme so "since my last visit" lines up with the
+// badges elsewhere in the app.
+function normTrial(st){
+  const ps=st.protocolSection||st;
+  const nct=dig(ps,"identificationModule","nctId"); if(!nct) return null;
+  return {agency:"trials", id:"t:"+nct, url:"https://clinicaltrials.gov/study/"+nct,
+    date:dig(ps,"statusModule","lastUpdatePostDateStruct","date")||"",
+    title:dig(ps,"identificationModule","briefTitle")||nct,
+    text:dig(ps,"descriptionModule","briefSummary")||"",
+    company:dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")||"",
+    areas:dig(ps,"conditionsModule","conditions")||[],
+    phase:(dig(ps,"designModule","phases")||[]).filter(p=>p&&p!=="NA")};
+}
+function normRecall(r){
+  const brand=dig(r,"openfda","brand_name"); const num=r.recall_number||"";
+  return {agency:"recalls",
+    id:"r:"+(num||[clip(r.product_description,60),r.recalling_firm,r.report_date].filter(Boolean).join("|")),
+    url: num?`${FDA_API}?search=recall_number:%22${encodeURIComponent(num)}%22`:"https://www.fda.gov/drugs/drug-recalls",
+    date: fmtFdaDate(r.report_date),
+    title:(brand&&brand.length?brand[0]:null)||clip(r.product_description,90)||((r.recalling_firm||"")+" recall"),
+    text:r.reason_for_recall||"", company:r.recalling_firm||"", areas:[], cls:r.classification||""};
+}
+function normApproval(app){
+  const of=app.openfda||{}, first=v=>Array.isArray(v)?(v[0]||""):(v||"");
+  let name=first(of.brand_name)||first(of.generic_name)||app.application_number||"FDA drug";
+  if(name===name.toUpperCase()) name=name.replace(/\b\w+/g,w=>w[0]+w.slice(1).toLowerCase());
+  const appno=app.application_number||"";
+  const sponsor=app.sponsor_name||""; const sp=sponsor===sponsor.toUpperCase()?sponsor.replace(/\b\w+/g,w=>w[0]+w.slice(1).toLowerCase()):sponsor;
+  const out=[];
+  for(const sub of (app.submissions||[])){
+    if(sub.submission_status!=="AP") continue;
+    const isOrig=(sub.submission_type||"").toUpperCase()!=="SUPPL"; const d=sub.submission_status_date||"";
+    out.push({agency:"approvals", id:"a:"+appno+":"+(isOrig?"o":"s")+":"+(sub.submission_number||d||""),
+      url: appno?`${FDA_APPROVALS_API}?search=application_number:%22${encodeURIComponent(appno)}%22`:FDA_APPROVALS_API,
+      date: isoFromYmd(d), title:name+(isOrig?" — FDA approval":" — supplemental approval"),
+      text:(sp||"The sponsor")+" received "+(isOrig?"FDA approval":"a supplemental FDA approval")+" for "+name+".",
+      company:sp, areas:[]});
+  }
+  return out;
+}
+function normShortage(r){
+  const of=r.openfda||{}, first=v=>Array.isArray(v)?(v[0]||""):(v||"");
+  const name=(first(r.proprietary_name)||first(of.brand_name)||first(r.generic_name)||first(of.generic_name)||"Drug shortage").trim();
+  let cats=r.therapeutic_category||[]; if(typeof cats==="string") cats=[cats];
+  const d=r.update_date||r.initial_posting_date||"";
+  return {agency:"shortages",
+    id:"h:"+[name,r.company_name||"",first(r.generic_name),first(r.package_ndc),first(r.strength),first(r.dosage_form)].filter(Boolean).join("|"),
+    url:`https://dps.fda.gov/drugshortages/search?query=${encodeURIComponent(name)}`,
+    date:String(d).slice(0,10), title:name+" — shortage"+(r.status?` (${r.status})`:""),
+    text:r.reason_for_shortage||r.availability||"", company:r.company_name||"", areas:cats.filter(Boolean)};
+}
+function normFiling(h){
+  const s=h._source||{}; const [accn,file]=(h._id||"").split(":");
+  const cik=(s.ciks&&s.ciks[0])||""; const cikInt=String(parseInt(cik,10)||cik); const accnND=(accn||"").replace(/-/g,"");
+  const url=(accn&&file&&cik)?`https://www.sec.gov/Archives/edgar/data/${cikInt}/${accnND}/${file}`
+    :(cik?`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cikInt}`:"https://www.sec.gov/cgi-bin/browse-edgar");
+  const names=s.display_names||[]; const form=s.root_form||s.form||s.file_type||"Filing";
+  return {agency:"sec", id:"s:"+((h._id)||accn||((names[0]||"")+"|"+(s.file_date||""))),
+    url, date:s.file_date||"", title:(names.length?names[0]:(s.file_description||"SEC filing"))+" — "+form,
+    text:s.file_description||"", company:names.length?names[0]:"", areas:[], form};
+}
+
+// ---- gather one broad, recent page from each agency, in parallel, fault-tolerant ----
+async function fetchOne(agency, url, map, noMatch){
+  try{ const d=await getJson(url, noMatch); if(d.__empty) return []; return map(d).flat().filter(Boolean); }
+  catch(err){ iErrors.push(agency+" ("+err.message+")"); return []; }
+}
+async function fetchInsights(terms){
+  iErrors=[];
+  const ctp=new URLSearchParams(); const oe=ctOrExpr(terms); if(oe) ctp.append("query.term",oe);
+  ctp.append("sort","LastUpdatePostDate:desc"); ctp.append("fields",CT_FIELDS); ctp.append("pageSize","75"); ctp.append("countTotal","true");
+  const aprSearch=fdaOrExpr(terms,["sponsor_name","openfda.brand_name","openfda.generic_name"])+'+AND+submissions.submission_status:"AP"';
+  const secp=new URLSearchParams();
+  secp.append("q", terms.map(t=>/[\s&]/.test(t)?`"${t}"`:t).join(" OR ")); secp.append("from","0");
+  const groups=await Promise.all([
+    fetchOne("ClinicalTrials.gov", CT_API+"?"+ctp.toString(), d=>(d.studies||[]).map(normTrial)),
+    fetchOne("openFDA recalls", fdaInsightUrl(FDA_API, fdaOrExpr(terms,["recalling_firm","product_description"]), 100), d=>(d.results||[]).map(normRecall), true),
+    fetchOne("Drugs@FDA", fdaInsightUrl(FDA_APPROVALS_API, aprSearch, 100), d=>(d.results||[]).map(normApproval), true),
+    fetchOne("openFDA shortages", fdaInsightUrl(FDA_SHORTAGES_API, fdaOrExpr(terms,["company_name","generic_name","proprietary_name"]), 100), d=>(d.results||[]).map(normShortage), true),
+    fetchOne("SEC EDGAR", SEC_API+"?"+secp.toString(), d=>(dig(d,"hits","hits")||[]).map(normFiling)),
+  ]);
+  const seen=new Set(), recs=[];
+  for(const g of groups) for(const r of g){ if(r && r.id && !seen.has(r.id)){ seen.add(r.id); recs.push(r); } }
+  return recs;
+}
+
+// ---- analysis (pure) ----
+function iTokens(text){
+  return String(text||"").toLowerCase().replace(/[^a-z0-9\-\s]/g," ").split(/\s+/)
+    .map(w=>w.replace(/^-+|-+$/g,""))
+    .filter(w=>w.length>2 && !/^\d+$/.test(w) && !I_STOP.has(w));
+}
+function iSubjectStop(){
+  const s=new Set(); for(const t of insightTerms()) for(const w of iTokens(t)) s.add(w); return s;
+}
+// Content tokens per record (stopwords + the subject's own words removed), shared
+// by every method below.
+function iDocTokens(records, stop){ return records.map(r=>iTokens(r.title+" "+r.text).filter(w=>!stop.has(w))); }
+function iFreq(docTokens){ const m=new Map(); for(const toks of docTokens) for(const w of toks) m.set(w,(m.get(w)||0)+1); return m; }
+
+// Weighted PageRank (power iteration, fixed iterations → deterministic). Shared by
+// TextRank (term graph) and LexRank (sentence graph). adj: Map(node->Map(nb->w)).
+function pageRank(nodes, adj, d, iters){
+  d=d||0.85; iters=iters||40; const N=nodes.length; if(!N) return new Map();
+  const outW=new Map();
+  for(const n of nodes){ let s=0; const m=adj.get(n); if(m) for(const w of m.values()) s+=w; outW.set(n, s||1); }
+  let pr=new Map(nodes.map(n=>[n,1/N]));
+  for(let it=0; it<iters; it++){
+    const nx=new Map(nodes.map(n=>[n,(1-d)/N]));
+    for(const n of nodes){ const m=adj.get(n); if(!m) continue; const share=pr.get(n)/outW.get(n);
+      for(const [nb,w] of m) nx.set(nb, nx.get(nb)+d*w*share); }
+    pr=nx;
+  }
+  return pr;
+}
+// TextRank (Mihalcea & Tarau, 2004): rank terms by centrality in a word
+// co-occurrence graph (sliding window) — a term is salient if it co-occurs with
+// other salient terms, which beats raw frequency for surfacing themes.
+function textRankTerms(docTokens, topn){
+  const WIN=4, adj=new Map(), nodes=new Set();
+  const edge=(a,b)=>{ if(a===b) return; for(const [x,y] of [[a,b],[b,a]]){ let m=adj.get(x); if(!m){m=new Map();adj.set(x,m);} m.set(y,(m.get(y)||0)+1); } };
+  for(const toks of docTokens) for(let i=0;i<toks.length;i++){ nodes.add(toks[i]);
+    for(let j=i+1;j<Math.min(toks.length,i+WIN);j++) edge(toks[i],toks[j]); }
+  const pr=pageRank([...nodes], adj);
+  return [...pr.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,topn);
+}
+// YAKE! (Campos et al., Information Sciences 2020): unsupervised statistical
+// keyphrase extraction. A per-term score (lower = better) combines casing,
+// position, frequency, context dispersion and sentence spread; 1–3-grams are
+// scored from it. No training, no embeddings.
+function yakeKeyphrases(records, stop, topn){
+  const isStop=w=>I_STOP.has(w)||stop.has(w)||w.length<3||/^\d+$/.test(w);
+  const sents=[];
+  for(const r of records) for(const p of (r.title+". "+(r.text||"")).split(/(?<=[.!?])\s+/)){
+    const raw=p.trim().split(/\s+/).map(w=>w.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g,"")).filter(Boolean);
+    if(raw.length) sents.push(raw);
+  }
+  const TF=new Map(),UP=new Map(),ACR=new Map(),SEN=new Map(),LCO=new Map(),RCO=new Map(); let maxTF=1;
+  sents.forEach((raw,si)=>{ const low=raw.map(w=>w.toLowerCase());
+    low.forEach((w,i)=>{ if(isStop(w)) return;
+      TF.set(w,(TF.get(w)||0)+1); if(TF.get(w)>maxTF) maxTF=TF.get(w);
+      const o=raw[i];
+      if(o.length>1 && o===o.toUpperCase()) ACR.set(w,(ACR.get(w)||0)+1);
+      else if(i>0 && o[0]>="A" && o[0]<="Z") UP.set(w,(UP.get(w)||0)+1);
+      if(!SEN.has(w)) SEN.set(w,new Set()); SEN.get(w).add(si);
+      if(i>0 && !isStop(low[i-1])){ if(!LCO.has(w))LCO.set(w,new Map()); LCO.get(w).set(low[i-1],(LCO.get(w).get(low[i-1])||0)+1); }
+      if(i<low.length-1 && !isStop(low[i+1])){ if(!RCO.has(w))RCO.set(w,new Map()); RCO.get(w).set(low[i+1],(RCO.get(w).get(low[i+1])||0)+1); }
+    });
+  });
+  if(!TF.size) return [];
+  const tfs=[...TF.values()], mean=tfs.reduce((a,b)=>a+b,0)/tfs.length;
+  const std=Math.sqrt(tfs.reduce((a,b)=>a+(b-mean)*(b-mean),0)/tfs.length)||1;
+  const nSent=sents.length||1, S=new Map();
+  for(const [w,tf] of TF){
+    const cas=Math.max(ACR.get(w)||0,UP.get(w)||0)/(1+Math.log(tf));
+    const pos=[...SEN.get(w)].sort((a,b)=>a-b), med=pos[Math.floor(pos.length/2)];
+    const tPos=Math.log(Math.log(3+med));
+    const tFN=tf/(mean+std);
+    const L=LCO.get(w),R=RCO.get(w);
+    const dl=L?L.size/[...L.values()].reduce((a,b)=>a+b,0):0;
+    const dr=R?R.size/[...R.values()].reduce((a,b)=>a+b,0):0;
+    const rel=1+(dl+dr)*(tf/maxTF);
+    const tSen=SEN.get(w).size/nSent;
+    S.set(w,(rel*tPos)/(cas + tFN/rel + tSen/rel));
+  }
+  const cf=new Map();
+  for(const raw of sents){ const low=raw.map(w=>w.toLowerCase());
+    for(let n=1;n<=3;n++) for(let i=0;i+n<=low.length;i++){ const g=low.slice(i,i+n);
+      if(g.some(isStop)) continue; cf.set(g.join(" "),(cf.get(g.join(" "))||0)+1); } }
+  const cand=[];
+  for(const [key,tf] of cf){ const ws=key.split(" "); let prod=1,sum=0,ok=true;
+    for(const w of ws){ const s=S.get(w); if(s==null){ok=false;break;} prod*=s; sum+=s; }
+    if(ok) cand.push([key, prod/(tf*(1+sum))]); }
+  cand.sort((a,b)=>a[1]-b[1]||a[0].localeCompare(b[0]));   // lower score = better
+  const wb=(a,b)=>(" "+a+" ").includes(" "+b+" ");          // b is a word-boundary subphrase of a
+  const out=[];
+  for(const [kw,sc] of cand){ if(out.some(o=>wb(o[0],kw)||wb(kw,o[0]))) continue; out.push([kw,sc]); if(out.length>=topn) break; }
+  return out;
+}
+// BM25 (Robertson / Spärck Jones): relevance of each record to the subject query
+// — the ranking function behind modern search engines. Orders the sources and
+// picks the most on-topic records to summarize.
+function bm25Rank(records, queryTerms){
+  const k1=1.5, b=0.75;
+  const q=new Set(); for(const t of queryTerms) for(const w of iTokens(t)) q.add(w);
+  const docs=records.map(r=>iTokens(r.title+" "+r.text));
+  const dl=docs.map(d=>d.length), avg=(dl.reduce((a,x)=>a+x,0)/(dl.length||1))||1, N=docs.length;
+  const df=new Map();
+  docs.forEach(d=>{ for(const w of new Set(d)) if(q.has(w)) df.set(w,(df.get(w)||0)+1); });
+  const idf=w=>Math.log(1+(N-(df.get(w)||0)+0.5)/((df.get(w)||0)+0.5));
+  return docs.map((d,i)=>{ const tf=new Map(); for(const w of d) if(q.has(w)) tf.set(w,(tf.get(w)||0)+1);
+    let s=0; for(const [w,f] of tf) s+=idf(w)*(f*(k1+1))/(f+k1*(1-b+b*dl[i]/avg));
+    return {i, score:s}; });
+}
+function topN(map, n){ return [...map.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,n); }
+function countField(records, pick){
+  const m=new Map();
+  for(const r of records) for(const v of [].concat(pick(r)||[])){ const k=String(v||"").trim(); if(k) m.set(k,(m.get(k)||0)+1); }
+  return m;
+}
+// LexRank (Erkan & Radev, 2004): extractive summary by PageRank centrality over a
+// graph of sentences linked by TF-IDF cosine similarity — surfaces the sentences
+// most central to the whole corpus, one per record for variety. No LLM.
+function lexRankSummary(records, stop, k){
+  const sents=[];
+  for(const r of records){ const raw=(r.text||"").trim(); if(!raw) continue;
+    for(const p of raw.split(/(?<=[.!?])\s+(?=[A-Z0-9"'])/)){ const s=p.trim(); const wc=s.split(/\s+/).length;
+      if(wc<6||wc>45) continue; const toks=iTokens(s).filter(w=>!stop.has(w)); if(toks.length<3) continue;
+      sents.push({s, rec:r, toks}); } }
+  const N=sents.length; if(!N) return [];
+  if(N===1) return [{s:sents[0].s, rec:sents[0].rec}];
+  const df=new Map(); for(const se of sents) for(const w of new Set(se.toks)) df.set(w,(df.get(w)||0)+1);
+  const idf=w=>Math.log(1+N/((df.get(w)||0)+1));
+  const vecs=sents.map(se=>{ const v=new Map(); for(const w of se.toks) v.set(w,(v.get(w)||0)+1);
+    let norm=0; for(const [w,tf] of v){ const t=tf*idf(w); v.set(w,t); norm+=t*t; } norm=Math.sqrt(norm)||1;
+    for(const w of v.keys()) v.set(w,v.get(w)/norm); return v; });
+  const cos=(a,b)=>{ let s=0; const [sm,bg]=a.size<b.size?[a,b]:[b,a]; for(const [w,x] of sm){ const y=bg.get(w); if(y) s+=x*y; } return s; };
+  const adj=new Map(), nodes=sents.map((_,i)=>i), SIM=0.1;
+  for(let i=0;i<N;i++) for(let j=i+1;j<N;j++){ const c=cos(vecs[i],vecs[j]); if(c>SIM){
+    for(const [x,y] of [[i,j],[j,i]]){ let m=adj.get(x); if(!m){m=new Map();adj.set(x,m);} m.set(y,c); } } }
+  const pr=pageRank(nodes, adj);
+  const ranked=[...pr.entries()].sort((a,b)=>b[1]-a[1]||a[0]-b[0]);
+  const out=[], used=new Set();
+  for(const [idx] of ranked){ if(out.length>=k) break; const se=sents[idx]; if(used.has(se.rec.id)) continue; used.add(se.rec.id); out.push({s:se.s, rec:se.rec}); }
+  return out;
+}
+// "since last you checked" — a chosen window, or everything unseen since last visit.
+function iCutoff(){ const v=$("i_period").value; return v==="visit" ? {mode:"visit"} : {mode:"days", iso:daysAgoISO(+v), days:+v}; }
+function iBaseline(){
+  const entry=seenStore[watchSig()]; const set=new Set();
+  if(entry) for(const t of TABS) for(const id of (entry[t]||[])) set.add(id);
+  return {has:!!entry, set};
+}
+function iIsNew(r, cut, base){
+  if(cut.mode==="visit") return base.has ? !base.set.has(r.id) : false;
+  return r.date && r.date >= cut.iso;
+}
+
+// ---- render ----
+function iCard(r, isNew){
+  const el=document.createElement("article");
+  if(isNew) el.classList.add("iperiod");
+  el.dataset.id=r.id;
+  const srcName={trials:"ClinicalTrials.gov",recalls:"FDA recall",approvals:"Drugs@FDA",shortages:"FDA Drug Shortages",sec:"SEC EDGAR"}[r.agency]||"Source";
+  const kind={trials:"Trial",recalls:"Recall",approvals:"Approval",shortages:"Shortage",sec:"Filing"}[r.agency];
+  const tags=[kind, r.company].filter(Boolean);
+  el.innerHTML=
+    `<h2>${isNew?'<span class="perflag">NEW</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.title)}</a></h2>`+
+    `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
+    (r.text?`<div class="summary">${citeSentences(clip(r.text,280),r.url,srcName)}</div>`:"")+
+    `<div class="src">${r.date?`${esc(r.date)} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(srcName)}</a></div>`;
+  return el;
+}
+function iBars(entries, max, cls){
+  if(!max) max=1;
+  return entries.map(([k,v])=>`<div class="istat"><span class="lbl" title="${esc(k)}">${esc(k)}</span>`+
+    `<span class="bar2${cls?" "+cls:""}" style="width:${Math.max(2,Math.round(72*v/max))}px"></span>`+
+    `<span class="cnt">${v}</span></div>`).join("");
+}
+const I_AG={trials:"ClinicalTrials.gov",recalls:"FDA recalls",approvals:"FDA approvals",shortages:"FDA shortages",sec:"SEC filings"};
+function renderInsights(){
+  const box=$("insights"); box.innerHTML="";
+  const recs=iRecords;
+  if(!recs.length){
+    box.innerHTML=`<div class="iempty">No records found for this subject across the agencies. Try a broader topic, or add a company to your watchlist.</div>`+
+      (iErrors.length?`<div class="ierr">Unreachable: ${esc(iErrors.join(" · "))}</div>`:"");
+    return;
+  }
+  const stop=iSubjectStop();
+  const docTokens=iDocTokens(recs, stop);
+  const freq=iFreq(docTokens);
+  const bm=bm25Rank(recs, insightTerms()); const bmScore=new Map(bm.map(o=>[o.i,o.score]));
+  const byRel=[...recs.keys()].sort((a,b)=>(bmScore.get(b)||0)-(bmScore.get(a)||0));
+  const summInput=recs.length>60 ? byRel.slice(0,60).map(i=>recs[i]) : recs;   // BM25-pick when large
+  const cut=iCutoff(), base=iBaseline();
+  const perAgency={}; let newN=0, newest="", oldest="";
+  for(const t of TABS) perAgency[t]=0;
+  for(const r of recs){
+    perAgency[r.agency]=(perAgency[r.agency]||0)+1;
+    if(r.date){ if(!newest||r.date>newest) newest=r.date; if(!oldest||r.date<oldest) oldest=r.date; }
+    if(iIsNew(r,cut,base)) newN++;
+  }
+  const active=TABS.filter(t=>perAgency[t]>0);
+  const summ=lexRankSummary(summInput, stop, 4);
+  const periodTxt = cut.mode==="visit"
+    ? (base.has ? `<b>${newN} new since your last visit</b>` : `<b>first look — nothing to compare yet</b>`)
+    : `<b>${newN} new in the last ${cut.days} days</b>`;
+
+  let html=`<div class="iwrap"><div class="isum">`+
+    `<h2>${esc(iSubjectLabel||"Your watchlist")}</h2>`+
+    `<p class="imeta">${recs.length} records across ${active.length} source${active.length!==1?"s":""}`+
+    (newest?` · newest ${esc(newest)}`:"")+(oldest&&oldest!==newest?` · back to ${esc(oldest)}`:"")+
+    ` · ${periodTxt}</p>`;
+  if(summ.length)
+    html+=`<div class="ilabel">Extractive summary · LexRank</div>`+
+      `<ul class="idigest">`+summ.map(c=>`<li>${citeSentences(clip(c.s,260),c.rec.url,I_AG[c.rec.agency]||"Source")}</li>`).join("")+`</ul>`;
+  if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
+  html+=`<div class="imethods">Methods: <b>TextRank</b> term salience · <b>YAKE!</b> keyphrases · <b>LexRank</b> extractive summary · <b>BM25</b> source ranking — all classical, deterministic, no LLM.</div>`+
+    `</div>`;
+
+  const companies=topN(countField(recs,r=>r.company),8);
+  const areas=topN(countField(recs,r=>r.areas),8);
+  const phases=topN(countField(recs.filter(r=>r.agency==="trials"),r=>(r.phase||[]).map(prettyPhase1)),6);
+  html+=`<div class="istats">`;
+  html+=`<div class="icard"><h3>By source</h3>${iBars(active.map(t=>[I_AG[t],perAgency[t]]),Math.max(1,...active.map(t=>perAgency[t])),"a2")}</div>`;
+  if(companies.length) html+=`<div class="icard"><h3>Top companies</h3>${iBars(companies,companies[0][1])}</div>`;
+  if(areas.length)     html+=`<div class="icard"><h3>Top therapeutic areas</h3>${iBars(areas,areas[0][1])}</div>`;
+  if(phases.length)    html+=`<div class="icard"><h3>Trial phases</h3>${iBars(phases,phases[0][1])}</div>`;
+  html+=`</div>`;
+
+  const cloud=textRankTerms(docTokens,40);
+  if(cloud.length){
+    const maxF=cloud[0][1]||1;
+    html+=`<div class="icard icloud"><h3>Word cloud — TextRank salience</h3>`+
+      cloud.map(([w,s],i)=>`<span class="cw${i%3===0?" a2":""}" style="font-size:${(0.82+1.9*Math.sqrt(s/maxF)).toFixed(2)}rem" title="${(freq.get(w)||0)}× in these records">${esc(w)}</span>`).join("")+`</div>`;
+  }
+  const phrases=yakeKeyphrases(recs, stop, 12);
+  if(phrases.length)
+    html+=`<div class="icard"><h3>Key phrases — YAKE!</h3>`+phrases.map(([p])=>`<span class="kphrase">${esc(p)}</span>`).join("")+`</div>`;
+
+  html+=`<h3 class="isrc-h">Sources — every figure above is counted from these ${recs.length} records, ranked by BM25 relevance (new first)</h3><div id="isrc"></div></div>`;
+  box.innerHTML=html;
+
+  const srcBox=$("isrc");
+  recs.map((r,i)=>({r,i,isNew:iIsNew(r,cut,base)}))
+    .sort((a,b)=>(b.isNew-a.isNew) || ((bmScore.get(b.i)||0)-(bmScore.get(a.i)||0)) || (b.r.date||"").localeCompare(a.r.date||""))
+    .forEach(o=>srcBox.appendChild(iCard(o.r, o.isNew)));
+}
+
+async function runInsights(){
+  const terms=insightTerms();
+  if(!terms.length){ $("insights").innerHTML=`<div class="iempty">Add something to your watchlist above, or type a subject (e.g. <b>CRISPR</b>), then hit Summarize.</div>`; return; }
+  if(iBusy) return; iBusy=true;
+  iSubjectLabel=insightLabel();
+  $("insights").innerHTML=`<div class="iempty">Gathering records from ClinicalTrials.gov, openFDA and SEC EDGAR…</div>`;
+  try{ iRecords=await fetchInsights(terms); renderInsights(); }
+  catch(err){ $("insights").innerHTML=`<div class="ierr">Could not build insights: ${esc(err.message)}</div>`; }
+  finally{ iBusy=false; }
+}
+// Entering the tab: re-render a cached result, or auto-run when there's a subject.
+function maybeAutoInsights(){
+  if(iRecords.length){ renderInsights(); return; }
+  if(watch.length || $("i_q").value.trim()) runInsights();
+}
+$("i_run").onclick=()=>{ iRecords=[]; runInsights(); };
+$("i_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ iRecords=[]; runInsights(); }});
+$("i_period").onchange=()=>{ if(iRecords.length) renderInsights(); else maybeAutoInsights(); };
+$("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
+  $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
+// Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
+window.OBN_INSIGHTS={iTokens,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,lexRankSummary,bm25Rank,countField,topN,normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----
 const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent"};
@@ -1375,7 +1833,7 @@ function syncUrl(){
   const p=new URLSearchParams(); p.set("tab",tab);
   if(watch.length) p.set("w", watch.join("~"));
   if(currentSort()!=="recent") p.set("sort", currentSort());
-  if(!watchActive){
+  if(!watchActive && TABS.includes(tab)){
     for(const [id,key] of Object.entries(fieldsFor(tab))){ const v=$(id).value; if(v) p.set(key,v); }
     if(tab==="trials" && $("t_industry").checked) p.set("industry","1");
   }
@@ -1389,7 +1847,7 @@ $("copyLink").onclick=async()=>{
 };
 function loadFromUrl(){
   const p=new URLSearchParams(location.search);
-  const t=TABS.includes(p.get("tab"))?p.get("tab"):"trials";
+  const t=VIEW_TABS.includes(p.get("tab"))?p.get("tab"):"trials";
   const w=p.get("w");
   if(w){ watch = w.split("~").map(s=>s.trim()).filter(Boolean); saveWatch(); }
   renderWatchChips(); loadBaseline();
