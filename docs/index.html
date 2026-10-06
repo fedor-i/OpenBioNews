@@ -169,6 +169,46 @@
   article.iperiod{border-left:3px solid var(--accent);padding-left:.9rem}
   .perflag{display:inline-block;background:var(--accent);color:#fff;border-radius:6px;padding:.05rem .4rem;
     font-size:.68rem;font-weight:700;letter-spacing:.02em;margin-right:.35rem;vertical-align:middle}
+  .ihint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:.72rem;margin-left:.4rem}
+  .ispark-row{display:flex;align-items:center;gap:.5rem;margin:.1rem 0 .5rem;color:var(--accent)}
+  .ispark-row .isl{color:var(--muted);font-size:.72rem}
+  .ispark{display:block;flex:0 0 auto}
+  .inotable{margin:.5rem 0}
+  .ievent{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;padding:.3rem 0;border-top:1px solid var(--line);font-size:.9rem}
+  .ievent:first-of-type{border-top:none}
+  .ievent a{color:var(--ink);font-weight:600;text-decoration:none}
+  .ievent a:hover{text-decoration:underline}
+  .ievent .nmeta{color:var(--muted);font-size:.8rem}
+  .nsev{flex:0 0 auto;border-radius:6px;padding:.1rem .45rem;font-size:.7rem;font-weight:700;white-space:nowrap}
+  .nsev.n0{background:var(--critbg);color:var(--crit)}
+  .nsev.n1{background:var(--accent);color:#fff}
+  .nsev.n2{background:var(--warnbg);color:var(--warn)}
+  .nsev.n3{background:var(--tag);color:var(--tagink)}
+  .nsev.n4{background:var(--chip);color:var(--ink)}
+  .ithemes{margin:.5rem 0}
+  .themerow{display:flex;flex-wrap:wrap;gap:.45rem}
+  .theme{display:inline-flex;align-items:center;gap:.4rem;background:var(--chip);border:1px solid var(--line);
+    border-radius:999px;padding:.3rem .5rem .3rem .7rem;font-size:.85rem;font-weight:600;color:var(--ink);cursor:pointer}
+  .theme:hover{border-color:var(--accent)}
+  .theme .tcount{background:var(--accent);color:#fff;border-radius:999px;min-width:1.4em;text-align:center;
+    font-size:.72rem;padding:.05rem .35rem}
+  .irise{margin:.5rem 0}
+  .riserow{display:flex;flex-wrap:wrap;gap:.4rem}
+  .riseterm{display:inline-block;background:var(--tag);color:var(--tagink);border-radius:6px;padding:.2rem .5rem;
+    font-size:.85rem;cursor:pointer;border:1px solid transparent}
+  .riseterm:hover{border-color:var(--accent)}
+  .riseterm b{font-weight:700;opacity:.7;margin-left:.1rem}
+  .riseterm.fresh{background:var(--accent);color:#fff}
+  .riseterm.fresh b{opacity:.85}
+  .ifacet{cursor:pointer}
+  .cw.ifacet:hover{text-decoration:underline}
+  .istat.ifacet:hover .lbl{text-decoration:underline}
+  .kphrase.ifacet{cursor:pointer;border:1px solid transparent}
+  .kphrase.ifacet:hover{border-color:var(--accent)}
+  .ifacet.on{outline:2px solid var(--accent);outline-offset:1px;border-radius:6px}
+  #ifilter{background:var(--chip);border:1px solid var(--accent);border-radius:9px;padding:.45rem .7rem;
+    margin:.4rem 0;font-size:.88rem}
+  .ichip{background:var(--accent);color:#fff;border-radius:6px;padding:.1rem .5rem;font-size:.78rem;margin-left:.3rem}
   [hidden]{display:none!important}
 </style>
 </head>
@@ -542,6 +582,7 @@ $("themeBtn").onclick = () => {
 
 function dig(o,...p){ for(const k of p){ if(o&&typeof o==="object"){o=o[k];} else return undefined; if(o==null) return undefined; } return o; }
 function esc(s){ const d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
+function escA(s){ return esc(s).replace(/"/g,"&quot;"); }   // attribute-safe (esc skips quotes)
 function clip(s,n){ s=s||""; return s.length>n ? s.slice(0,n).replace(/\s+\S*$/,"")+"…" : s; }
 // Per-sentence citations: bind every sentence of a description to the record it
 // came from. Deterministic — the text is verbatim from the source, so there is
@@ -1478,6 +1519,7 @@ function normTrial(st){
     text:dig(ps,"descriptionModule","briefSummary")||"",
     company:dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")||"",
     areas:dig(ps,"conditionsModule","conditions")||[],
+    status:dig(ps,"statusModule","overallStatus")||"",
     phase:(dig(ps,"designModule","phases")||[]).filter(p=>p&&p!=="NA")};
 }
 function normRecall(r){
@@ -1668,14 +1710,28 @@ function countField(records, pick){
   return m;
 }
 // LexRank (Erkan & Radev, 2004): extractive summary by PageRank centrality over a
-// graph of sentences linked by TF-IDF cosine similarity — surfaces the sentences
-// most central to the whole corpus, one per record for variety. No LLM.
+// graph of sentences linked by TF-IDF cosine similarity. Two deterministic tweaks
+// make it read like intelligence instead of boilerplate: (1) an "informativeness"
+// prior boosts sentences carrying numbers, doses, %, $ and proper-noun entities,
+// since raw centrality rewards the generic sentences every record shares; (2) a
+// near-duplicate guard (cosine ≥ DUP) skips sentences that restate one already
+// chosen, so the digest doesn't echo the same boilerplate across records. No LLM.
+function sentInfoBonus(s){
+  let b=0;
+  if(/\d/.test(s)) b+=0.30;                                   // any number
+  if(/\b\d+(\.\d+)?\s?(mg|mcg|g|ml|%|mg\/kg)\b/i.test(s)) b+=0.25;  // dose / percentage
+  if(/\$|\bmillion\b|\bbillion\b/i.test(s)) b+=0.20;          // money
+  if(/\b(phase|primary endpoint|fda|approval|recall|pivotal|breakthrough|orphan)\b/i.test(s)) b+=0.20;
+  const ents=(s.slice(1).match(/(?<=\s)[A-Z][A-Za-z]{2,}/g)||[]).length;  // mid-sentence proper nouns
+  b+=Math.min(ents,4)*0.07;
+  return b;
+}
 function lexRankSummary(records, stop, k){
   const sents=[];
   for(const r of records){ const raw=(r.text||"").trim(); if(!raw) continue;
     for(const p of raw.split(/(?<=[.!?])\s+(?=[A-Z0-9"'])/)){ const s=p.trim(); const wc=s.split(/\s+/).length;
       if(wc<6||wc>45) continue; const toks=iTokens(s).filter(w=>!stop.has(w)); if(toks.length<3) continue;
-      sents.push({s, rec:r, toks}); } }
+      sents.push({s, rec:r, toks, bonus:sentInfoBonus(s)}); } }
   const N=sents.length; if(!N) return [];
   if(N===1) return [{s:sents[0].s, rec:sents[0].rec}];
   const df=new Map(); for(const se of sents) for(const w of new Set(se.toks)) df.set(w,(df.get(w)||0)+1);
@@ -1684,15 +1740,133 @@ function lexRankSummary(records, stop, k){
     let norm=0; for(const [w,tf] of v){ const t=tf*idf(w); v.set(w,t); norm+=t*t; } norm=Math.sqrt(norm)||1;
     for(const w of v.keys()) v.set(w,v.get(w)/norm); return v; });
   const cos=(a,b)=>{ let s=0; const [sm,bg]=a.size<b.size?[a,b]:[b,a]; for(const [w,x] of sm){ const y=bg.get(w); if(y) s+=x*y; } return s; };
-  const adj=new Map(), nodes=sents.map((_,i)=>i), SIM=0.1;
+  const adj=new Map(), nodes=sents.map((_,i)=>i), SIM=0.1, DUP=0.6;
   for(let i=0;i<N;i++) for(let j=i+1;j<N;j++){ const c=cos(vecs[i],vecs[j]); if(c>SIM){
     for(const [x,y] of [[i,j],[j,i]]){ let m=adj.get(x); if(!m){m=new Map();adj.set(x,m);} m.set(y,c); } } }
   const pr=pageRank(nodes, adj);
-  const ranked=[...pr.entries()].sort((a,b)=>b[1]-a[1]||a[0]-b[0]);
-  const out=[], used=new Set();
-  for(const [idx] of ranked){ if(out.length>=k) break; const se=sents[idx]; if(used.has(se.rec.id)) continue; used.add(se.rec.id); out.push({s:se.s, rec:se.rec}); }
+  // rank by centrality scaled by the informativeness prior (stable id tie-break)
+  const ranked=[...pr.entries()].map(([i,p])=>[i, p*(1+sents[i].bonus)])
+    .sort((a,b)=>b[1]-a[1]||a[0]-b[0]);
+  const out=[], used=new Set(), chosen=[];
+  for(const [idx] of ranked){ if(out.length>=k) break; const se=sents[idx];
+    if(used.has(se.rec.id)) continue;                                  // one sentence per record
+    if(chosen.some(ci=>cos(vecs[ci],vecs[idx])>=DUP)) continue;        // skip near-duplicate boilerplate
+    used.add(se.rec.id); chosen.push(idx); out.push({s:se.s, rec:se.rec}); }
   return out;
 }
+// ---- emergent sub-theme clustering ----
+// Weighted term co-occurrence graph (sliding window), shared by clustering below.
+function iCoGraph(docTokens, win){
+  win=win||4; const adj=new Map(), nodes=new Set();
+  const edge=(a,b)=>{ if(a===b) return; for(const [x,y] of [[a,b],[b,a]]){ let m=adj.get(x); if(!m){m=new Map();adj.set(x,m);} m.set(y,(m.get(y)||0)+1); } };
+  for(const toks of docTokens) for(let i=0;i<toks.length;i++){ nodes.add(toks[i]);
+    for(let j=i+1;j<Math.min(toks.length,i+win);j++) edge(toks[i],toks[j]); }
+  return {nodes:[...nodes].sort(), adj};
+}
+// Label propagation (Raghavan, Albert & Kumara 2007) — unsupervised community
+// detection on the co-occurrence graph. Made fully deterministic: nodes visited in
+// a fixed sorted order, each adopts the neighbour community carrying the greatest
+// summed edge weight, ties broken by the lexicographically smallest label, fixed
+// iteration cap. Seed = every node in its own community.
+function labelProp(nodes, adj, iters){
+  iters=iters||25; const order=nodes.slice().sort();
+  const label=new Map(order.map(n=>[n,n]));
+  for(let it=0; it<iters; it++){
+    let changed=false;
+    for(const n of order){
+      const m=adj.get(n); if(!m||!m.size) continue;
+      const w=new Map(); for(const [nb,wt] of m){ const l=label.get(nb); w.set(l,(w.get(l)||0)+wt); }
+      let best=null, bestW=-1;
+      for(const [l,wt] of [...w.entries()].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0)) if(wt>bestW){ bestW=wt; best=l; }
+      if(best!=null && best!==label.get(n)){ label.set(n, best); changed=true; }
+    }
+    if(!changed) break;
+  }
+  return label;
+}
+// Group the gathered records into labeled themes: detect term communities, then
+// assign each record to the community its salience-weighted content tokens favour.
+// Returns clusters (size ≥ minSize) labeled by their strongest terms, ordered by
+// record count. recIdxs index into the records/docTokens arrays passed in.
+function themeClusters(records, docTokens, opts){
+  opts=opts||{}; const minSize=opts.minSize||2, maxClusters=opts.maxClusters||6, maxTerms=opts.maxTerms||3;
+  const {nodes,adj}=iCoGraph(docTokens,4);
+  if(!nodes.length) return [];
+  const label=labelProp(nodes, adj, 25);
+  const pr=pageRank(nodes, adj);                       // term salience, for vote weight + labeling
+  const commRecs=new Map();
+  docTokens.forEach((toks,ri)=>{
+    const vote=new Map();
+    for(const w of toks){ const c=label.get(w); if(c==null) continue; vote.set(c,(vote.get(c)||0)+(pr.get(w)||0)); }
+    if(!vote.size) return;
+    let best=null, bestW=-1;
+    for(const [c,wt] of [...vote.entries()].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0)) if(wt>bestW){ bestW=wt; best=c; }
+    if(!commRecs.has(best)) commRecs.set(best,[]); commRecs.get(best).push(ri);
+  });
+  const clusters=[];
+  for(const [c,ris] of commRecs){
+    if(ris.length<minSize) continue;
+    const tf=new Map();
+    for(const ri of ris) for(const w of docTokens[ri]) if(label.get(w)===c) tf.set(w,(tf.get(w)||0)+1);
+    const terms=[...tf.entries()].sort((a,b)=>b[1]-a[1]||(pr.get(b[0])||0)-(pr.get(a[0])||0)||a[0].localeCompare(b[0]))
+      .slice(0,maxTerms).map(x=>x[0]);
+    if(!terms.length) continue;
+    clusters.push({label:terms.join(" · "), terms, recIdxs:ris.slice().sort((a,b)=>a-b), count:ris.length});
+  }
+  clusters.sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label));
+  return clusters.slice(0,maxClusters);
+}
+// ---- rising / trending terms (momentum) ----
+// Deterministic novelty detection: compare each content term's document-rate in the
+// highlighted (recent) window against its rate in the older baseline. Terms whose
+// recent share materially exceeds baseline (or are entirely new) are "rising" — so
+// "what's new" names the themes actually accelerating, not just a raw record count.
+function risingTerms(docTokens, recentFlags, topn){
+  topn=topn||8;
+  const rec=new Map(), base=new Map(); let rN=0, bN=0;
+  docTokens.forEach((toks,i)=>{ const isR=!!recentFlags[i]; if(isR)rN++; else bN++;
+    const tgt=isR?rec:base; for(const w of new Set(toks)) tgt.set(w,(tgt.get(w)||0)+1); });
+  if(!rN || !bN) return [];                            // need both windows to compare
+  const out=[];
+  for(const [w,rc] of rec){
+    const bc=base.get(w)||0;
+    const lift=(rc/rN)/((bc+0.5)/(bN+1));               // +0.5 smoothing keeps brand-new terms finite
+    if((bc===0 && rc>=1) || (bc>0 && rc>=2 && lift>=1.4))
+      out.push({term:w, recent:rc, base:bc, lift, fresh:bc===0});
+  }
+  out.sort((a,b)=>b.lift-a.lift||b.recent-a.recent||a.term.localeCompare(b.term));
+  return out.slice(0,topn);
+}
+// ---- deterministic "notable right now" ----
+// The high-signal events an analyst scans for first, surfaced by fixed rules (no
+// scoring model). Lower sev = louder. Everything stays cited to its source record.
+function notableEvents(records){
+  const out=[];
+  for(const r of records){
+    if(r.agency==="recalls"){
+      const c=(r.cls||"").toLowerCase();
+      if(/class i\b/.test(c)) out.push({rec:r, sev:0, kind:r.cls||"Class I", note:"Most serious recall class"});
+      else if(/class ii\b/.test(c)) out.push({rec:r, sev:2, kind:r.cls||"Class II", note:"Recall in progress"});
+    } else if(r.agency==="trials"){
+      const st=(r.status||"").toUpperCase(), ph=(r.phase||[]).join(",");
+      if(/TERMINAT|WITHDRAWN|SUSPENDED/.test(st)) out.push({rec:r, sev:1, kind:prettyStatus(r.status), note:"Trial halted"});
+      else if(/PHASE3/.test(ph)) out.push({rec:r, sev:3, kind:"Phase 3", note:"Pivotal-stage trial"});
+    } else if(r.agency==="approvals"){
+      if(/:o:/.test(r.id)) out.push({rec:r, sev:1, kind:"New approval", note:"Original FDA approval"});
+    } else if(r.agency==="shortages"){
+      if(/\(current\)/i.test(r.title)) out.push({rec:r, sev:4, kind:"Shortage", note:"Active drug shortage"});
+    }
+  }
+  out.sort((a,b)=>a.sev-b.sev||(b.rec.date||"").localeCompare(a.rec.date||"")||a.rec.id.localeCompare(b.rec.id));
+  return out;
+}
+// ---- monthly volume, for a pure-SVG sparkline (time signal) ----
+function monthlyVolume(records){
+  const m=new Map();
+  for(const r of records){ const ym=(r.date||"").slice(0,7); if(/^\d{4}-\d{2}$/.test(ym)) m.set(ym,(m.get(ym)||0)+1); }
+  return [...m.entries()].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
+}
+
 // "since last you checked" — a chosen window, or everything unseen since last visit.
 function iCutoff(){ const v=$("i_period").value; return v==="visit" ? {mode:"visit"} : {mode:"days", iso:daysAgoISO(+v), days:+v}; }
 function iBaseline(){
@@ -1720,11 +1894,22 @@ function iCard(r, isNew){
     `<div class="src">${r.date?`${esc(r.date)} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(srcName)}</a></div>`;
   return el;
 }
-function iBars(entries, max, cls){
+function iBars(entries, max, cls, facet){
   if(!max) max=1;
-  return entries.map(([k,v])=>`<div class="istat"><span class="lbl" title="${esc(k)}">${esc(k)}</span>`+
+  return entries.map(([k,v,ids])=>`<div class="istat${facet?" ifacet":""}"${facet&&ids?` data-facet="${escA(facet)}:${escA(String(k))}" data-ids="${escA(JSON.stringify(ids))}"`:""}>`+
+    `<span class="lbl" title="${esc(k)}">${esc(k)}</span>`+
     `<span class="bar2${cls?" "+cls:""}" style="width:${Math.max(2,Math.round(72*v/max))}px"></span>`+
     `<span class="cnt">${v}</span></div>`).join("");
+}
+// Pure-SVG monthly-volume sparkline — deterministic, zero-dependency time signal.
+function iSparkline(series){
+  if(series.length<2) return "";
+  const W=150,H=30,pad=3,n=series.length,max=Math.max(...series.map(s=>s[1]))||1;
+  const x=i=>pad+(W-2*pad)*(i/(n-1)), y=v=>H-pad-(H-2*pad)*(v/max);
+  const pts=series.map((s,i)=>`${x(i).toFixed(1)},${y(s[1]).toFixed(1)}`).join(" ");
+  const dots=series.map((s,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(s[1]).toFixed(1)}" r="1.5"/>`).join("");
+  return `<svg class="ispark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Records per month">`+
+    `<polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${pts}"/>${dots}</svg>`;
 }
 const I_AG={trials:"ClinicalTrials.gov",recalls:"FDA recalls",approvals:"FDA approvals",shortages:"FDA shortages",sec:"SEC filings"};
 function renderInsights(){
@@ -1744,56 +1929,124 @@ function renderInsights(){
   const cut=iCutoff(), base=iBaseline();
   const perAgency={}; let newN=0, newest="", oldest="";
   for(const t of TABS) perAgency[t]=0;
-  for(const r of recs){
+  const recentFlags=recs.map(r=>iIsNew(r,cut,base));
+  recs.forEach((r,i)=>{
     perAgency[r.agency]=(perAgency[r.agency]||0)+1;
     if(r.date){ if(!newest||r.date>newest) newest=r.date; if(!oldest||r.date<oldest) oldest=r.date; }
-    if(iIsNew(r,cut,base)) newN++;
-  }
+    if(recentFlags[i]) newN++;
+  });
   const active=TABS.filter(t=>perAgency[t]>0);
   const summ=lexRankSummary(summInput, stop, 4);
   const periodTxt = cut.mode==="visit"
     ? (base.has ? `<b>${newN} new since your last visit</b>` : `<b>first look — nothing to compare yet</b>`)
     : `<b>${newN} new in the last ${cut.days} days</b>`;
+  // records matching a facet value — the drill-in targets
+  const idsWhere=pred=>recs.filter(pred).map(r=>r.id);
+  const idsForTerm=w=>recs.filter((r,i)=>docTokens[i].includes(w)).map(r=>r.id);
+  const idsForPhrase=p=>{ const lp=p.toLowerCase(); return recs.filter(r=>(r.title+" "+(r.text||"")).toLowerCase().includes(lp)).map(r=>r.id); };
 
   let html=`<div class="iwrap"><div class="isum">`+
     `<h2>${esc(iSubjectLabel||"Your watchlist")}</h2>`+
     `<p class="imeta">${recs.length} records across ${active.length} source${active.length!==1?"s":""}`+
     (newest?` · newest ${esc(newest)}`:"")+(oldest&&oldest!==newest?` · back to ${esc(oldest)}`:"")+
     ` · ${periodTxt}</p>`;
+  const vol=monthlyVolume(recs), spark=iSparkline(vol);
+  if(spark) html+=`<div class="ispark-row"><span class="isl">records/month</span>${spark}`+
+    `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`;
   if(summ.length)
     html+=`<div class="ilabel">Extractive summary · LexRank</div>`+
       `<ul class="idigest">`+summ.map(c=>`<li>${citeSentences(clip(c.s,260),c.rec.url,I_AG[c.rec.agency]||"Source")}</li>`).join("")+`</ul>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
-  html+=`<div class="imethods">Methods: <b>TextRank</b> term salience · <b>YAKE!</b> keyphrases · <b>LexRank</b> extractive summary · <b>BM25</b> source ranking — all classical, deterministic, no LLM.</div>`+
+  html+=`<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>LexRank</b> summary · <b>BM25</b> ranking · <b>label-propagation</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
     `</div>`;
 
-  const companies=topN(countField(recs,r=>r.company),8);
-  const areas=topN(countField(recs,r=>r.areas),8);
+  // ---- Notable right now (cited event scan) ----
+  const notable=notableEvents(recs);
+  if(notable.length){
+    const sevCls=s=>s===0?"n0":s===1?"n1":s===2?"n2":s===3?"n3":"n4";
+    html+=`<div class="icard inotable"><h3>Notable right now</h3>`+
+      notable.slice(0,8).map(e=>`<div class="ievent"><span class="nsev ${sevCls(e.sev)}">${esc(e.kind)}</span>`+
+        `<a href="${esc(e.rec.url)}" target="_blank" rel="noopener noreferrer">${esc(clip(e.rec.title,90))}</a>`+
+        `<span class="nmeta">${e.rec.company?esc(e.rec.company)+" · ":""}${esc(e.note)}${e.rec.date?" · "+esc(e.rec.date):""}</span></div>`).join("")+
+      `</div>`;
+  }
+
+  // ---- Emergent themes (label-propagation clustering) ----
+  const clusters=themeClusters(recs, docTokens, {minSize:2, maxClusters:6, maxTerms:3});
+  if(clusters.length){
+    html+=`<div class="icard ithemes"><h3>Emergent themes — label-propagation clustering <span class="ihint">click to filter</span></h3><div class="themerow">`+
+      clusters.map(c=>{ const ids=c.recIdxs.map(i=>recs[i].id);
+        return `<button class="theme ifacet" data-facet="theme:${escA(c.label)}" data-ids="${escA(JSON.stringify(ids))}">`+
+          `<span class="tlabel">${esc(c.label)}</span><span class="tcount">${c.count}</span></button>`; }).join("")+
+      `</div></div>`;
+  }
+
+  const companies=topN(countField(recs,r=>r.company),8).map(([k,v])=>[k,v,idsWhere(r=>r.company===k)]);
+  const areas=topN(countField(recs,r=>r.areas),8).map(([k,v])=>[k,v,idsWhere(r=>(r.areas||[]).includes(k))]);
   const phases=topN(countField(recs.filter(r=>r.agency==="trials"),r=>(r.phase||[]).map(prettyPhase1)),6);
   html+=`<div class="istats">`;
-  html+=`<div class="icard"><h3>By source</h3>${iBars(active.map(t=>[I_AG[t],perAgency[t]]),Math.max(1,...active.map(t=>perAgency[t])),"a2")}</div>`;
-  if(companies.length) html+=`<div class="icard"><h3>Top companies</h3>${iBars(companies,companies[0][1])}</div>`;
-  if(areas.length)     html+=`<div class="icard"><h3>Top therapeutic areas</h3>${iBars(areas,areas[0][1])}</div>`;
+  html+=`<div class="icard"><h3>By source</h3>${iBars(active.map(t=>[I_AG[t],perAgency[t],idsWhere(r=>r.agency===t)]),Math.max(1,...active.map(t=>perAgency[t])),"a2","source")}</div>`;
+  if(companies.length) html+=`<div class="icard"><h3>Top companies <span class="ihint">click to filter</span></h3>${iBars(companies,companies[0][1],null,"company")}</div>`;
+  if(areas.length)     html+=`<div class="icard"><h3>Top therapeutic areas <span class="ihint">click to filter</span></h3>${iBars(areas,areas[0][1],null,"area")}</div>`;
   if(phases.length)    html+=`<div class="icard"><h3>Trial phases</h3>${iBars(phases,phases[0][1])}</div>`;
   html+=`</div>`;
+
+  // ---- Rising terms (momentum) ----
+  const rising=risingTerms(docTokens, recentFlags, 10);
+  if(rising.length){
+    const wlabel = cut.mode==="visit" ? "since your last visit" : `in the last ${cut.days} days`;
+    html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating ${esc(wlabel)} vs. the earlier baseline</span></h3><div class="riserow">`+
+      rising.map(t=>`<span class="riseterm ifacet${t.fresh?" fresh":""}" data-facet="term:${escA(t.term)}" data-ids="${escA(JSON.stringify(idsForTerm(t.term)))}" title="${t.recent}× recently vs ${t.base}× before">`+
+        `${esc(t.term)} <b>${t.fresh?"new":"×"+t.lift.toFixed(1)}</b></span>`).join("")+
+      `</div></div>`;
+  }
 
   const cloud=textRankTerms(docTokens,40);
   if(cloud.length){
     const maxF=cloud[0][1]||1;
-    html+=`<div class="icard icloud"><h3>Word cloud — TextRank salience</h3>`+
-      cloud.map(([w,s],i)=>`<span class="cw${i%3===0?" a2":""}" style="font-size:${(0.82+1.9*Math.sqrt(s/maxF)).toFixed(2)}rem" title="${(freq.get(w)||0)}× in these records">${esc(w)}</span>`).join("")+`</div>`;
+    html+=`<div class="icard icloud"><h3>Word cloud — TextRank salience <span class="ihint">click to filter</span></h3>`+
+      cloud.map(([w,s],i)=>`<span class="cw ifacet${i%3===0?" a2":""}" data-facet="term:${escA(w)}" data-ids="${escA(JSON.stringify(idsForTerm(w)))}" style="font-size:${(0.82+1.9*Math.sqrt(s/maxF)).toFixed(2)}rem" title="${(freq.get(w)||0)}× in these records">${esc(w)}</span>`).join("")+`</div>`;
   }
   const phrases=yakeKeyphrases(recs, stop, 12);
   if(phrases.length)
-    html+=`<div class="icard"><h3>Key phrases — YAKE!</h3>`+phrases.map(([p])=>`<span class="kphrase">${esc(p)}</span>`).join("")+`</div>`;
+    html+=`<div class="icard"><h3>Key phrases — YAKE! <span class="ihint">click to filter</span></h3>`+phrases.map(([p])=>`<span class="kphrase ifacet" data-facet="phrase:${escA(p)}" data-ids="${escA(JSON.stringify(idsForPhrase(p)))}">${esc(p)}</span>`).join("")+`</div>`;
 
-  html+=`<h3 class="isrc-h">Sources — every figure above is counted from these ${recs.length} records, ranked by BM25 relevance (new first)</h3><div id="isrc"></div></div>`;
+  html+=`<h3 class="isrc-h">Sources — every figure above is counted from these ${recs.length} records, ranked by BM25 relevance (new first)</h3>`+
+    `<div id="ifilter" hidden></div><div id="isrc"></div></div>`;
   box.innerHTML=html;
 
   const srcBox=$("isrc");
-  recs.map((r,i)=>({r,i,isNew:iIsNew(r,cut,base)}))
+  recs.map((r,i)=>({r,i,isNew:recentFlags[i]}))
     .sort((a,b)=>(b.isNew-a.isNew) || ((bmScore.get(b.i)||0)-(bmScore.get(a.i)||0)) || (b.r.date||"").localeCompare(a.r.date||""))
     .forEach(o=>srcBox.appendChild(iCard(o.r, o.isNew)));
+  wireFacets(box);
+}
+// ---- click-to-filter: facets narrow the Sources list to the matching records ----
+let iFilter=null;
+function clearActiveFacet(box){ box.querySelectorAll(".ifacet.on").forEach(el=>el.classList.remove("on")); }
+function applyIFilter(box){
+  const srcBox=box.querySelector("#isrc"), banner=box.querySelector("#ifilter");
+  if(!srcBox||!banner) return;
+  if(!iFilter){ banner.hidden=true; banner.innerHTML=""; [...srcBox.children].forEach(a=>a.hidden=false); return; }
+  const set=new Set(iFilter.ids); let shown=0;
+  [...srcBox.children].forEach(a=>{ const on=set.has(a.dataset.id); a.hidden=!on; if(on) shown++; });
+  banner.hidden=false;
+  banner.innerHTML=`Showing <b>${shown}</b> of ${srcBox.children.length} records matching <b>${esc(iFilter.label)}</b> `+
+    `<button class="ichip" id="iclear">clear ✕</button>`;
+  banner.querySelector("#iclear").onclick=()=>{ iFilter=null; clearActiveFacet(box); applyIFilter(box); };
+}
+function wireFacets(box){
+  iFilter=null;                               // a fresh render clears any active filter
+  box.querySelectorAll(".ifacet").forEach(el=>{
+    el.onclick=()=>{
+      let ids; try{ ids=JSON.parse(el.getAttribute("data-ids")||"[]"); }catch(_){ ids=[]; }
+      const fv=el.getAttribute("data-facet")||"";
+      const label=fv.replace(/^(theme|company|area|source|term|phrase):/,"");
+      if(iFilter && iFilter.key===fv){ iFilter=null; clearActiveFacet(box); }
+      else { iFilter={key:fv, label, ids}; clearActiveFacet(box); el.classList.add("on"); }
+      applyIFilter(box);
+    };
+  });
 }
 
 async function runInsights(){
@@ -1817,7 +2070,9 @@ $("i_period").onchange=()=>{ if(iRecords.length) renderInsights(); else maybeAut
 $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
-window.OBN_INSIGHTS={iTokens,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,lexRankSummary,bm25Rank,countField,topN,normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
+window.OBN_INSIGHTS={iTokens,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,lexRankSummary,sentInfoBonus,bm25Rank,countField,topN,
+  iCoGraph,labelProp,themeClusters,risingTerms,notableEvents,monthlyVolume,
+  normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----
 const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent"};

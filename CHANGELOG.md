@@ -31,10 +31,30 @@ to follow [Semantic Versioning](https://semver.org/).
     over a graph of sentences linked by TF-IDF cosine similarity.
   - **BM25** (Robertson / Spärck Jones) ranks the source records by relevance to
     the subject (and picks the most on-topic records to summarize).
+  - **Emergent themes** — label-propagation community detection (Raghavan, Albert
+    & Kumara, 2007) on the term co-occurrence graph groups the records into labeled
+    sub-themes (top terms + record count), made fully deterministic (fixed visiting
+    order, lexicographic tie-breaks, capped iterations). Records are assigned to the
+    theme their salience-weighted terms favour.
+  - **Rising terms** — deterministic novelty/burst detection: terms whose share in
+    the highlighted window materially exceeds (or are entirely new vs.) the older
+    baseline, so "what's new" names the *themes that are accelerating*, not just a
+    raw record count.
+  - **Notable right now** — a deterministic, rule-based scan surfacing the
+    high-signal events analysts look for first — Class I/II recalls, Phase 3
+    (pivotal) trials, terminated/withdrawn/suspended trials, original (new) FDA
+    approvals and active drug shortages — ordered by severity, each cited.
+  - Richer **extractive summary**: LexRank centrality now carries an
+    informativeness prior (sentences with numbers, doses, %, money and
+    proper-noun entities rank up) and a near-duplicate guard, so the digest reads
+    like intelligence instead of boilerplate.
   - Counted **stats** — records by source, top companies, top therapeutic areas,
-    trial phases — plus a **"since last you checked"** highlight over a chosen
-    window (7 / 30 / 90 / 365 days) or everything new since your last visit. All
-    client-side, zero-dependency, shareable by URL.
+    trial phases — plus a pure-SVG **monthly-volume sparkline** and a **"since last
+    you checked"** highlight over a chosen window (7 / 30 / 90 / 365 days) or
+    everything new since your last visit.
+  - **Click-to-drill-in**: clicking a theme, company, therapeutic area, word-cloud
+    term or key phrase filters the Sources list to the matching records (with a
+    clear-filter banner). All client-side, zero-dependency, shareable by URL.
 - **Build-your-own topics (hosted page)** — a "+ New topic" builder on the
   watchlist bar: name a topic and give it a bundle of terms and companies (e.g.
   "My ADC competitors" → Seagen, Daiichi Sankyo, antibody-drug conjugate). Saved
