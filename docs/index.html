@@ -12,6 +12,7 @@
   :root{
     --bg:#eef6f4; --panel:#ffffff; --ink:#132321; --muted:#5b726e; --line:#d6e6e2;
     --accent:#0d9488; --accent2:#7c3aed; --chip:#e3efec; --tag:#f1ecfe; --tagink:#6d28d9;
+    --viz1:#2a78d6; --viz2:#eb6834; --viz3:#1baf7a;  /* muted categorical (validated, all-pairs) */
     --warn:#c2410c; --warnbg:#fff2e6; --crit:#b42318; --critbg:#fde8e6;
     --shadow:0 1px 2px rgba(6,60,55,.06),0 1px 3px rgba(6,60,55,.05);
     color-scheme:light dark;
@@ -20,6 +21,7 @@
     :root:not([data-theme="light"]){
       --bg:#0b1a18; --panel:#122320; --ink:#e6efec; --muted:#8aa39e; --line:#22403b;
       --accent:#2dd4bf; --accent2:#a78bfa; --chip:#183330; --tag:#241b3a; --tagink:#c4b5fd;
+      --viz1:#3987e5; --viz2:#d95926; --viz3:#199e70;  /* dark steps, validated all-pairs */
       --warn:#fdba74; --warnbg:#3a2412; --crit:#ff9d94; --critbg:#3a1e1c;
       --shadow:0 1px 2px rgba(0,0,0,.35); color-scheme:dark;
     }
@@ -27,6 +29,7 @@
   :root[data-theme="dark"]{
     --bg:#0b1a18; --panel:#122320; --ink:#e6efec; --muted:#8aa39e; --line:#22403b;
     --accent:#2dd4bf; --accent2:#a78bfa; --chip:#183330; --tag:#241b3a; --tagink:#c4b5fd;
+    --viz1:#3987e5; --viz2:#d95926; --viz3:#199e70;
     --warn:#fdba74; --warnbg:#3a2412; --crit:#ff9d94; --critbg:#3a1e1c; color-scheme:dark;
   }
   *{box-sizing:border-box}
@@ -158,8 +161,22 @@
   .istat .bar2.a2{background:var(--accent2)}
   .istat .cnt{color:var(--muted);font-variant-numeric:tabular-nums;min-width:2.2em;text-align:right}
   .icloud{line-height:2.1}
-  .cw{display:inline-block;margin:.12rem .32rem;color:var(--accent);font-weight:700}
+  .cw{display:inline-block;margin:.12rem .32rem;color:var(--muted);font-weight:700}
   .cw.a2{color:var(--accent2)}
+  /* theme colors (muted categorical) — top-3 emergent clusters tinted, rest muted */
+  .cw.tc0,.mapw.tc0{color:var(--viz1);fill:var(--viz1)}
+  .cw.tc1,.mapw.tc1{color:var(--viz2);fill:var(--viz2)}
+  .cw.tc2,.mapw.tc2{color:var(--viz3);fill:var(--viz3)}
+  .cw.tcx,.mapw.tcx{color:var(--muted);fill:var(--muted)}
+  /* 2D semantic map (PCA of term co-occurrence) */
+  .imap{width:100%;height:auto;display:block;margin:.2rem 0 .1rem;overflow:visible}
+  .mapw{font-weight:700;cursor:default;paint-order:stroke;stroke:var(--panel);stroke-width:2.4px}
+  .mapw.ifacet{cursor:pointer}
+  .mapw.on{text-decoration:underline;stroke-width:3px}
+  .mapcap{color:var(--muted);font-size:.74rem;margin:.1rem 0 .4rem}
+  .maplegend{display:flex;flex-wrap:wrap;gap:.1rem .9rem;margin:.2rem 0 0;font-size:.8rem;color:var(--muted)}
+  .mlg{display:inline-flex;align-items:center;gap:.35rem}
+  .mlg i{width:.7rem;height:.7rem;border-radius:3px;flex:0 0 auto;display:inline-block}
   .kphrase{display:inline-block;background:var(--tag);color:var(--tagink);border-radius:6px;padding:.15rem .5rem;
     margin:.15rem .2rem;font-size:.82rem;font-weight:600}
   .kphrase b{opacity:.55;font-weight:700;margin-left:.15rem}
@@ -1811,7 +1828,7 @@ function themeClusters(records, docTokens, opts){
     const terms=[...tf.entries()].sort((a,b)=>b[1]-a[1]||(pr.get(b[0])||0)-(pr.get(a[0])||0)||a[0].localeCompare(b[0]))
       .slice(0,maxTerms).map(x=>x[0]);
     if(!terms.length) continue;
-    clusters.push({label:terms.join(" · "), terms, recIdxs:ris.slice().sort((a,b)=>a-b), count:ris.length});
+    clusters.push({label:terms.join(" · "), terms, recIdxs:ris.slice().sort((a,b)=>a-b), count:ris.length, commId:c});
   }
   clusters.sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label));
   return clusters.slice(0,maxClusters);
@@ -1865,6 +1882,78 @@ function monthlyVolume(records){
   const m=new Map();
   for(const r of records){ const ym=(r.date||"").slice(0,7); if(/^\d{4}-\d{2}$/.test(ym)) m.set(ym,(m.get(ym)||0)+1); }
   return [...m.entries()].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
+}
+// Which co-occurrence community each term belongs to (same labelProp the themes
+// use, so map colors match the Emergent-themes card). Returns Map(term->commId).
+function termCommunities(docTokens){
+  const {nodes,adj}=iCoGraph(docTokens,4);
+  if(!nodes.length) return new Map();
+  return labelProp(nodes, adj, 25);
+}
+// ---- 2D semantic map: PCA of the term co-occurrence (PPMI) matrix ----
+// Classical linear dimensionality reduction (deterministic power iteration +
+// deflation, fixed init and iterations) projects each term's co-occurrence vector
+// to 2D, so terms that co-occur sit near each other. Returns Map(term->{x,y}) in
+// [0,1], or null if the data is too sparse/degenerate to place (caller falls back
+// to a flat cloud). No LLM, no embeddings file — the "map" is computed from the
+// records on screen.
+function pcaLayout(vocab, docTokens){
+  const n=vocab.length; if(n<4) return null;
+  const idx=new Map(vocab.map((w,i)=>[w,i]));
+  const M=Array.from({length:n},()=>new Float64Array(n)), WIN=4;
+  for(const toks of docTokens) for(let i=0;i<toks.length;i++){ const a=idx.get(toks[i]); if(a==null) continue;
+    for(let j=i+1;j<Math.min(toks.length,i+WIN);j++){ const b=idx.get(toks[j]); if(b==null||b===a) continue; M[a][b]++; M[b][a]++; } }
+  const row=new Float64Array(n); let total=0;
+  for(let i=0;i<n;i++){ let s=0; for(let j=0;j<n;j++) s+=M[i][j]; row[i]=s; total+=s; }
+  if(total<=0) return null;
+  // PPMI, then mean-center columns
+  const X=Array.from({length:n},()=>new Float64Array(n));
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++) if(M[i][j]>0 && row[i]>0 && row[j]>0){ const v=Math.log((M[i][j]*total)/(row[i]*row[j])); if(v>0) X[i][j]=v; }
+  for(let j=0;j<n;j++){ let m=0; for(let i=0;i<n;i++) m+=X[i][j]; m/=n; for(let i=0;i<n;i++) X[i][j]-=m; }
+  // covariance C = X^T X
+  const C=Array.from({length:n},()=>new Float64Array(n));
+  for(let i=0;i<n;i++) for(let k=i;k<n;k++){ let s=0; for(let r=0;r<n;r++) s+=X[r][i]*X[r][k]; C[i][k]=s; C[k][i]=s; }
+  const power=(Cm)=>{ // deterministic asymmetric seed — a uniform seed can sit exactly
+    // orthogonal to the top eigenvector (symmetric block structure) and never find it.
+    let v=new Float64Array(n); for(let i=0;i<n;i++) v[i]=Math.sin(i+1);
+    { let s=0; for(let i=0;i<n;i++) s+=v[i]*v[i]; s=Math.sqrt(s)||1; for(let i=0;i<n;i++) v[i]/=s; }
+    for(let it=0;it<120;it++){ const w=new Float64Array(n);
+      for(let i=0;i<n;i++){ let s=0; const Ci=Cm[i]; for(let k=0;k<n;k++) s+=Ci[k]*v[k]; w[i]=s; }
+      let nm=0; for(let i=0;i<n;i++) nm+=w[i]*w[i]; nm=Math.sqrt(nm); if(nm<1e-12) return {vec:v,val:0};
+      for(let i=0;i<n;i++) w[i]/=nm; v=w; }
+    let val=0; for(let i=0;i<n;i++){ let s=0; for(let k=0;k<n;k++) s+=Cm[i][k]*v[k]; val+=v[i]*s; } return {vec:v,val}; };
+  const e1=power(C); if(e1.val<=1e-9) return null;
+  const C2=Array.from({length:n},()=>new Float64Array(n));
+  for(let i=0;i<n;i++) for(let k=0;k<n;k++) C2[i][k]=C[i][k]-e1.val*e1.vec[i]*e1.vec[k];
+  const e2=power(C2);
+  const px=new Float64Array(n), py=new Float64Array(n);
+  for(let i=0;i<n;i++){ let a=0,b=0; for(let k=0;k<n;k++){ a+=X[i][k]*e1.vec[k]; b+=X[i][k]*e2.vec[k]; } px[i]=a; py[i]=b; }
+  const fixSign=arr=>{ let mi=0; for(let i=1;i<n;i++) if(Math.abs(arr[i])>Math.abs(arr[mi])) mi=i; if(arr[mi]<0) for(let i=0;i<n;i++) arr[i]=-arr[i]; };
+  fixSign(px); fixSign(py);
+  const norm01=arr=>{ let lo=Infinity,hi=-Infinity; for(const v of arr){ if(v<lo)lo=v; if(v>hi)hi=v; } const d=hi-lo; return arr.map(v=> d>1e-9?(v-lo)/d:0.5); };
+  const nx=norm01(px), ny=norm01(py);
+  const out=new Map(); for(let i=0;i<n;i++) out.set(vocab[i],{x:nx[i], y:ny[i]});
+  return out;
+}
+// Deterministic bounding-box de-overlap (a few separation passes) so the mapped
+// labels stay legible without destroying the PCA geometry. Mutates node x/y.
+function separateBoxes(nodes, W, H, pad, iters){
+  iters=iters||90;
+  for(let it=0; it<iters; it++){ let moved=false;
+    for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
+      const a=nodes[i], b=nodes[j]; let dx=b.x-a.x, dy=b.y-a.y;
+      const ox=(a.w+b.w)/2 - Math.abs(dx), oy=(a.h+b.h)/2 - Math.abs(dy);
+      if(ox>0 && oy>0){
+        if(ox<=oy){ const s=((dx<0?-1:1)*ox)/2; a.x-=s; b.x+=s; }
+        else { const s=((dy<0?-1:1)*oy)/2; a.y-=s; b.y+=s; }
+        moved=true;
+      }
+    }
+    for(const nd of nodes){ nd.x=Math.max(pad+nd.w/2, Math.min(W-pad-nd.w/2, nd.x));
+      nd.y=Math.max(pad+nd.h/2, Math.min(H-pad-nd.h/2, nd.y)); }
+    if(!moved) break;
+  }
+  return nodes;
 }
 
 // "since last you checked" — a chosen window, or everything unseen since last visit.
@@ -2004,8 +2093,34 @@ function renderInsights(){
   const cloud=textRankTerms(docTokens,40);
   if(cloud.length){
     const maxF=cloud[0][1]||1;
-    html+=`<div class="icard icloud"><h3>Word cloud — TextRank salience <span class="ihint">click to filter</span></h3>`+
-      cloud.map(([w,s],i)=>`<span class="cw ifacet${i%3===0?" a2":""}" data-facet="term:${escA(w)}" data-ids="${escA(JSON.stringify(idsForTerm(w)))}" style="font-size:${(0.82+1.9*Math.sqrt(s/maxF)).toFixed(2)}rem" title="${(freq.get(w)||0)}× in these records">${esc(w)}</span>`).join("")+`</div>`;
+    // color = emergent theme (muted): the 3 largest clusters get the validated
+    // blue/orange/aqua, everything else stays muted ink — so the cloud reads calm.
+    const labelMap=termCommunities(docTokens);
+    const top3=clusters.slice(0,3).map(c=>c.commId);
+    const colorClass=w=>{ const c=labelMap.get(w); const k=(c==null)?-1:top3.indexOf(c); return k>=0?("tc"+k):"tcx"; };
+    const legend=clusters.slice(0,3).map((c,i)=>`<span class="mlg"><i style="background:var(--viz${i+1})"></i>${esc(c.label)}</span>`).join("")+
+      `<span class="mlg"><i style="background:var(--muted)"></i>other</span>`;
+    // 2D semantic map: PCA of the term co-occurrence matrix (proximity ≈ co-occurrence).
+    const vocab=cloud.slice(0,30), layout=pcaLayout(vocab.map(c=>c[0]), docTokens);
+    if(layout){
+      const W=760,H=430,pad=46;
+      const nodes=vocab.map(([w,s])=>{ const sz=10+16*Math.sqrt(s/maxF); const p=layout.get(w);
+        return {w2:w, size:sz, x:pad+p.x*(W-2*pad), y:pad+p.y*(H-2*pad), w:Math.max(w.length*sz*0.56,sz), h:sz*1.05}; });
+      separateBoxes(nodes, W, H, pad, 90);
+      const texts=nodes.map(nd=>`<text class="mapw ifacet ${colorClass(nd.w2)}" x="${nd.x.toFixed(1)}" y="${nd.y.toFixed(1)}" `+
+        `font-size="${nd.size.toFixed(1)}" text-anchor="middle" dominant-baseline="central" `+
+        `data-facet="term:${escA(nd.w2)}" data-ids="${escA(JSON.stringify(idsForTerm(nd.w2)))}">`+
+        `<title>${esc(nd.w2)} — ${(freq.get(nd.w2)||0)}× in these records</title>${esc(nd.w2)}</text>`).join("");
+      html+=`<div class="icard"><h3>Word map — terms by theme <span class="ihint">click to filter</span></h3>`+
+        `<svg class="imap" viewBox="0 0 ${W} ${H}" role="img" aria-label="Semantic map of the most salient terms, positioned by co-occurrence and colored by theme">${texts}</svg>`+
+        `<div class="mapcap">Proximity ≈ co-occurrence (PCA of the term co-occurrence matrix) · size = TextRank salience · color = emergent theme</div>`+
+        `<div class="maplegend">${legend}</div></div>`;
+    } else {
+      // fallback: flat cloud, recolored by theme (still muted)
+      html+=`<div class="icard icloud"><h3>Word cloud — TextRank salience <span class="ihint">click to filter</span></h3>`+
+        cloud.map(([w,s])=>`<span class="cw ifacet ${colorClass(w)}" data-facet="term:${escA(w)}" data-ids="${escA(JSON.stringify(idsForTerm(w)))}" style="font-size:${(0.82+1.9*Math.sqrt(s/maxF)).toFixed(2)}rem" title="${(freq.get(w)||0)}× in these records">${esc(w)}</span>`).join("")+
+        `<div class="maplegend" style="margin-top:.4rem">${legend}</div></div>`;
+    }
   }
   const phrases=yakeKeyphrases(recs, stop, 12);
   if(phrases.length)
@@ -2071,7 +2186,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,lexRankSummary,sentInfoBonus,bm25Rank,countField,topN,
-  iCoGraph,labelProp,themeClusters,risingTerms,notableEvents,monthlyVolume,
+  iCoGraph,labelProp,themeClusters,termCommunities,risingTerms,notableEvents,monthlyVolume,pcaLayout,separateBoxes,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----
