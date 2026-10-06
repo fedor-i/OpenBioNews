@@ -25,14 +25,13 @@ to follow [Semantic Versioning](https://semver.org/).
   listed beneath (each cited to its source):
   - **TextRank** (Mihalcea & Tarau, 2004) ranks terms by centrality in a word
     co-occurrence graph — term salience, sized (not raw count) in the word map.
-  - **2D word map** — instead of a flat tag cloud, the salient terms are laid out
-    by a deterministic **PCA projection of their co-occurrence matrix** (PPMI →
-    power-iteration PCA), so terms that co-occur sit near each other, with a light
-    box-separation pass for legibility. Terms are **colored by emergent theme**
+  - **Packed word cloud** — a deterministic Wordle-style spiral layout (largest
+    term first, each spiralling out until it clears the placed words; ~a quarter
+    set vertical; text measured with canvas `measureText`), rendered as pure SVG.
+    Terms are **sized by TextRank salience** and **colored by emergent theme**
     using a muted, colorblind-validated categorical palette (the three largest
-    clusters tinted, everything else muted) — a calmer, more informative cloud.
-    Falls back to a flat (still theme-colored) cloud when the projection is too
-    sparse to place.
+    clusters tinted, everything else muted) — so the cloud reads calm and the
+    colour carries meaning. Click a term to filter the sources.
   - **YAKE!** (Campos et al., 2020) extracts the **key phrases** (unsupervised,
     statistical; casing + position + frequency + dispersion + context).
   - **LexRank** (Erkan & Radev, 2004) builds the **extractive summary** by PageRank

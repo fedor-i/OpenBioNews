@@ -1890,70 +1890,37 @@ function termCommunities(docTokens){
   if(!nodes.length) return new Map();
   return labelProp(nodes, adj, 25);
 }
-// ---- 2D semantic map: PCA of the term co-occurrence (PPMI) matrix ----
-// Classical linear dimensionality reduction (deterministic power iteration +
-// deflation, fixed init and iterations) projects each term's co-occurrence vector
-// to 2D, so terms that co-occur sit near each other. Returns Map(term->{x,y}) in
-// [0,1], or null if the data is too sparse/degenerate to place (caller falls back
-// to a flat cloud). No LLM, no embeddings file — the "map" is computed from the
-// records on screen.
-function pcaLayout(vocab, docTokens){
-  const n=vocab.length; if(n<4) return null;
-  const idx=new Map(vocab.map((w,i)=>[w,i]));
-  const M=Array.from({length:n},()=>new Float64Array(n)), WIN=4;
-  for(const toks of docTokens) for(let i=0;i<toks.length;i++){ const a=idx.get(toks[i]); if(a==null) continue;
-    for(let j=i+1;j<Math.min(toks.length,i+WIN);j++){ const b=idx.get(toks[j]); if(b==null||b===a) continue; M[a][b]++; M[b][a]++; } }
-  const row=new Float64Array(n); let total=0;
-  for(let i=0;i<n;i++){ let s=0; for(let j=0;j<n;j++) s+=M[i][j]; row[i]=s; total+=s; }
-  if(total<=0) return null;
-  // PPMI, then mean-center columns
-  const X=Array.from({length:n},()=>new Float64Array(n));
-  for(let i=0;i<n;i++) for(let j=0;j<n;j++) if(M[i][j]>0 && row[i]>0 && row[j]>0){ const v=Math.log((M[i][j]*total)/(row[i]*row[j])); if(v>0) X[i][j]=v; }
-  for(let j=0;j<n;j++){ let m=0; for(let i=0;i<n;i++) m+=X[i][j]; m/=n; for(let i=0;i<n;i++) X[i][j]-=m; }
-  // covariance C = X^T X
-  const C=Array.from({length:n},()=>new Float64Array(n));
-  for(let i=0;i<n;i++) for(let k=i;k<n;k++){ let s=0; for(let r=0;r<n;r++) s+=X[r][i]*X[r][k]; C[i][k]=s; C[k][i]=s; }
-  const power=(Cm)=>{ // deterministic asymmetric seed — a uniform seed can sit exactly
-    // orthogonal to the top eigenvector (symmetric block structure) and never find it.
-    let v=new Float64Array(n); for(let i=0;i<n;i++) v[i]=Math.sin(i+1);
-    { let s=0; for(let i=0;i<n;i++) s+=v[i]*v[i]; s=Math.sqrt(s)||1; for(let i=0;i<n;i++) v[i]/=s; }
-    for(let it=0;it<120;it++){ const w=new Float64Array(n);
-      for(let i=0;i<n;i++){ let s=0; const Ci=Cm[i]; for(let k=0;k<n;k++) s+=Ci[k]*v[k]; w[i]=s; }
-      let nm=0; for(let i=0;i<n;i++) nm+=w[i]*w[i]; nm=Math.sqrt(nm); if(nm<1e-12) return {vec:v,val:0};
-      for(let i=0;i<n;i++) w[i]/=nm; v=w; }
-    let val=0; for(let i=0;i<n;i++){ let s=0; for(let k=0;k<n;k++) s+=Cm[i][k]*v[k]; val+=v[i]*s; } return {vec:v,val}; };
-  const e1=power(C); if(e1.val<=1e-9) return null;
-  const C2=Array.from({length:n},()=>new Float64Array(n));
-  for(let i=0;i<n;i++) for(let k=0;k<n;k++) C2[i][k]=C[i][k]-e1.val*e1.vec[i]*e1.vec[k];
-  const e2=power(C2);
-  const px=new Float64Array(n), py=new Float64Array(n);
-  for(let i=0;i<n;i++){ let a=0,b=0; for(let k=0;k<n;k++){ a+=X[i][k]*e1.vec[k]; b+=X[i][k]*e2.vec[k]; } px[i]=a; py[i]=b; }
-  const fixSign=arr=>{ let mi=0; for(let i=1;i<n;i++) if(Math.abs(arr[i])>Math.abs(arr[mi])) mi=i; if(arr[mi]<0) for(let i=0;i<n;i++) arr[i]=-arr[i]; };
-  fixSign(px); fixSign(py);
-  const norm01=arr=>{ let lo=Infinity,hi=-Infinity; for(const v of arr){ if(v<lo)lo=v; if(v>hi)hi=v; } const d=hi-lo; return arr.map(v=> d>1e-9?(v-lo)/d:0.5); };
-  const nx=norm01(px), ny=norm01(py);
-  const out=new Map(); for(let i=0;i<n;i++) out.set(vocab[i],{x:nx[i], y:ny[i]});
-  return out;
-}
-// Deterministic bounding-box de-overlap (a few separation passes) so the mapped
-// labels stay legible without destroying the PCA geometry. Mutates node x/y.
-function separateBoxes(nodes, W, H, pad, iters){
-  iters=iters||90;
-  for(let it=0; it<iters; it++){ let moved=false;
-    for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
-      const a=nodes[i], b=nodes[j]; let dx=b.x-a.x, dy=b.y-a.y;
-      const ox=(a.w+b.w)/2 - Math.abs(dx), oy=(a.h+b.h)/2 - Math.abs(dy);
-      if(ox>0 && oy>0){
-        if(ox<=oy){ const s=((dx<0?-1:1)*ox)/2; a.x-=s; b.x+=s; }
-        else { const s=((dy<0?-1:1)*oy)/2; a.y-=s; b.y+=s; }
-        moved=true;
-      }
+// ---- packed word cloud (Wordle-style spiral layout) ----
+// Place the salient terms largest-first along an Archimedean spiral from the
+// centre, each moving outward until it no longer overlaps a placed word — the
+// classic dense word-cloud packing, with ~a quarter of the words set vertical.
+// Fully deterministic: fixed order, a stable string hash picks rotation, and text
+// is measured with canvas measureText (stable for a given font). Returns the
+// placed words + viewBox bounds, or null if there's nothing to place.
+function wordleLayout(entries){
+  if(!entries.length) return null;
+  const maxS=entries[0][1]||1, minS=entries[entries.length-1][1]||0, PAD=3;
+  const ctx=document.createElement("canvas").getContext("2d");
+  const fontOf=px=>`700 ${px}px system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif`;
+  const sizeOf=s=>{ const t=(maxS===minS)?1:(s-minS)/(maxS-minS); return Math.round(14+46*Math.sqrt(Math.max(0,t))); };
+  const hash=str=>{ let h=2166136261; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; };
+  const placed=[], words=[];
+  entries.forEach(([term,s],i)=>{
+    const fs=sizeOf(s); ctx.font=fontOf(fs);
+    const tw=ctx.measureText(term).width, th=fs;
+    const rot=(i>=2) && (hash(term)%7<2);                       // ~28% vertical; keep the 2 biggest horizontal
+    const bw=(rot?th:tw)+PAD*2, bh=(rot?tw:th)+PAD*2;
+    let x=0,y=0;
+    for(let step=0; step<4000; step++){
+      const t=0.22*step; x=t*Math.cos(t); y=t*Math.sin(t)*0.62; // flattened spiral — clouds read wider than tall
+      if(!placed.some(p=> Math.abs(x-p.x)<(bw+p.bw)/2 && Math.abs(y-p.y)<(bh+p.bh)/2)) break;
     }
-    for(const nd of nodes){ nd.x=Math.max(pad+nd.w/2, Math.min(W-pad-nd.w/2, nd.x));
-      nd.y=Math.max(pad+nd.h/2, Math.min(H-pad-nd.h/2, nd.y)); }
-    if(!moved) break;
-  }
-  return nodes;
+    placed.push({x,y,bw,bh}); words.push({term, size:fs, rot, x, y, bw, bh});
+  });
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const w of words){ minX=Math.min(minX,w.x-w.bw/2); maxX=Math.max(maxX,w.x+w.bw/2);
+    minY=Math.min(minY,w.y-w.bh/2); maxY=Math.max(maxY,w.y+w.bh/2); }
+  return {words, minX, minY, W:maxX-minX, H:maxY-minY};
 }
 
 // "since last you checked" — a chosen window, or everything unseen since last visit.
@@ -2100,20 +2067,17 @@ function renderInsights(){
     const colorClass=w=>{ const c=labelMap.get(w); const k=(c==null)?-1:top3.indexOf(c); return k>=0?("tc"+k):"tcx"; };
     const legend=clusters.slice(0,3).map((c,i)=>`<span class="mlg"><i style="background:var(--viz${i+1})"></i>${esc(c.label)}</span>`).join("")+
       `<span class="mlg"><i style="background:var(--muted)"></i>other</span>`;
-    // 2D semantic map: PCA of the term co-occurrence matrix (proximity ≈ co-occurrence).
-    const vocab=cloud.slice(0,30), layout=pcaLayout(vocab.map(c=>c[0]), docTokens);
+    // packed word cloud: spiral layout, sized by salience, colored by theme
+    const layout=wordleLayout(cloud.slice(0,45));
     if(layout){
-      const W=760,H=430,pad=46;
-      const nodes=vocab.map(([w,s])=>{ const sz=10+16*Math.sqrt(s/maxF); const p=layout.get(w);
-        return {w2:w, size:sz, x:pad+p.x*(W-2*pad), y:pad+p.y*(H-2*pad), w:Math.max(w.length*sz*0.56,sz), h:sz*1.05}; });
-      separateBoxes(nodes, W, H, pad, 90);
-      const texts=nodes.map(nd=>`<text class="mapw ifacet ${colorClass(nd.w2)}" x="${nd.x.toFixed(1)}" y="${nd.y.toFixed(1)}" `+
-        `font-size="${nd.size.toFixed(1)}" text-anchor="middle" dominant-baseline="central" `+
-        `data-facet="term:${escA(nd.w2)}" data-ids="${escA(JSON.stringify(idsForTerm(nd.w2)))}">`+
-        `<title>${esc(nd.w2)} — ${(freq.get(nd.w2)||0)}× in these records</title>${esc(nd.w2)}</text>`).join("");
-      html+=`<div class="icard"><h3>Word map — terms by theme <span class="ihint">click to filter</span></h3>`+
-        `<svg class="imap" viewBox="0 0 ${W} ${H}" role="img" aria-label="Semantic map of the most salient terms, positioned by co-occurrence and colored by theme">${texts}</svg>`+
-        `<div class="mapcap">Proximity ≈ co-occurrence (PCA of the term co-occurrence matrix) · size = TextRank salience · color = emergent theme</div>`+
+      const vb=`${(layout.minX-6).toFixed(1)} ${(layout.minY-6).toFixed(1)} ${(layout.W+12).toFixed(1)} ${(layout.H+12).toFixed(1)}`;
+      const texts=layout.words.map(w=>`<text class="mapw ifacet ${colorClass(w.term)}" x="${w.x.toFixed(1)}" y="${w.y.toFixed(1)}" `+
+        `font-size="${w.size}" text-anchor="middle" dominant-baseline="central"${w.rot?` transform="rotate(-90 ${w.x.toFixed(1)} ${w.y.toFixed(1)})"`:""} `+
+        `data-facet="term:${escA(w.term)}" data-ids="${escA(JSON.stringify(idsForTerm(w.term)))}">`+
+        `<title>${esc(w.term)} — ${(freq.get(w.term)||0)}× in these records</title>${esc(w.term)}</text>`).join("");
+      html+=`<div class="icard"><h3>Word cloud — terms by theme <span class="ihint">click to filter</span></h3>`+
+        `<svg class="imap" viewBox="${vb}" role="img" aria-label="Packed word cloud of the most salient terms, sized by salience and colored by theme">${texts}</svg>`+
+        `<div class="mapcap">size = TextRank salience · color = emergent theme</div>`+
         `<div class="maplegend">${legend}</div></div>`;
     } else {
       // fallback: flat cloud, recolored by theme (still muted)
@@ -2186,7 +2150,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,lexRankSummary,sentInfoBonus,bm25Rank,countField,topN,
-  iCoGraph,labelProp,themeClusters,termCommunities,risingTerms,notableEvents,monthlyVolume,pcaLayout,separateBoxes,
+  iCoGraph,labelProp,themeClusters,termCommunities,risingTerms,notableEvents,monthlyVolume,wordleLayout,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----
