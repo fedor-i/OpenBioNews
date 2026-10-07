@@ -51,10 +51,17 @@ to follow [Semantic Versioning](https://semver.org/).
     high-signal events analysts look for first — Class I/II recalls, Phase 3
     (pivotal) trials, terminated/withdrawn/suspended trials, original (new) FDA
     approvals and active drug shortages — ordered by severity, each cited.
-  - Richer **extractive summary**: LexRank centrality now carries an
-    informativeness prior (sentences with numbers, doses, %, money and
-    proper-noun entities rank up) and a near-duplicate guard, so the digest reads
-    like intelligence instead of boilerplate.
+  - **Key excerpts** (renamed from "extractive summary"): LexRank centrality now
+    carries an informativeness prior (sentences with numbers, doses, %, money,
+    proper-noun entities and entity-led openers rank up) and a near-duplicate
+    guard. Relabeled "key excerpts · representative sentences (verbatim)" to set
+    honest expectations — these are real sentences lifted from the records, not
+    generated prose. Each excerpt now cites a **distinct numbered source** with a
+    source key beneath (previously every marker rendered as "1").
+  - **Noun-ish term filtering**: the word cloud and key phrases now drop common
+    verbs, adverbs and adjectives (a deterministic heuristic stoplist — no POS
+    model), keeping dual-use domain nouns (target, screen, guide, support,
+    vector), so the terms read as concepts rather than sentence fragments.
   - Counted **stats** — records by source, top companies, top therapeutic areas,
     trial phases — plus a pure-SVG **monthly-volume sparkline** and a **"since last
     you checked"** highlight over a chosen window (7 / 30 / 90 / 365 days) or

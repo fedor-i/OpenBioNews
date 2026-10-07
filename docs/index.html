@@ -151,6 +151,9 @@
   .ilabel{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:.5rem 0 .1rem;font-weight:700}
   .idigest{margin:.15rem 0 0;padding-left:1.1rem}
   .idigest li{margin:.35rem 0;font-size:.95rem}
+  .idigest-src{color:var(--muted);font-size:.78rem;margin:.3rem 0 .1rem;display:flex;flex-wrap:wrap;gap:.1rem .9rem}
+  .idigest-src a{color:var(--accent);text-decoration:none}.idigest-src a:hover{text-decoration:underline}
+  .idigest-src b{color:var(--ink);font-variant-numeric:tabular-nums}
   .imethods{color:var(--muted);font-size:.73rem;margin-top:.6rem;border-top:1px dashed var(--line);padding-top:.5rem}
   .istats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.7rem;margin:.6rem 0}
   .icard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.85rem 1rem;box-shadow:var(--shadow)}
@@ -1498,7 +1501,20 @@ const I_STOP = new Set(("a an and or the of to in for on at by from with without
   "report reports recall recalled recalls approval approved approvals supplement supplemental filing filings form forms "+
   "current resolved ongoing completed terminated status reason firm dose doses daily data results result received "+
   "evaluate evaluation assess assessment efficacy safety open label randomized placebo controlled multicenter versus "+
-  "fda openfda sec edgar lot lots one two three four five numbers number day days week weeks month months year years").split(/\s+/).filter(Boolean));
+  "fda openfda sec edgar lot lots one two three four five numbers number day days week weeks month months year years "+
+  // non-noun filter (heuristic, no POS tagger): common verbs/adverbs/adjectives so the
+  // cloud & key phrases stay noun-ish. Dual-use domain nouns (target, screen, guide,
+  // support, link, vector) are deliberately kept.
+  "accelerate accelerates accelerated accelerating predict predicts predicted predicting improve improves improved improving "+
+  "correct corrects corrected correcting deliver delivers delivered delivering applies applied applying propose proposes proposed proposing "+
+  "provide provides provided providing demonstrate demonstrates demonstrated reduce reduces reduced reducing increase increases increased increasing "+
+  "enable enables enabled enabling modify modifies modified inhibit inhibits inhibited induce induces induced flag flagged flags "+
+  "identify identifies identified rank ranks ranked screen screens screened repaired repairs repairing guided guides generate generates generated "+
+  "durably quickly rapidly significantly potentially respectively clinically directly notably approximately previously currently recently relatively "+
+  "primarily largely mainly generally specifically particularly additionally however therefore moreover furthermore "+
+  "novel significant potential conventional various multiple different similar additional specific effective initial substantial considerable "+
+  "numerous several major minor broad robust promising preliminary faster able likely "+
+  "produce produces produced producing halt halts halted stop stops stopped continuous continuously worth million billion").split(/\s+/).filter(Boolean));
 
 let iRecords = [], iErrors = [], iSubjectLabel = "", iBusy = false;
 
@@ -1741,6 +1757,9 @@ function sentInfoBonus(s){
   if(/\b(phase|primary endpoint|fda|approval|recall|pivotal|breakthrough|orphan)\b/i.test(s)) b+=0.20;
   const ents=(s.slice(1).match(/(?<=\s)[A-Z][A-Za-z]{2,}/g)||[]).length;  // mid-sentence proper nouns
   b+=Math.min(ents,4)*0.07;
+  // prefer self-contained, entity-led openers over vague "The <generic> …" fragments
+  const first=(s.match(/^[A-Za-z]+/)||[""])[0];
+  if(/^[A-Z][a-z]+$/.test(first) && !/^(The|This|That|These|Those|A|An|It|Its|We|They|In|On|For|As|After|During|Both|Each|Here|There|Such)$/.test(first)) b+=0.18;
   return b;
 }
 function lexRankSummary(records, stop, k){
@@ -2010,8 +2029,10 @@ function renderInsights(){
   if(spark) html+=`<div class="ispark-row"><span class="isl">records/month</span>${spark}`+
     `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`;
   if(summ.length)
-    html+=`<div class="ilabel">Extractive summary · LexRank</div>`+
-      `<ul class="idigest">`+summ.map(c=>`<li>${citeSentences(clip(c.s,260),c.rec.url,I_AG[c.rec.agency]||"Source")}</li>`).join("")+`</ul>`;
+    html+=`<div class="ilabel">Key excerpts · representative sentences (verbatim)</div>`+
+      `<ul class="idigest">`+summ.map((c,i)=>{ const lbl=(I_AG[c.rec.agency]||"Source")+(c.rec.company?" · "+c.rec.company:"");
+        return `<li>${esc(clip(c.s,260))} <sup class="cite"><a href="${esc(c.rec.url)}" target="_blank" rel="noopener noreferrer" title="${escA(lbl)}">${i+1}</a></sup></li>`; }).join("")+`</ul>`+
+      `<div class="idigest-src">`+summ.map((c,i)=>`<span><b>${i+1}</b> <a href="${esc(c.rec.url)}" target="_blank" rel="noopener noreferrer">${esc(I_AG[c.rec.agency]||"Source")}</a>${c.rec.company?" · "+esc(clip(c.rec.company,28)):""}</span>`).join("")+`</div>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
   html+=`<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>LexRank</b> summary · <b>BM25</b> ranking · <b>label-propagation</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
     `</div>`;
