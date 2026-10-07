@@ -601,8 +601,10 @@ function esc(s){ const d=document.createElement("div"); d.textContent=s==null?""
 function escA(s){ return esc(s).replace(/"/g,"&quot;"); }   // attribute-safe (esc skips quotes)
 function clip(s,n){ s=s||""; return s.length>n ? s.slice(0,n).replace(/\s+\S*$/,"")+"…" : s; }
 // Per-sentence citations: bind every sentence of a description to the record it
-// came from. Deterministic — the text is verbatim from the source, so there is
-// nothing to hallucinate. One source per card, so all markers share number 1.
+// came from. Deterministic — the text is verbatim from the source. Each card cites
+// exactly one source; markers render "1" at build time and are renumbered to the
+// card's position in its list afterwards (see renumberCites), so the page reads as
+// a numbered reference list instead of a wall of "1".
 function citeSentences(text, url, label){
   const t=(text||"").trim();
   if(!t) return "";
@@ -610,6 +612,19 @@ function citeSentences(text, url, label){
   const sup=`<sup class="cite"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${esc(label)}">1</a></sup>`;
   return parts.map(p=>esc(p.trim())+sup).join(" ");
 }
+// Renumber every citation marker in a list so references run 1..N by item order —
+// all markers inside one item share that item's number (one source per card). A
+// marker may be a bare <sup class="cite">1</sup> or wrap a link; set the leaf text.
+function renumberCites(container, itemSel){
+  if(!container) return;
+  let n=0;
+  container.querySelectorAll(itemSel||":scope > article").forEach(item=>{ n++;
+    item.querySelectorAll("sup.cite").forEach(sup=>{ const a=sup.querySelector("a"); if(a) a.textContent=n; else sup.textContent=String(n); });
+  });
+}
+// Renumber the main results list on any append (manual search, watchlist, Load more).
+// Watches direct children only; our own text edits are deeper, so no feedback loop.
+new MutationObserver(()=>renumberCites($("results"))).observe($("results"), {childList:true});
 function fmtFdaDate(d){ return (d&&d.length===8)?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:d||""; }
 function prettyStatus(s){ return s ? s.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()) : ""; }
 function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&p!=="NA").map(p=>p.replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase ")).join("/"); }
@@ -2079,6 +2094,8 @@ function renderInsights(){
   recs.map((r,i)=>({r,i,isNew:recentFlags[i]}))
     .sort((a,b)=>(b.isNew-a.isNew) || ((bmScore.get(b.i)||0)-(bmScore.get(a.i)||0)) || (b.r.date||"").localeCompare(a.r.date||""))
     .forEach(o=>srcBox.appendChild(iCard(o.r, o.isNew)));
+  renumberCites(srcBox);                                   // Sources: references 1..N by order
+  const nb=box.querySelector(".inotable"); if(nb) renumberCites(nb, ".ievent");  // Notable: one number per event
   wireFacets(box);
 }
 // ---- click-to-filter: facets narrow the Sources list to the matching records ----

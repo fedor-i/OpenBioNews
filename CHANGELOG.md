@@ -61,6 +61,10 @@ to follow [Semantic Versioning](https://semver.org/).
     trial phases — plus a pure-SVG **monthly-volume sparkline** and a **"since last
     you checked"** highlight over a chosen window (7 / 30 / 90 / 365 days) or
     everything new since your last visit.
+  - **Numbered citations across every list**: each card (and each Notable event)
+    now carries a sequential reference number — markers run 1..N by position, and
+    a card's inline markers match its source line — instead of every marker
+    rendering as "1".
   - **Click-to-drill-in**: clicking a theme, company, therapeutic area, word-cloud
     term or key phrase filters the Sources list to the matching records (with a
     clear-filter banner). All client-side, zero-dependency, shareable by URL.
