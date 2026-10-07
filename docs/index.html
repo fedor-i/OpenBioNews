@@ -1535,7 +1535,15 @@ const I_STOP = new Set(("a an and or the of to in for on at by from with without
   "does how who whom why what when where will enrolled enrollment eligible cohort cohorts arm arms visit visits "+
   "baseline assessment procedure procedures questionnaire survey measure measures compare comparison investigate "+
   "examine understand explore sample population healthy volunteer volunteers usual routine quality function ability "+
-  "score scores rate rates level levels benefit benefits people consent participation aimed goal goals").split(/\s+/).filter(Boolean));
+  "score scores rate rates level levels benefit benefits people consent participation aimed goal goals "+
+  // more generic research / connective / trial-structure words seen leaking on live data
+  "associated association related relationship role effect effects impact impacts result finding findings evidence "+
+  "approach approaches method methods methodology analysis analyses design designs setting settings background rationale "+
+  "purpose hypothesis hypotheses conclusion conclusions discussion introduction summary context among across toward towards "+
+  "inclusion exclusion criteria blinded crossover comparator control active sham regimen administration route schedule "+
+  "duration period washout tolerability adverse event events interim process processes agreement material review line "+
+  "followup follow phase cohort feature features characteristic characteristics condition conditions "+
+  "subject object item items part parts type types kind form forms way ways case cases point points area areas field fields").split(/\s+/).filter(Boolean));
 
 let iRecords = [], iErrors = [], iSubjectLabel = "", iBusy = false;
 
@@ -1875,12 +1883,34 @@ function monthlyVolume(records){
   for(const r of records){ const ym=(r.date||"").slice(0,7); if(/^\d{4}-\d{2}$/.test(ym)) m.set(ym,(m.get(ym)||0)+1); }
   return [...m.entries()].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
 }
-// Which co-occurrence community each term belongs to (same labelProp the themes
-// use, so map colors match the Emergent-themes card). Returns Map(term->commId).
-function termCommunities(docTokens){
-  const {nodes,adj}=iCoGraph(docTokens,4);
-  if(!nodes.length) return new Map();
-  return labelProp(nodes, adj, 25);
+// Colour the cloud terms into (up to) 3 groups by association. Label propagation
+// collapses a dense term graph into one community (so the cloud ends up one
+// colour), so instead pick 3 spread "anchor" terms by farthest-point sampling on
+// the co-occurrence graph, then colour every term by the anchor it co-occurs with
+// most (strongest-neighbour inheritance for terms that touch no anchor). Always
+// yields multiple colours and is deterministic. Returns {color:Map(term->0..2),
+// anchors:[term,…]}.
+function anchorColors(terms, docTokens){
+  const {adj}=iCoGraph(docTokens,4);
+  const cooc=(a,b)=>{ const m=adj.get(a); return m?(m.get(b)||0):0; };
+  if(terms.length<=1) return {color:new Map(terms.map(t=>[t,0])), anchors:terms.slice()};
+  const cand=terms.slice(0, Math.min(24, terms.length));
+  const anchors=[cand[0]];
+  // anchor 2: least associated with anchor 1
+  { let best=null, bv=Infinity; for(const c of cand){ if(anchors.includes(c)) continue;
+      const v=cooc(c,anchors[0]); if(v<bv){ bv=v; best=c; } } if(best) anchors.push(best); }
+  // anchor 3: minimises its strongest tie to the existing anchors (farthest point)
+  if(cand.length>=3){ let best=null, bv=Infinity; for(const c of cand){ if(anchors.includes(c)) continue;
+      const v=Math.max(...anchors.map(a=>cooc(c,a))); if(v<bv){ bv=v; best=c; } } if(best) anchors.push(best); }
+  const color=new Map(); anchors.forEach((a,i)=>color.set(a,i));
+  const left=[];
+  for(const t of terms){ if(color.has(t)) continue;
+    let bi=-1, bv=0; anchors.forEach((a,i)=>{ const v=cooc(t,a); if(v>bv){ bv=v; bi=i; } });
+    if(bi>=0) color.set(t,bi); else left.push(t); }
+  for(const t of left){ const m=adj.get(t); let bi=-1, bv=0;
+    if(m) for(const [nb,w] of m){ if(color.has(nb) && w>bv){ bv=w; bi=color.get(nb); } }
+    color.set(t, bi>=0?bi:0); }
+  return {color, anchors};
 }
 // ---- packed word cloud (Wordle-style spiral layout) ----
 // Place the salient terms largest-first along an Archimedean spiral from the
@@ -2056,13 +2086,11 @@ function renderInsights(){
   const cloud=textRankTerms(docTokens,40);
   if(cloud.length){
     const maxF=cloud[0][1]||1;
-    // color = emergent theme (muted): the 3 largest clusters get the validated
-    // blue/orange/aqua, everything else stays muted ink — so the cloud reads calm.
-    const labelMap=termCommunities(docTokens);
-    const top3=clusters.slice(0,3).map(c=>c.commId);
-    const colorClass=w=>{ const c=labelMap.get(w); const k=(c==null)?-1:top3.indexOf(c); return k>=0?("tc"+k):"tcx"; };
-    const legend=clusters.slice(0,3).map((c,i)=>`<span class="mlg"><i style="background:var(--viz${i+1})"></i>${esc(c.label)}</span>`).join("")+
-      `<span class="mlg"><i style="background:var(--muted)"></i>other</span>`;
+    // color = association group: 3 spread anchor terms (validated blue/orange/aqua),
+    // every term colored by the anchor it co-occurs with most — reliably multi-color.
+    const {color:termColor, anchors}=anchorColors(cloud.map(c=>c[0]), docTokens);
+    const colorClass=w=>"tc"+(termColor.get(w)||0);
+    const legend=anchors.map((a,i)=>`<span class="mlg"><i style="background:var(--viz${i+1})"></i>${esc(a)}</span>`).join("");
     // packed word cloud: spiral layout, sized by salience, colored by theme
     const layout=wordleLayout(cloud.slice(0,45));
     if(layout){
@@ -2148,7 +2176,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
-  iCoGraph,labelProp,themeClusters,termCommunities,risingTerms,notableEvents,monthlyVolume,wordleLayout,
+  iCoGraph,labelProp,themeClusters,anchorColors,risingTerms,notableEvents,monthlyVolume,wordleLayout,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----

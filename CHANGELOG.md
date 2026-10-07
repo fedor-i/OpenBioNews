@@ -28,10 +28,12 @@ to follow [Semantic Versioning](https://semver.org/).
   - **Packed word cloud** — a deterministic Wordle-style spiral layout (largest
     term first, each spiralling out until it clears the placed words; ~a quarter
     set vertical; text measured with canvas `measureText`), rendered as pure SVG.
-    Terms are **sized by TextRank salience** and **colored by emergent theme**
-    using a muted, colorblind-validated categorical palette (the three largest
-    clusters tinted, everything else muted) — so the cloud reads calm and the
-    colour carries meaning. Click a term to filter the sources.
+    Terms are **sized by TextRank salience** and **colored into 3 association
+    groups**: three spread "anchor" terms are chosen by farthest-point sampling on
+    the co-occurrence graph, and every term takes the colour of the anchor it
+    co-occurs with most (validated 3-hue palette). This reliably yields multiple
+    colours — label-propagation clustering collapses a dense term graph into one
+    community, leaving the cloud a single colour. Click a term to filter sources.
   - **YAKE!** (Campos et al., 2020) extracts the **key phrases** (unsupervised,
     statistical; casing + position + frequency + dispersion + context).
   - **BM25** (Robertson / Spärck Jones) ranks the source records by relevance to
