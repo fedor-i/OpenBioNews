@@ -34,10 +34,8 @@ to follow [Semantic Versioning](https://semver.org/).
     colour carries meaning. Click a term to filter the sources.
   - **YAKE!** (Campos et al., 2020) extracts the **key phrases** (unsupervised,
     statistical; casing + position + frequency + dispersion + context).
-  - **LexRank** (Erkan & Radev, 2004) builds the **extractive summary** by PageRank
-    over a graph of sentences linked by TF-IDF cosine similarity.
   - **BM25** (Robertson / Spärck Jones) ranks the source records by relevance to
-    the subject (and picks the most on-topic records to summarize).
+    the subject.
   - **Emergent themes** — label-propagation community detection (Raghavan, Albert
     & Kumara, 2007) on the term co-occurrence graph groups the records into labeled
     sub-themes (top terms + record count), made fully deterministic (fixed visiting
@@ -50,17 +48,14 @@ to follow [Semantic Versioning](https://semver.org/).
   - **Notable right now** — a deterministic, rule-based scan surfacing the
     high-signal events analysts look for first — Class I/II recalls, Phase 3
     (pivotal) trials, terminated/withdrawn/suspended trials, original (new) FDA
-    approvals and active drug shortages — ordered by severity, each cited.
-  - **Key excerpts** (renamed from "extractive summary"): LexRank centrality now
-    carries an informativeness prior (sentences with numbers, doses, %, money,
-    proper-noun entities and entity-led openers rank up) and a near-duplicate
-    guard. Relabeled "key excerpts · representative sentences (verbatim)" to set
-    honest expectations — these are real sentences lifted from the records, not
-    generated prose. Each excerpt now cites a **distinct numbered source** with a
-    source key beneath (previously every marker rendered as "1").
-  - **Noun-ish term filtering**: the word cloud and key phrases now drop common
-    verbs, adverbs and adjectives (a deterministic heuristic stoplist — no POS
-    model), keeping dual-use domain nouns (target, screen, guide, support,
+    approvals and active drug shortages — ordered by severity, each shown with a
+    cited excerpt from the record.
+  - **Noun-ish term filtering**: the word cloud and key phrases drop common verbs,
+    adverbs, adjectives and clinical-trial boilerplate (a deterministic heuristic
+    stoplist — no POS model) **plus a dynamic max-document-frequency filter** that
+    removes any term appearing in >55% of the records (corpus-specific
+    boilerplate), so the terms read as concepts rather than trial jargon — keeping
+    dual-use domain nouns (target, screen, guide, support,
     vector), so the terms read as concepts rather than sentence fragments.
   - Counted **stats** — records by source, top companies, top therapeutic areas,
     trial phases — plus a pure-SVG **monthly-volume sparkline** and a **"since last

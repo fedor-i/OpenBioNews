@@ -148,12 +148,6 @@
   .isum h2{margin:.1rem 0 .3rem;font-size:1.2rem;line-height:1.25}
   .imeta{color:var(--muted);font-size:.86rem;margin:0 0 .4rem}
   .imeta b{color:var(--accent)}
-  .ilabel{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:.5rem 0 .1rem;font-weight:700}
-  .idigest{margin:.15rem 0 0;padding-left:1.1rem}
-  .idigest li{margin:.35rem 0;font-size:.95rem}
-  .idigest-src{color:var(--muted);font-size:.78rem;margin:.3rem 0 .1rem;display:flex;flex-wrap:wrap;gap:.1rem .9rem}
-  .idigest-src a{color:var(--accent);text-decoration:none}.idigest-src a:hover{text-decoration:underline}
-  .idigest-src b{color:var(--ink);font-variant-numeric:tabular-nums}
   .imethods{color:var(--muted);font-size:.73rem;margin-top:.6rem;border-top:1px dashed var(--line);padding-top:.5rem}
   .istats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.7rem;margin:.6rem 0}
   .icard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.85rem 1rem;box-shadow:var(--shadow)}
@@ -194,11 +188,13 @@
   .ispark-row .isl{color:var(--muted);font-size:.72rem}
   .ispark{display:block;flex:0 0 auto}
   .inotable{margin:.5rem 0}
-  .ievent{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;padding:.3rem 0;border-top:1px solid var(--line);font-size:.9rem}
+  .ievent{padding:.45rem 0;border-top:1px solid var(--line)}
   .ievent:first-of-type{border-top:none}
+  .ehead{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;font-size:.9rem}
   .ievent a{color:var(--ink);font-weight:600;text-decoration:none}
   .ievent a:hover{text-decoration:underline}
   .ievent .nmeta{color:var(--muted);font-size:.8rem}
+  .ntext{color:var(--ink);font-size:.88rem;margin:.25rem 0 0}
   .nsev{flex:0 0 auto;border-radius:6px;padding:.1rem .45rem;font-size:.7rem;font-weight:700;white-space:nowrap}
   .nsev.n0{background:var(--critbg);color:var(--crit)}
   .nsev.n1{background:var(--accent);color:#fff}
@@ -1514,7 +1510,17 @@ const I_STOP = new Set(("a an and or the of to in for on at by from with without
   "primarily largely mainly generally specifically particularly additionally however therefore moreover furthermore "+
   "novel significant potential conventional various multiple different similar additional specific effective initial substantial considerable "+
   "numerous several major minor broad robust promising preliminary faster able likely "+
-  "produce produces produced producing halt halts halted stop stops stopped continuous continuously worth million billion").split(/\s+/).filter(Boolean));
+  "produce produces produced producing halt halts halted stop stops stopped continuous continuously worth million billion "+
+  // clinical-trial / research boilerplate + question words (ubiquitous in trial prose,
+  // non-discriminative). A dynamic max-document-frequency filter (see renderInsights)
+  // catches the rest per-corpus; this handles small corpora too.
+  "participants participant care standard primary secondary outcome outcomes endpoint endpoints "+
+  "intervention interventions aim aims objective objectives determine determined whether question questions "+
+  "research researcher researchers information test tests testing group groups observational receive help main "+
+  "does how who whom why what when where will enrolled enrollment eligible cohort cohorts arm arms visit visits "+
+  "baseline assessment procedure procedures questionnaire survey measure measures compare comparison investigate "+
+  "examine understand explore sample population healthy volunteer volunteers usual routine quality function ability "+
+  "score scores rate rates level levels benefit benefits people consent participation aimed goal goals").split(/\s+/).filter(Boolean));
 
 let iRecords = [], iErrors = [], iSubjectLabel = "", iBusy = false;
 
@@ -1643,7 +1649,7 @@ function iDocTokens(records, stop){ return records.map(r=>iTokens(r.title+" "+r.
 function iFreq(docTokens){ const m=new Map(); for(const toks of docTokens) for(const w of toks) m.set(w,(m.get(w)||0)+1); return m; }
 
 // Weighted PageRank (power iteration, fixed iterations → deterministic). Shared by
-// TextRank (term graph) and LexRank (sentence graph). adj: Map(node->Map(nb->w)).
+// TextRank (term graph) and the theme clustering. adj: Map(node->Map(nb->w)).
 function pageRank(nodes, adj, d, iters){
   d=d||0.85; iters=iters||40; const N=nodes.length; if(!N) return new Map();
   const outW=new Map();
@@ -1741,54 +1747,6 @@ function countField(records, pick){
   const m=new Map();
   for(const r of records) for(const v of [].concat(pick(r)||[])){ const k=String(v||"").trim(); if(k) m.set(k,(m.get(k)||0)+1); }
   return m;
-}
-// LexRank (Erkan & Radev, 2004): extractive summary by PageRank centrality over a
-// graph of sentences linked by TF-IDF cosine similarity. Two deterministic tweaks
-// make it read like intelligence instead of boilerplate: (1) an "informativeness"
-// prior boosts sentences carrying numbers, doses, %, $ and proper-noun entities,
-// since raw centrality rewards the generic sentences every record shares; (2) a
-// near-duplicate guard (cosine ≥ DUP) skips sentences that restate one already
-// chosen, so the digest doesn't echo the same boilerplate across records. No LLM.
-function sentInfoBonus(s){
-  let b=0;
-  if(/\d/.test(s)) b+=0.30;                                   // any number
-  if(/\b\d+(\.\d+)?\s?(mg|mcg|g|ml|%|mg\/kg)\b/i.test(s)) b+=0.25;  // dose / percentage
-  if(/\$|\bmillion\b|\bbillion\b/i.test(s)) b+=0.20;          // money
-  if(/\b(phase|primary endpoint|fda|approval|recall|pivotal|breakthrough|orphan)\b/i.test(s)) b+=0.20;
-  const ents=(s.slice(1).match(/(?<=\s)[A-Z][A-Za-z]{2,}/g)||[]).length;  // mid-sentence proper nouns
-  b+=Math.min(ents,4)*0.07;
-  // prefer self-contained, entity-led openers over vague "The <generic> …" fragments
-  const first=(s.match(/^[A-Za-z]+/)||[""])[0];
-  if(/^[A-Z][a-z]+$/.test(first) && !/^(The|This|That|These|Those|A|An|It|Its|We|They|In|On|For|As|After|During|Both|Each|Here|There|Such)$/.test(first)) b+=0.18;
-  return b;
-}
-function lexRankSummary(records, stop, k){
-  const sents=[];
-  for(const r of records){ const raw=(r.text||"").trim(); if(!raw) continue;
-    for(const p of raw.split(/(?<=[.!?])\s+(?=[A-Z0-9"'])/)){ const s=p.trim(); const wc=s.split(/\s+/).length;
-      if(wc<6||wc>45) continue; const toks=iTokens(s).filter(w=>!stop.has(w)); if(toks.length<3) continue;
-      sents.push({s, rec:r, toks, bonus:sentInfoBonus(s)}); } }
-  const N=sents.length; if(!N) return [];
-  if(N===1) return [{s:sents[0].s, rec:sents[0].rec}];
-  const df=new Map(); for(const se of sents) for(const w of new Set(se.toks)) df.set(w,(df.get(w)||0)+1);
-  const idf=w=>Math.log(1+N/((df.get(w)||0)+1));
-  const vecs=sents.map(se=>{ const v=new Map(); for(const w of se.toks) v.set(w,(v.get(w)||0)+1);
-    let norm=0; for(const [w,tf] of v){ const t=tf*idf(w); v.set(w,t); norm+=t*t; } norm=Math.sqrt(norm)||1;
-    for(const w of v.keys()) v.set(w,v.get(w)/norm); return v; });
-  const cos=(a,b)=>{ let s=0; const [sm,bg]=a.size<b.size?[a,b]:[b,a]; for(const [w,x] of sm){ const y=bg.get(w); if(y) s+=x*y; } return s; };
-  const adj=new Map(), nodes=sents.map((_,i)=>i), SIM=0.1, DUP=0.6;
-  for(let i=0;i<N;i++) for(let j=i+1;j<N;j++){ const c=cos(vecs[i],vecs[j]); if(c>SIM){
-    for(const [x,y] of [[i,j],[j,i]]){ let m=adj.get(x); if(!m){m=new Map();adj.set(x,m);} m.set(y,c); } } }
-  const pr=pageRank(nodes, adj);
-  // rank by centrality scaled by the informativeness prior (stable id tie-break)
-  const ranked=[...pr.entries()].map(([i,p])=>[i, p*(1+sents[i].bonus)])
-    .sort((a,b)=>b[1]-a[1]||a[0]-b[0]);
-  const out=[], used=new Set(), chosen=[];
-  for(const [idx] of ranked){ if(out.length>=k) break; const se=sents[idx];
-    if(used.has(se.rec.id)) continue;                                  // one sentence per record
-    if(chosen.some(ci=>cos(vecs[ci],vecs[idx])>=DUP)) continue;        // skip near-duplicate boilerplate
-    used.add(se.rec.id); chosen.push(idx); out.push({s:se.s, rec:se.rec}); }
-  return out;
 }
 // ---- emergent sub-theme clustering ----
 // Weighted term co-occurrence graph (sliding window), shared by clustering below.
@@ -1996,11 +1954,17 @@ function renderInsights(){
     return;
   }
   const stop=iSubjectStop();
-  const docTokens=iDocTokens(recs, stop);
+  let docTokens=iDocTokens(recs, stop);
+  // Dynamic max-document-frequency filter: drop terms that appear in more than 55%
+  // of records — corpus-ubiquitous, non-discriminative boilerplate (e.g. "study",
+  // generic trial language) that otherwise dominates the cloud and glues every
+  // record into one theme. Only applied once there are enough records to be sure.
+  { const N=docTokens.length, dfm=new Map();
+    for(const toks of docTokens) for(const w of new Set(toks)) dfm.set(w,(dfm.get(w)||0)+1);
+    if(N>=8){ const hi=new Set([...dfm].filter(([,c])=>c/N>0.55).map(([w])=>w));
+      if(hi.size) docTokens=docTokens.map(t=>t.filter(w=>!hi.has(w))); } }
   const freq=iFreq(docTokens);
   const bm=bm25Rank(recs, insightTerms()); const bmScore=new Map(bm.map(o=>[o.i,o.score]));
-  const byRel=[...recs.keys()].sort((a,b)=>(bmScore.get(b)||0)-(bmScore.get(a)||0));
-  const summInput=recs.length>60 ? byRel.slice(0,60).map(i=>recs[i]) : recs;   // BM25-pick when large
   const cut=iCutoff(), base=iBaseline();
   const perAgency={}; let newN=0, newest="", oldest="";
   for(const t of TABS) perAgency[t]=0;
@@ -2011,7 +1975,6 @@ function renderInsights(){
     if(recentFlags[i]) newN++;
   });
   const active=TABS.filter(t=>perAgency[t]>0);
-  const summ=lexRankSummary(summInput, stop, 4);
   const periodTxt = cut.mode==="visit"
     ? (base.has ? `<b>${newN} new since your last visit</b>` : `<b>first look — nothing to compare yet</b>`)
     : `<b>${newN} new in the last ${cut.days} days</b>`;
@@ -2028,13 +1991,8 @@ function renderInsights(){
   const vol=monthlyVolume(recs), spark=iSparkline(vol);
   if(spark) html+=`<div class="ispark-row"><span class="isl">records/month</span>${spark}`+
     `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`;
-  if(summ.length)
-    html+=`<div class="ilabel">Key excerpts · representative sentences (verbatim)</div>`+
-      `<ul class="idigest">`+summ.map((c,i)=>{ const lbl=(I_AG[c.rec.agency]||"Source")+(c.rec.company?" · "+c.rec.company:"");
-        return `<li>${esc(clip(c.s,260))} <sup class="cite"><a href="${esc(c.rec.url)}" target="_blank" rel="noopener noreferrer" title="${escA(lbl)}">${i+1}</a></sup></li>`; }).join("")+`</ul>`+
-      `<div class="idigest-src">`+summ.map((c,i)=>`<span><b>${i+1}</b> <a href="${esc(c.rec.url)}" target="_blank" rel="noopener noreferrer">${esc(I_AG[c.rec.agency]||"Source")}</a>${c.rec.company?" · "+esc(clip(c.rec.company,28)):""}</span>`).join("")+`</div>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
-  html+=`<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>LexRank</b> summary · <b>BM25</b> ranking · <b>label-propagation</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
+  html+=`<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>label-propagation</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
     `</div>`;
 
   // ---- Notable right now (cited event scan) ----
@@ -2042,9 +2000,11 @@ function renderInsights(){
   if(notable.length){
     const sevCls=s=>s===0?"n0":s===1?"n1":s===2?"n2":s===3?"n3":"n4";
     html+=`<div class="icard inotable"><h3>Notable right now</h3>`+
-      notable.slice(0,8).map(e=>`<div class="ievent"><span class="nsev ${sevCls(e.sev)}">${esc(e.kind)}</span>`+
-        `<a href="${esc(e.rec.url)}" target="_blank" rel="noopener noreferrer">${esc(clip(e.rec.title,90))}</a>`+
-        `<span class="nmeta">${e.rec.company?esc(e.rec.company)+" · ":""}${esc(e.note)}${e.rec.date?" · "+esc(e.rec.date):""}</span></div>`).join("")+
+      notable.slice(0,8).map(e=>`<div class="ievent"><div class="ehead"><span class="nsev ${sevCls(e.sev)}">${esc(e.kind)}</span>`+
+        `<a href="${esc(e.rec.url)}" target="_blank" rel="noopener noreferrer">${esc(clip(e.rec.title,110))}</a>`+
+        `<span class="nmeta">${e.rec.company?esc(e.rec.company)+" · ":""}${esc(e.note)}${e.rec.date?" · "+esc(e.rec.date):""}</span></div>`+
+        (e.rec.text?`<div class="ntext">${citeSentences(clip(e.rec.text,300),e.rec.url,I_AG[e.rec.agency]||"Source")}</div>`:"")+
+        `</div>`).join("")+
       `</div>`;
   }
 
@@ -2170,7 +2130,7 @@ $("i_period").onchange=()=>{ if(iRecords.length) renderInsights(); else maybeAut
 $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
-window.OBN_INSIGHTS={iTokens,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,lexRankSummary,sentInfoBonus,bm25Rank,countField,topN,
+window.OBN_INSIGHTS={iTokens,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
   iCoGraph,labelProp,themeClusters,termCommunities,risingTerms,notableEvents,monthlyVolume,wordleLayout,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
