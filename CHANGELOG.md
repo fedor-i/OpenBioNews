@@ -44,25 +44,35 @@ to follow [Semantic Versioning](https://semver.org/).
     clustering colours the word cloud, so theme chips and cloud colours agree. This
     replaced label propagation, which collapsed a dense term graph into one theme.
     **The theme count now fits the data** — instead of always forcing three
-    clusters, K is chosen by **mean cosine silhouette** over K = 2…6, so a
-    mono-topic watchlist stays ~2 and a broad one spreads. Farthest-point seeding
-    breaks ties by *total* distance to the seed set, so seeds land one-per-island
-    instead of doubling up and leaving a real theme unseeded. A cluster needs
-    **≥2 records** to earn a theme chip (a lone record is already in Sources — no
-    one-item "themes"), and the word cloud keeps three distinct hues with any
-    further themes drawn muted so the palette stays readable.
+    clusters, K is chosen by **mean cosine silhouette** over K = 2…6, so a broad
+    watchlist spreads while a genuinely single-topic one stays **one theme**: a
+    silhouette floor gates the split, so no artificial boundary is drawn through a
+    coherent corpus. Farthest-point seeding breaks ties by *total* distance to the
+    seed set, so seeds land one-per-island instead of doubling up and leaving a
+    real theme unseeded. A cluster needs **≥2 records** to earn a theme chip (a lone
+    record is already in Sources — no one-item "themes"), and the word cloud keeps
+    three distinct hues with any further themes drawn muted so the palette stays
+    readable.
   - **Rising terms** — deterministic novelty/burst detection: terms whose share in
     the highlighted window materially exceeds (or are entirely new vs.) the older
     baseline, so "what's new" names the *themes that are accelerating*, not just a
     raw record count. **Guard rails** keep a short window from turning every
     single-mention term into "new": both halves need ≥4 documents to compare, a
     term needs ≥2 recent mentions (real support, not a one-off), and the lift must
-    clear 1.5× — otherwise the section stays empty rather than manufacturing noise.
+    clear 1.5×. The recent/older split is computed over **only the records we can
+    date** — undated records are neither "recent" nor "old", so they no longer leak
+    into the baseline and mask genuine momentum. When there isn't enough dated
+    history to compute momentum the card says so explicitly, instead of silently
+    disappearing (which looked like a bug).
   - **Notable right now** — a deterministic, rule-based scan surfacing the
     high-signal events analysts look for first — Class I/II recalls, Phase 3
-    (pivotal) trials, terminated/withdrawn/suspended trials, original (new) and
-    **supplemental** FDA approvals (label expansions) and active drug shortages —
-    ordered by severity, each shown with a cited excerpt from the record.
+    (pivotal) trials, terminated/withdrawn/suspended trials, original (new) FDA
+    approvals, **substantive supplemental approvals** and active drug shortages —
+    ordered by severity, each shown with a cited excerpt from the record. Only
+    *label/efficacy* supplements count as notable (routine CMC/manufacturing churn
+    is filtered out via `submission_class_code`), deduped to the most recent per
+    application and ranked below a Class II recall, so one blockbuster's label
+    history can't flood the card or bury a real recall.
   - **Coverage-boundary banner** — the digest now states plainly what it does and
     does not see (ClinicalTrials.gov · FDA recalls / approvals / shortages · SEC
     EDGAR — **US regulators only**; no EMA / ex-US, no press releases, no

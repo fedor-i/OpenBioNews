@@ -1,0 +1,117 @@
+"""Structural guard-rail tests for the hosted Insights page (docs/index.html).
+
+The Insights tab's analytics are deterministic, no-LLM JavaScript embedded in a
+single static file. Their *behaviour* is exercised by the Playwright validators
+under ``tests/web/`` (Node + a browser). Those can't run in this project's
+stdlib-only, browser-free CI, so this module is the portable tripwire that runs
+everywhere: it reads the page source and asserts the correctness guard rails are
+still present, so a refactor can't silently drop one (e.g. re-introduce the
+"always three themes" bug, or delete the rising-term noise filter).
+
+These are intentionally coarse string/structure checks, not behavioural tests —
+they protect invariants, they don't re-verify the maths. Keep the anchors in
+sync with docs/index.html when the analytics are deliberately changed.
+
+Runs with pytest (``pytest``) or directly (``python tests/test_web_insights.py``).
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+INDEX = Path(__file__).resolve().parent.parent / "docs" / "index.html"
+SRC = INDEX.read_text(encoding="utf-8")
+
+
+def _script() -> str:
+    """Concatenate every <script> body so checks ignore markup/CSS."""
+    return "\n".join(re.findall(r"<script>(.*?)</script>", SRC, re.S))
+
+
+def test_index_exists_and_has_insights_tab():
+    assert INDEX.exists(), f"missing {INDEX}"
+    assert "tab-insights" in SRC, "Insights tab markup/handler went missing"
+    assert "window.OBN_INSIGHTS" in SRC, "Insights test hook removed"
+
+
+def test_adaptive_theme_count_not_forced_to_three():
+    js = _script()
+    # The silhouette sweep must exist...
+    assert "const silhouette=" in js, "silhouette scorer removed"
+    assert re.search(r"for\(let k=2;k<=kmax", js), "adaptive-K silhouette sweep removed"
+    # ...and the old bug (forcing K to 3 at the top of clusterTerms) must NOT return.
+    assert not re.search(r"K\s*=\s*Math\.max\(1,\s*Math\.min\(K\s*\|\|\s*3", js), \
+        "clusterTerms is forcing K=3 again — adaptive K regressed"
+
+
+def test_adaptive_k_collapses_single_topic():
+    # A silhouette floor must gate the split, so a mono-topic corpus stays one theme
+    # instead of being cut into two near-even halves with no real structure.
+    js = _script()
+    assert "SIL_FLOOR" in js, "silhouette floor removed — mono-topic will be over-split"
+    assert re.search(r"best<SIL_FLOOR\)\s*assign=run\(1\)", js), \
+        "single-theme collapse (best<floor -> run(1)) regressed"
+
+
+def test_seed_tiebreak_spreads_clusters():
+    # Farthest-point seeding breaks ties by total distance to the seed set, so
+    # seeds land one-per-island instead of doubling up (the k=3 degeneracy fix).
+    assert "far=seeds.length-sm" in _script(), "seed tie-break (spread) regressed"
+
+
+def test_theme_needs_two_records():
+    # A lone record is already in Sources; don't manufacture a one-item "theme".
+    assert "recIdxs[k].length<2" in _script(), "min-2-record theme guard removed"
+
+
+def test_rising_terms_guard_rails():
+    js = _script()
+    assert "if(rN<4 || bN<4) return [];" in js, "rising-terms min-document guard removed"
+    assert re.search(r"if\(rc<2\)\s*continue", js), "rising-terms min-support guard removed"
+    assert "lift>=1.5" in js, "rising-terms lift threshold removed"
+
+
+def test_rising_terms_exclude_undated_records():
+    # Undated records must not be dumped into the baseline (that masks real momentum).
+    js = _script()
+    assert "function riseWindow" in js, "undated-record exclusion helper removed"
+
+
+def test_supplemental_approvals_surface_but_filtered():
+    js = _script()
+    assert "/:s:/.test(r.id)" in js, "supplemental-approval detection removed"
+    assert "Supplement" in js, "supplemental-approval label removed"
+    # Only substantive (label/efficacy) supplements are notable, deduped per app —
+    # otherwise one drug's routine CMC churn floods the card and buries real recalls.
+    assert "SUBSTANTIVE" in js, "supplemental class filter removed (CMC/REMS churn will flood Notable)"
+    assert "const out=[], suppl=new Map();" in js, "per-application supplement dedup removed"
+
+
+def test_coverage_boundary_banner():
+    # The scope disclaimer must stay honest: US regulators only, no EMA/ex-US.
+    assert 'class="icov"' in SRC, "coverage-boundary banner removed"
+    assert "US regulators only" in SRC
+    assert "EMA" in SRC and "no press releases" in SRC
+
+
+def test_cross_agency_company_canonicalisation():
+    # One firm counted once across agencies (strip ticker/suffix before counting).
+    js = _script()
+    assert "function canonCompany" in js, "company canonicalisation removed"
+    assert "function companyGroups" in js, "company grouping removed"
+
+
+if __name__ == "__main__":
+    failures = 0
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            try:
+                fn()
+                print(f"  ok   {name}")
+            except Exception as exc:  # noqa: BLE001
+                failures += 1
+                print(f"  FAIL {name}: {exc}")
+    print(f"\n{'all passed' if not failures else str(failures) + ' failed'}")
+    sys.exit(1 if failures else 0)

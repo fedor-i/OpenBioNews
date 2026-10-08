@@ -1608,6 +1608,7 @@ function normApproval(app){
     if(sub.submission_status!=="AP") continue;
     const isOrig=(sub.submission_type||"").toUpperCase()!=="SUPPL"; const d=sub.submission_status_date||"";
     out.push({agency:"approvals", id:"a:"+appno+":"+(isOrig?"o":"s")+":"+(sub.submission_number||d||""),
+      appno, scls:(sub.submission_class_code||"").toUpperCase(),   // EFFICACY / LABELING / MANUF (CMC) / REMS …
       url: appno?`${FDA_APPROVALS_API}?search=application_number:%22${encodeURIComponent(appno)}%22`:FDA_APPROVALS_API,
       date: isoFromYmd(d), title:name+(isOrig?" — FDA approval":" — supplemental approval"),
       text:(sp||"The sponsor")+" received "+(isOrig?"FDA approval":"a supplemental FDA approval")+" for "+name+".",
@@ -1903,15 +1904,18 @@ function clusterTerms(terms, docTokens, K){
     return cnt? sum/cnt : -1;
   };
   // Pick K: honour an explicit K; otherwise choose by silhouette over 2..kmax so the
-  // theme count fits the data (a mono-topic list stays ~2, a broad one spreads),
+  // theme count fits the data (a mono-topic list stays 1, a broad one spreads),
   // instead of always forcing 3. Deterministic; ties prefer fewer clusters.
+  const SIL_FLOOR=0.12;                                   // below this, no real multi-theme structure → one theme
   let assign;
   if(K){ assign=run(Math.max(1,Math.min(K,n))); }
   else {
     const kmax=Math.min(6, n-1);                          // silhouette rejects over-splitting
     let best=-2;
     for(let k=2;k<=kmax;k++){ const a=run(k); const s=silhouette(a); if(s>best+1e-9){ best=s; assign=a; } }
-    if(!assign) assign=run(Math.min(2,n));
+    // A genuinely single-topic corpus has no good >1 split; don't manufacture a
+    // theme boundary — collapse to one cluster unless a split clears the floor.
+    if(!assign || best<SIL_FLOOR) assign=run(1);
   }
   // order clusters largest-first; remap colour indices and collect member terms
   const kk=Math.max(...assign)+1;
@@ -1965,11 +1969,19 @@ function risingTerms(docTokens, recentFlags, topn){
   out.sort((a,b)=>b.lift-a.lift||b.recent-a.recent||a.term.localeCompare(b.term));
   return out.slice(0,topn);
 }
+// Split records into the recent/older halves for rising-term momentum, over only the
+// records we can actually date. Undated records are neither "recent" nor "old", so
+// excluding them keeps them from inflating the baseline and masking real momentum.
+function riseWindow(recs, docTokens, midISO){
+  const idx=recs.map((r,i)=>i).filter(i=>recs[i].date);
+  return {tokens:idx.map(i=>docTokens[i]), flags:idx.map(i=>recs[i].date>=midISO), n:idx.length};
+}
 // ---- deterministic "notable right now" ----
 // The high-signal events an analyst scans for first, surfaced by fixed rules (no
 // scoring model). Lower sev = louder. Everything stays cited to its source record.
 function notableEvents(records){
-  const out=[];
+  const out=[], suppl=new Map();                          // supplements deduped to the latest per application
+  const SUBSTANTIVE=/EFFIC|LABEL|INDICATION|BIOSIMILAR/;   // label/efficacy expansions are notable; CMC/REMS/med-guide are routine churn
   for(const r of records){
     if(r.agency==="recalls"){
       const c=(r.cls||"").toLowerCase();
@@ -1981,11 +1993,18 @@ function notableEvents(records){
       else if(/PHASE3/.test(ph)) out.push({rec:r, sev:3, kind:"Phase 3", note:"Pivotal-stage trial"});
     } else if(r.agency==="approvals"){
       if(/:o:/.test(r.id)) out.push({rec:r, sev:1, kind:"New approval", note:"Original FDA approval"});
-      else if(/:s:/.test(r.id)) out.push({rec:r, sev:2, kind:"Supplement", note:"Supplemental approval / label expansion"});
+      // Only a label/efficacy expansion is notable, and only the most recent one per
+      // drug — a blockbuster's many routine supplements must not flood the card or
+      // crowd out a real Class II recall (sev 2), so supplements sit at sev 3.
+      else if(/:s:/.test(r.id) && SUBSTANTIVE.test(r.scls||"")){
+        const key=r.appno||r.id, cur=suppl.get(key);
+        if(!cur || (r.date||"")>(cur.rec.date||"")) suppl.set(key, {rec:r, sev:3, kind:"Supplement", note:"Supplemental approval / label expansion"});
+      }
     } else if(r.agency==="shortages"){
       if(/\(current\)/i.test(r.title)) out.push({rec:r, sev:4, kind:"Shortage", note:"Active drug shortage"});
     }
   }
+  for(const e of suppl.values()) out.push(e);
   out.sort((a,b)=>a.sev-b.sev||(b.rec.date||"").localeCompare(a.rec.date||"")||a.rec.id.localeCompare(b.rec.id));
   return out;
 }
@@ -2149,7 +2168,6 @@ function renderInsights(){
   const iSig=iSubjectSig(), prevSeen=iSeen[iSig], baseHas=!!prevSeen, baseSet=new Set(prevSeen||[]);
   // newer half of the window = "recent" for rising-term momentum
   const midISO=daysAgoISO(Math.max(1,Math.round(days/2)));
-  const recentFlags=recs.map(r=>!!(r.date && r.date>=midISO));
   const unseen=r=> baseHas ? !baseSet.has(r.id) : false;       // new since Insights last showed this subject
   const perAgency={}; let newN=0, newest="", oldest="";
   for(const t of TABS) perAgency[t]=0;
@@ -2212,12 +2230,17 @@ function renderInsights(){
   html+=`</div>`;
 
   // ---- Rising terms (momentum) ----
-  const rising=risingTerms(docTokens, recentFlags, 10);
+  const riseW=riseWindow(recs, docTokens, midISO);
+  const rising=risingTerms(riseW.tokens, riseW.flags, 10);
   if(rising.length){
     html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating in the newer half of the ${esc(windowLabel(days))} vs. the earlier half</span></h3><div class="riserow">`+
       rising.map(t=>`<span class="riseterm ifacet${t.fresh?" fresh":""}" data-facet="term:${escA(t.term)}" data-ids="${escA(JSON.stringify(idsForTerm(t.term)))}" title="${t.recent}× recently vs ${t.base}× before">`+
         `${esc(t.term)} <b>${t.fresh?"new":"×"+t.lift.toFixed(1)}</b></span>`).join("")+
       `</div></div>`;
+  } else if(riseW.n){
+    // Guard rails suppressed the list — say so, so "no momentum" reads differently
+    // from "not enough dated history to compute it" (an empty card looks like a bug).
+    html+=`<div class="icard irise"><h3>Rising terms</h3><div class="ihint">Not enough dated history in this window to measure momentum — widen the time window or broaden the subject.</div></div>`;
   }
 
   if(cloud.length){
@@ -2318,7 +2341,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,singular,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
-  clusterTerms,buildThemes,risingTerms,notableEvents,monthlyVolume,wordleLayout,canonCompany,companyGroups,
+  clusterTerms,buildThemes,risingTerms,riseWindow,notableEvents,monthlyVolume,wordleLayout,canonCompany,companyGroups,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----
