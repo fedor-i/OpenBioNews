@@ -43,15 +43,31 @@ to follow [Semantic Versioning](https://semver.org/).
     tokens most belong to; each theme shows its top terms + record count. The same
     clustering colours the word cloud, so theme chips and cloud colours agree. This
     replaced label propagation, which collapsed a dense term graph into one theme.
+    **The theme count now fits the data** — instead of always forcing three
+    clusters, K is chosen by **mean cosine silhouette** over K = 2…6, so a
+    mono-topic watchlist stays ~2 and a broad one spreads. Farthest-point seeding
+    breaks ties by *total* distance to the seed set, so seeds land one-per-island
+    instead of doubling up and leaving a real theme unseeded. A cluster needs
+    **≥2 records** to earn a theme chip (a lone record is already in Sources — no
+    one-item "themes"), and the word cloud keeps three distinct hues with any
+    further themes drawn muted so the palette stays readable.
   - **Rising terms** — deterministic novelty/burst detection: terms whose share in
     the highlighted window materially exceeds (or are entirely new vs.) the older
     baseline, so "what's new" names the *themes that are accelerating*, not just a
-    raw record count.
+    raw record count. **Guard rails** keep a short window from turning every
+    single-mention term into "new": both halves need ≥4 documents to compare, a
+    term needs ≥2 recent mentions (real support, not a one-off), and the lift must
+    clear 1.5× — otherwise the section stays empty rather than manufacturing noise.
   - **Notable right now** — a deterministic, rule-based scan surfacing the
     high-signal events analysts look for first — Class I/II recalls, Phase 3
-    (pivotal) trials, terminated/withdrawn/suspended trials, original (new) FDA
-    approvals and active drug shortages — ordered by severity, each shown with a
-    cited excerpt from the record.
+    (pivotal) trials, terminated/withdrawn/suspended trials, original (new) and
+    **supplemental** FDA approvals (label expansions) and active drug shortages —
+    ordered by severity, each shown with a cited excerpt from the record.
+  - **Coverage-boundary banner** — the digest now states plainly what it does and
+    does not see (ClinicalTrials.gov · FDA recalls / approvals / shortages · SEC
+    EDGAR — **US regulators only**; no EMA / ex-US, no press releases, no
+    literature), so an empty result reads as "not in these sources" rather than
+    "nothing happened."
   - **Plural/singular grouping**: a lightweight deterministic singulariser folds
     plural forms into one term (formulations→formulation, antibodies→antibody,
     cells→cell), so the cloud, clustering and ranking count them together instead
