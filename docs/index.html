@@ -180,6 +180,14 @@
     margin:.15rem .2rem;font-size:.82rem;font-weight:600}
   .kphrase b{opacity:.55;font-weight:700;margin-left:.15rem}
   .isrc-h{margin:1.3rem 0 .2rem;font-size:1rem}
+  .isrcview{display:inline-flex;gap:0;margin:.1rem 0 .5rem;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .isrcview button{background:none;border:0;color:var(--muted);font:inherit;font-size:.78rem;padding:.2rem .6rem;cursor:pointer}
+  .isrcview button+button{border-left:1px solid var(--line)}
+  .isrcview button.on{background:var(--accent);color:#fff}
+  .isrc-grp{display:flex;align-items:baseline;gap:.5rem;margin:1rem 0 .3rem;padding-bottom:.2rem;border-bottom:1px solid var(--line)}
+  .isrc-grp .glabel{font-weight:700;font-size:.9rem}
+  .isrc-grp .gcount{color:var(--muted);font-size:.78rem}
+  .isrc-grp:first-child{margin-top:.2rem}
   .iempty{color:var(--muted);padding:1rem 0}
   .ierr{color:var(--warn);font-size:.84rem;margin:.4rem 0 0}
   article.iperiod{border-left:3px solid var(--accent);padding-left:.9rem}
@@ -2321,6 +2329,7 @@ function renderInsights(){
   const SRC_CAP=150;   // analyse all records; render at most this many cards to keep the DOM light
   const srcNote = recs.length>SRC_CAP ? ` (showing the top ${SRC_CAP})` : "";
   html+=`<h3 class="isrc-h">Sources — every figure above is counted from all ${recs.length} records, ranked by BM25 relevance${srcNote}</h3>`+
+    `<div class="isrcview" id="isrcview"><button data-view="ranked">Ranked</button><button data-view="grouped">Grouped by cluster</button></div>`+
     `<div id="ifilter" hidden></div><div id="isrc"></div></div>`;
   box.innerHTML=html;
 
@@ -2340,7 +2349,51 @@ function renderInsights(){
   renumberCites(srcBox);                                   // Sources: references 1..N by order
   const nb=box.querySelector(".inotable"); if(nb) renumberCites(nb, ".ievent");  // Notable: one number per event
   wireFacets(box);
+  // "Grouped by cluster" view: the same records sectioned by their emergent-theme
+  // cluster (largest first) + an "Other" bucket — a clustered way to read the list.
+  // Reuses the record→cluster map that already drives the Themes card; purely a
+  // re-layout of the existing cards, so chips, citations and filtering still work.
+  const recCluster=new Map();
+  clusters.forEach(c=>{ const lbl=c.label; for(const ri of c.recIdxs) recCluster.set(recs[ri].id, lbl); });
+  wireSourceGrouping(box, srcBox, recCluster);
   iSaveSeen(iSig, recs.map(r=>r.id));                      // record what we showed → honest "new" next time
+}
+// Lay the rendered Source cards out ranked (flat) or grouped into cluster sections.
+// Operates only on the article nodes already in #isrc (cards stay direct children so
+// the filter / injection / citation numbering keep working); headings are plain divs.
+function layoutSources(srcBox, recCluster, grouped){
+  srcBox.querySelectorAll(":scope > .isrc-grp").forEach(h=>h.remove());
+  const cards=[...srcBox.querySelectorAll(":scope > article")];
+  if(!grouped){
+    cards.sort((a,b)=>(+a.dataset.rank)-(+b.dataset.rank));   // restore BM25 order
+    cards.forEach(c=>srcBox.appendChild(c));
+    renumberCites(srcBox); return;
+  }
+  // bucket cards by cluster label, preserving ranked order within each bucket
+  const buckets=new Map(), OTHER="\u0000other";
+  for(const c of cards){ const k=recCluster.get(c.dataset.id)||OTHER; if(!buckets.has(k)) buckets.set(k,[]); buckets.get(k).push(c); }
+  // cluster order = recCluster insertion order (clusters already sorted largest-first); Other last
+  const order=[...buckets.keys()].filter(k=>k!==OTHER);
+  if(buckets.has(OTHER)) order.push(OTHER);
+  const frag=document.createDocumentFragment();
+  for(const k of order){ const grp=buckets.get(k);
+    const h=document.createElement("div"); h.className="isrc-grp";
+    h.innerHTML=`<span class="glabel">${esc(k===OTHER?"Other":k)}</span><span class="gcount">${grp.length} record${grp.length===1?"":"s"}</span>`;
+    frag.appendChild(h); grp.forEach(c=>frag.appendChild(c)); }
+  srcBox.appendChild(frag);
+  renumberCites(srcBox);
+}
+function wireSourceGrouping(box, srcBox, recCluster){
+  [...srcBox.querySelectorAll(":scope > article")].forEach((c,i)=>c.dataset.rank=i);   // remember BM25 order
+  const bar=box.querySelector("#isrcview"); if(!bar) return;
+  const nLabels=new Set(recCluster.values()).size;
+  if(nLabels<2){ bar.hidden=true; return; }                                            // nothing meaningful to group by
+  let view="ranked"; try{ view=localStorage.getItem("obn_isrcview")||"ranked"; }catch(e){}
+  const set=v=>{ view=v; try{ localStorage.setItem("obn_isrcview",v); }catch(e){}
+    bar.querySelectorAll("button").forEach(b=>b.classList.toggle("on", b.dataset.view===v));
+    layoutSources(srcBox, recCluster, v==="grouped"); };
+  bar.querySelectorAll("button").forEach(b=>{ b.onclick=()=>set(b.dataset.view); });
+  set(view);
 }
 // ---- click-to-filter: facets narrow the Sources list to the matching records ----
 let iFilter=null, iMakeCard=null;

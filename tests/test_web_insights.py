@@ -109,6 +109,16 @@ def test_find_similar_on_references():
     assert "function similarRecords" in js, "find-similar similarity model removed"
     assert 'class="isim ifacet"' in js, "find-similar chip removed from source cards"
     assert "similar:" in js, "find-similar facet key removed"
+
+
+def test_group_sources_by_cluster():
+    # The Sources list can be grouped into its emergent-theme clusters (+ an Other
+    # bucket) as a clustered way to read the references.
+    js = _script()
+    assert "function layoutSources" in js, "grouped-sources layout removed"
+    assert "function wireSourceGrouping" in js, "grouped-sources toggle wiring removed"
+    assert 'id="isrcview"' in js, "Sources view toggle removed"
+    assert '"isrc-grp"' in js or "isrc-grp" in SRC, "cluster-section heading removed"
     # No duplicates in the similar set: content-duplicate records collapse, and the
     # rendered id set is deduped before it reaches the filter.
     assert re.search(r"const sig=docTokens\.map", js), "content-signature dedup removed from similarRecords"

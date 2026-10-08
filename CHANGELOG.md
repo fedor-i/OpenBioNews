@@ -123,6 +123,14 @@ to follow [Semantic Versioning](https://semver.org/).
   - **Click-to-drill-in**: clicking a theme, company, therapeutic area, word-cloud
     term or key phrase filters the Sources list to the matching records (with a
     clear-filter banner). All client-side, zero-dependency, shareable by URL.
+  - **Group the Sources by cluster** — a *Ranked / Grouped by cluster* toggle on
+    the Sources list. "Grouped" sections the references under their emergent-theme
+    cluster (largest first) with an "Other" bucket for unclustered records, as a
+    clustered way to read the list instead of one flat BM25 ranking. It reuses the
+    same record→cluster map that drives the Themes card and is purely a re-layout
+    of the existing cards, so citations, the "find similar" chips and all filtering
+    keep working; the choice is remembered per viewer. (Hidden when there aren't at
+    least two clusters to group by.)
   - **"Find similar" on every reference** — each source card carries a *find
     similar* control that narrows the Sources list to that record and its nearest
     neighbours. Similarity is deterministic and LLM-free: each record is a TF-IDF
