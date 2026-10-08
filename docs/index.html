@@ -2013,10 +2013,41 @@ function wordleLayout(entries){
 // The selected time window, in days — now scopes what fetchInsights pulls.
 function windowDays(){ return +($("i_period")&&$("i_period").value) || 90; }
 function windowLabel(d){ return d<=7?"last 7 days":d<=30?"last 30 days":d<=90?"last 90 days":d<=180?"last 6 months":"last year"; }
-function iBaseline(){
-  const entry=seenStore[watchSig()]; const set=new Set();
-  if(entry) for(const t of TABS) for(const id of (entry[t]||[])) set.add(id);
-  return {has:!!entry, set};
+// Insights keeps its OWN seen-state, keyed by the subject it actually pulled, so
+// "new since your last visit" is honest and self-consistent — it diffs against what
+// Insights showed you before, not the per-tab watchlist views (which only record
+// what you scrolled there and so over- or under-count here). First look makes no
+// "new" claim at all.
+let iSeen={}; try{ iSeen=JSON.parse(localStorage.getItem("obn_iseen")||"{}")||{}; }catch(e){ iSeen={}; }
+function iSubjectSig(){ return watch.length ? "w:"+watchSig() : "q:"+(($("i_q")&&$("i_q").value||"").toLowerCase().replace(/\s+/g," ").trim()); }
+function iSaveSeen(sig, ids){
+  const prev=new Set(iSeen[sig]||[]); for(const id of ids) prev.add(id);
+  iSeen={[sig]:[...prev].slice(-1500)};                   // one subject at a time keeps storage tiny
+  try{ localStorage.setItem("obn_iseen", JSON.stringify(iSeen)); }catch(e){}
+}
+// ---- cross-agency company canonicalisation (one firm counted once) ----
+// The same company is written differently per agency ("Recursion Pharmaceuticals"
+// as a CT sponsor vs "RECURSION PHARMACEUTICALS INC (RXRX)" as an SEC filer), so a
+// raw group-by-string splits one firm across rows and inflates "who's most active".
+// Canonicalise before counting: drop a trailing ticker in parens, lowercase, strip
+// the corporate suffix and punctuation.
+function stripTicker(s){ return String(s||"").replace(/\s*\([A-Za-z0-9.\- ]{1,12}\)\s*$/,"").trim(); }
+function canonCompany(name){
+  return stripTicker(name).toLowerCase().replace(/[.,]/g,"").replace(/[\-\/]/g," ").replace(CORP_SUFFIX,"").replace(/\s+/g," ").trim();
+}
+function companyGroups(records, topn){
+  const g=new Map();
+  for(const r of records){ const name=(r.company||"").trim(); if(!name) continue;
+    const k=canonCompany(name); if(!k) continue;
+    let e=g.get(k); if(!e){ e={count:0, labels:new Map(), ids:[]}; g.set(k,e); }
+    e.count++; e.labels.set(name,(e.labels.get(name)||0)+1); e.ids.push(r.id); }
+  const out=[];
+  for(const e of g.values()){
+    let disp=stripTicker([...e.labels.entries()].sort((a,b)=>b[1]-a[1]||a[0].length-b[0].length)[0][0]);
+    if(disp && disp===disp.toUpperCase()) disp=disp.replace(/\b[A-Za-z]+/g,w=>w[0]+w.slice(1).toLowerCase());
+    out.push([disp, e.count, e.ids]);
+  }
+  return out.sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,topn||8);
 }
 
 // ---- render ----
@@ -2076,11 +2107,12 @@ function renderInsights(){
   // word cloud (colour) and the Emergent-themes card (record grouping) so they agree.
   const cloud=textRankTerms(docTokens,40);
   const {assign:termCluster, groups:termGroups}=clusterTerms(cloud.map(c=>c[0]), docTokens, 3);
-  const days=windowDays(), base=iBaseline();
+  const days=windowDays();
+  const iSig=iSubjectSig(), prevSeen=iSeen[iSig], baseHas=!!prevSeen, baseSet=new Set(prevSeen||[]);
   // newer half of the window = "recent" for rising-term momentum
   const midISO=daysAgoISO(Math.max(1,Math.round(days/2)));
   const recentFlags=recs.map(r=>!!(r.date && r.date>=midISO));
-  const unseen=r=> base.has ? !base.set.has(r.id) : false;     // genuinely new to this viewer
+  const unseen=r=> baseHas ? !baseSet.has(r.id) : false;       // new since Insights last showed this subject
   const perAgency={}; let newN=0, newest="", oldest="";
   for(const t of TABS) perAgency[t]=0;
   recs.forEach((r)=>{
@@ -2089,7 +2121,7 @@ function renderInsights(){
     if(unseen(r)) newN++;
   });
   const active=TABS.filter(t=>perAgency[t]>0);
-  const periodTxt = base.has ? `${windowLabel(days)} · <b>${newN} new since your last visit</b>` : `<b>${windowLabel(days)}</b>`;
+  const periodTxt = baseHas ? `${windowLabel(days)} · <b>${newN} new since your last visit</b>` : `<b>${windowLabel(days)}</b>`;
   // records matching a facet value — the drill-in targets
   const idsWhere=pred=>recs.filter(pred).map(r=>r.id);
   const idsForTerm=w=>recs.filter((r,i)=>docTokens[i].includes(w)).map(r=>r.id);
@@ -2130,7 +2162,7 @@ function renderInsights(){
       `</div></div>`;
   }
 
-  const companies=topN(countField(recs,r=>r.company),8).map(([k,v])=>[k,v,idsWhere(r=>r.company===k)]);
+  const companies=companyGroups(recs,8);   // cross-agency canonical (one firm counted once)
   const areas=topN(countField(recs,r=>r.areas),8).map(([k,v])=>[k,v,idsWhere(r=>(r.areas||[]).includes(k))]);
   const phases=topN(countField(recs.filter(r=>r.agency==="trials"),r=>(r.phase||[]).map(prettyPhase1)),6);
   html+=`<div class="istats">`;
@@ -2192,6 +2224,7 @@ function renderInsights(){
   renumberCites(srcBox);                                   // Sources: references 1..N by order
   const nb=box.querySelector(".inotable"); if(nb) renumberCites(nb, ".ievent");  // Notable: one number per event
   wireFacets(box);
+  iSaveSeen(iSig, recs.map(r=>r.id));                      // record what we showed → honest "new" next time
 }
 // ---- click-to-filter: facets narrow the Sources list to the matching records ----
 let iFilter=null;
@@ -2243,7 +2276,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,singular,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
-  clusterTerms,buildThemes,risingTerms,notableEvents,monthlyVolume,wordleLayout,
+  clusterTerms,buildThemes,risingTerms,notableEvents,monthlyVolume,wordleLayout,canonCompany,companyGroups,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----

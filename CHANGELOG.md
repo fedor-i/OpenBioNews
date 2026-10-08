@@ -72,6 +72,17 @@ to follow [Semantic Versioning](https://semver.org/).
     complete set. Analysis runs over every record; the source list renders the top
     150 by relevance to keep the page light. "New since your last visit" is still
     highlighted via the per-watchlist seen-state.
+  - **Cross-agency company canonicalisation** — the same firm is written
+    differently per agency ("Recursion Pharmaceuticals" as a trial sponsor vs
+    "RECURSION PHARMACEUTICALS INC (RXRX)" as an SEC filer), which used to split
+    one company across two "Top companies" rows and inflate "who's most active".
+    Companies are now canonicalised (drop a trailing ticker, lowercase, strip the
+    corporate suffix + punctuation) before counting, so one firm is counted once
+    and its row links to its records across every agency.
+  - **Honest "new since your last visit"** — Insights now keeps its *own*
+    seen-state, keyed by the subject it actually pulled, instead of borrowing the
+    per-tab watchlist views' partial scroll state. First look makes no "new" claim;
+    a later visit diffs against exactly what Insights showed you before.
   - Counted **stats** — records by source, top companies, top therapeutic areas,
     trial phases — plus a pure-SVG **monthly-volume sparkline** whose partial edge
     months (the window's first month and the current, not-yet-finished month) are
