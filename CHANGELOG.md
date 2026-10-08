@@ -52,6 +52,11 @@ to follow [Semantic Versioning](https://semver.org/).
     (pivotal) trials, terminated/withdrawn/suspended trials, original (new) FDA
     approvals and active drug shortages — ordered by severity, each shown with a
     cited excerpt from the record.
+  - **Plural/singular grouping**: a lightweight deterministic singulariser folds
+    plural forms into one term (formulations→formulation, antibodies→antibody,
+    cells→cell), so the cloud, clustering and ranking count them together instead
+    of showing both. Stopwords are matched on the original form too, so plural
+    stop-entries never leak back in as a singular.
   - **Noun-ish term filtering**: the word cloud and key phrases drop common verbs,
     adverbs, adjectives and clinical-trial boilerplate (a deterministic heuristic
     stoplist — no POS model) **plus a dynamic max-document-frequency filter** that

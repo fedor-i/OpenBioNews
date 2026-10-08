@@ -1660,10 +1660,28 @@ async function fetchInsights(terms){
 }
 
 // ---- analysis (pure) ----
+// Lightweight deterministic singulariser so plural/singular forms group together
+// (formulations→formulation, antibodies→antibody, studies→study). No stemmer lib;
+// a few suffix rules plus a short list of singular words that happen to end in -s.
+const I_KEEP_S=new Set("diabetes series species means herpes measles rabies scabies ascites lupus analysis".split(" "));
+function singular(w){
+  if(w.length<=3 || I_KEEP_S.has(w)) return w;
+  if(/(ss|us|is)$/.test(w)) return w;                        // process, virus, analysis, basis
+  if(/ies$/.test(w) && w.length>4) return w.slice(0,-3)+"y"; // studies→study, antibodies→antibody
+  if(/(ches|shes|xes|zes)$/.test(w)) return w.slice(0,-2);   // matches→match, boxes→box
+  if(/sses$/.test(w)) return w.slice(0,-2);                  // processes→process, classes→class
+  if(/s$/.test(w)) return w.slice(0,-1);                     // cells→cell, molecules→molecule, doses→dose
+  return w;
+}
 function iTokens(text){
-  return String(text||"").toLowerCase().replace(/[^a-z0-9\-\s]/g," ").split(/\s+/)
-    .map(w=>w.replace(/^-+|-+$/g,""))
-    .filter(w=>w.length>2 && !/^\d+$/.test(w) && !I_STOP.has(w));
+  const out=[];
+  for(let w of String(text||"").toLowerCase().replace(/[^a-z0-9\-\s]/g," ").split(/\s+/)){
+    w=w.replace(/^-+|-+$/g,"");
+    if(!w || /^\d+$/.test(w) || I_STOP.has(w)) continue;   // drop stopwords by their original form (catches plural stop entries)
+    const s=singular(w);                                   // then group by the singular form
+    if(s.length>2 && !/^\d+$/.test(s) && !I_STOP.has(s)) out.push(s);
+  }
+  return out;
 }
 function iSubjectStop(){
   const s=new Set(); for(const t of insightTerms()) for(const w of iTokens(t)) s.add(w); return s;
@@ -2160,7 +2178,7 @@ $("i_period").onchange=()=>{ if(iRecords.length) renderInsights(); else maybeAut
 $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
-window.OBN_INSIGHTS={iTokens,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
+window.OBN_INSIGHTS={iTokens,singular,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
   clusterTerms,buildThemes,risingTerms,notableEvents,monthlyVolume,wordleLayout,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
