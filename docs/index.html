@@ -206,6 +206,8 @@
   .theme{display:inline-flex;align-items:center;gap:.4rem;background:var(--chip);border:1px solid var(--line);
     border-radius:999px;padding:.3rem .5rem .3rem .7rem;font-size:.85rem;font-weight:600;color:var(--ink);cursor:pointer}
   .theme:hover{border-color:var(--accent)}
+  .theme .tdot{width:.62rem;height:.62rem;border-radius:50%;flex:0 0 auto;background:var(--muted)}
+  .theme.tc0 .tdot{background:var(--viz1)} .theme.tc1 .tdot{background:var(--viz2)} .theme.tc2 .tdot{background:var(--viz3)}
   .theme .tcount{background:var(--accent);color:#fff;border-radius:999px;min-width:1.4em;text-align:center;
     font-size:.72rem;padding:.05rem .35rem}
   .irise{margin:.5rem 0}
@@ -1771,67 +1773,77 @@ function countField(records, pick){
   for(const r of records) for(const v of [].concat(pick(r)||[])){ const k=String(v||"").trim(); if(k) m.set(k,(m.get(k)||0)+1); }
   return m;
 }
-// ---- emergent sub-theme clustering ----
-// Weighted term co-occurrence graph (sliding window), shared by clustering below.
-function iCoGraph(docTokens, win){
-  win=win||4; const adj=new Map(), nodes=new Set();
-  const edge=(a,b)=>{ if(a===b) return; for(const [x,y] of [[a,b],[b,a]]){ let m=adj.get(x); if(!m){m=new Map();adj.set(x,m);} m.set(y,(m.get(y)||0)+1); } };
-  for(const toks of docTokens) for(let i=0;i<toks.length;i++){ nodes.add(toks[i]);
-    for(let j=i+1;j<Math.min(toks.length,i+win);j++) edge(toks[i],toks[j]); }
-  return {nodes:[...nodes].sort(), adj};
-}
-// Label propagation (Raghavan, Albert & Kumara 2007) — unsupervised community
-// detection on the co-occurrence graph. Made fully deterministic: nodes visited in
-// a fixed sorted order, each adopts the neighbour community carrying the greatest
-// summed edge weight, ties broken by the lexicographically smallest label, fixed
-// iteration cap. Seed = every node in its own community.
-function labelProp(nodes, adj, iters){
-  iters=iters||25; const order=nodes.slice().sort();
-  const label=new Map(order.map(n=>[n,n]));
-  for(let it=0; it<iters; it++){
+// ---- emergent sub-theme clustering (spherical k-means on PPMI vectors) ----
+// Cluster the salient terms by their *distributional* profile: each term becomes a
+// PPMI co-occurrence vector (which other terms it appears beside), and we run
+// cosine k-means on those vectors — terms used in similar contexts land together.
+// This beats single-pass nearest-anchor (no refinement) and label propagation
+// (collapses a dense graph into one community). Fully deterministic: farthest-point
+// (k-means++ style) seeding, fixed Lloyd iterations, lexicographic tie-breaks.
+// Returns {assign:Map(term->0..K-1), groups:[[term,…],…]} with groups (and colour
+// indices) ordered largest-first, terms within a group kept in salience order.
+function clusterTerms(terms, docTokens, K){
+  const n=terms.length;
+  if(n===0) return {assign:new Map(), groups:[]};
+  K=Math.max(1, Math.min(K||3, n));
+  const idx=new Map(terms.map((t,i)=>[t,i]));
+  const M=Array.from({length:n},()=>new Float64Array(n)), WIN=4;
+  for(const toks of docTokens){ const ids=toks.map(w=>idx.has(w)?idx.get(w):-1);
+    for(let i=0;i<ids.length;i++){ const a=ids[i]; if(a<0) continue;
+      for(let j=i+1;j<Math.min(ids.length,i+WIN);j++){ const b=ids[j]; if(b<0||b===a) continue; M[a][b]++; M[b][a]++; } } }
+  const row=new Float64Array(n); let total=0;
+  for(let i=0;i<n;i++){ let s=0; for(let j=0;j<n;j++) s+=M[i][j]; row[i]=s; total+=s; }
+  const V=[];                                              // unit-length PPMI rows
+  for(let i=0;i<n;i++){ const v=new Float64Array(n); let nn=0;
+    if(total>0 && row[i]>0) for(let j=0;j<n;j++) if(M[i][j]>0 && row[j]>0){ const p=Math.log((M[i][j]*total)/(row[i]*row[j])); if(p>0){ v[j]=p; nn+=p*p; } }
+    nn=Math.sqrt(nn); if(nn>0) for(let j=0;j<n;j++) v[j]/=nn;
+    V.push(v); }
+  const dot=(a,b)=>{ let s=0; for(let j=0;j<n;j++) s+=a[j]*b[j]; return s; };   // cosine (unit vectors)
+  // farthest-point seeding on cosine distance (deterministic: first = most salient)
+  const seeds=[0];
+  while(seeds.length<K){ let best=-1, bestd=-1;
+    for(let i=0;i<n;i++){ if(seeds.includes(i)) continue;
+      let mn=1; for(const s of seeds) mn=Math.min(mn, dot(V[i],V[s]));
+      const d=1-mn; if(d>bestd){ bestd=d; best=i; } }
+    if(best<0) break; seeds.push(best); }
+  let cent=seeds.map(s=>Float64Array.from(V[s]));
+  const assign=new Int32Array(n);
+  for(let it=0; it<30; it++){
     let changed=false;
-    for(const n of order){
-      const m=adj.get(n); if(!m||!m.size) continue;
-      const w=new Map(); for(const [nb,wt] of m){ const l=label.get(nb); w.set(l,(w.get(l)||0)+wt); }
-      let best=null, bestW=-1;
-      for(const [l,wt] of [...w.entries()].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0)) if(wt>bestW){ bestW=wt; best=l; }
-      if(best!=null && best!==label.get(n)){ label.set(n, best); changed=true; }
-    }
-    if(!changed) break;
+    for(let i=0;i<n;i++){ let bi=0, bs=-Infinity;
+      for(let k=0;k<cent.length;k++){ const s=dot(V[i],cent[k]); if(s>bs){ bs=s; bi=k; } }
+      if(assign[i]!==bi){ assign[i]=bi; changed=true; } }
+    const nc=cent.map(()=>new Float64Array(n));
+    for(let i=0;i<n;i++){ const c=nc[assign[i]], v=V[i]; for(let j=0;j<n;j++) c[j]+=v[j]; }
+    for(let k=0;k<nc.length;k++){ let nn=0; for(let j=0;j<n;j++) nn+=nc[k][j]*nc[k][j]; nn=Math.sqrt(nn); if(nn>0) for(let j=0;j<n;j++) nc[k][j]/=nn; }
+    cent=nc;
+    if(!changed && it>0) break;
   }
-  return label;
+  // order clusters largest-first; remap colour indices and collect member terms
+  const members=cent.map(()=>[]); for(let i=0;i<n;i++) members[assign[i]].push(i);
+  const order=members.map((m,k)=>[k,m.length]).sort((a,b)=>b[1]-a[1]||a[0]-b[0]).map(x=>x[0]);
+  const remap=new Map(order.map((k,nk)=>[k,nk]));
+  const outAssign=new Map(); terms.forEach((t,i)=>outAssign.set(t, remap.get(assign[i])));
+  const groups=order.map(k=>members[k].sort((a,b)=>a-b).map(i=>terms[i]));   // salience order preserved
+  return {assign:outAssign, groups:groups.filter(g=>g.length)};
 }
-// Group the gathered records into labeled themes: detect term communities, then
-// assign each record to the community its salience-weighted content tokens favour.
-// Returns clusters (size ≥ minSize) labeled by their strongest terms, ordered by
-// record count. recIdxs index into the records/docTokens arrays passed in.
-function themeClusters(records, docTokens, opts){
-  opts=opts||{}; const minSize=opts.minSize||2, maxClusters=opts.maxClusters||6, maxTerms=opts.maxTerms||3;
-  const {nodes,adj}=iCoGraph(docTokens,4);
-  if(!nodes.length) return [];
-  const label=labelProp(nodes, adj, 25);
-  const pr=pageRank(nodes, adj);                       // term salience, for vote weight + labeling
-  const commRecs=new Map();
+// Turn a term clustering into record themes: assign each record to the cluster its
+// tokens most belong to, label the cluster by its top member terms, count records.
+// cidx is the cluster's colour index, so theme chips match the word-cloud colours.
+function buildThemes(records, docTokens, assign, groups){
+  const K=groups.length; if(!K) return [];
+  const recIdxs=Array.from({length:K},()=>[]);
   docTokens.forEach((toks,ri)=>{
-    const vote=new Map();
-    for(const w of toks){ const c=label.get(w); if(c==null) continue; vote.set(c,(vote.get(c)||0)+(pr.get(w)||0)); }
-    if(!vote.size) return;
-    let best=null, bestW=-1;
-    for(const [c,wt] of [...vote.entries()].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0)) if(wt>bestW){ bestW=wt; best=c; }
-    if(!commRecs.has(best)) commRecs.set(best,[]); commRecs.get(best).push(ri);
+    const vote=new Array(K).fill(0);
+    for(const w of toks){ const c=assign.get(w); if(c!=null && c<K) vote[c]++; }
+    let bi=-1, bv=0; for(let k=0;k<K;k++) if(vote[k]>bv){ bv=vote[k]; bi=k; }
+    if(bi>=0) recIdxs[bi].push(ri);
   });
   const clusters=[];
-  for(const [c,ris] of commRecs){
-    if(ris.length<minSize) continue;
-    const tf=new Map();
-    for(const ri of ris) for(const w of docTokens[ri]) if(label.get(w)===c) tf.set(w,(tf.get(w)||0)+1);
-    const terms=[...tf.entries()].sort((a,b)=>b[1]-a[1]||(pr.get(b[0])||0)-(pr.get(a[0])||0)||a[0].localeCompare(b[0]))
-      .slice(0,maxTerms).map(x=>x[0]);
-    if(!terms.length) continue;
-    clusters.push({label:terms.join(" · "), terms, recIdxs:ris.slice().sort((a,b)=>a-b), count:ris.length, commId:c});
-  }
-  clusters.sort((a,b)=>b.count-a.count||a.label.localeCompare(b.label));
-  return clusters.slice(0,maxClusters);
+  for(let k=0;k<K;k++){ if(!recIdxs[k].length) continue;
+    clusters.push({label:groups[k].slice(0,3).join(" · "), terms:groups[k], recIdxs:recIdxs[k], count:recIdxs[k].length, cidx:k}); }
+  clusters.sort((a,b)=>b.count-a.count||a.cidx-b.cidx);
+  return clusters;
 }
 // ---- rising / trending terms (momentum) ----
 // Deterministic novelty detection: compare each content term's document-rate in the
@@ -1882,35 +1894,6 @@ function monthlyVolume(records){
   const m=new Map();
   for(const r of records){ const ym=(r.date||"").slice(0,7); if(/^\d{4}-\d{2}$/.test(ym)) m.set(ym,(m.get(ym)||0)+1); }
   return [...m.entries()].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
-}
-// Colour the cloud terms into (up to) 3 groups by association. Label propagation
-// collapses a dense term graph into one community (so the cloud ends up one
-// colour), so instead pick 3 spread "anchor" terms by farthest-point sampling on
-// the co-occurrence graph, then colour every term by the anchor it co-occurs with
-// most (strongest-neighbour inheritance for terms that touch no anchor). Always
-// yields multiple colours and is deterministic. Returns {color:Map(term->0..2),
-// anchors:[term,…]}.
-function anchorColors(terms, docTokens){
-  const {adj}=iCoGraph(docTokens,4);
-  const cooc=(a,b)=>{ const m=adj.get(a); return m?(m.get(b)||0):0; };
-  if(terms.length<=1) return {color:new Map(terms.map(t=>[t,0])), anchors:terms.slice()};
-  const cand=terms.slice(0, Math.min(24, terms.length));
-  const anchors=[cand[0]];
-  // anchor 2: least associated with anchor 1
-  { let best=null, bv=Infinity; for(const c of cand){ if(anchors.includes(c)) continue;
-      const v=cooc(c,anchors[0]); if(v<bv){ bv=v; best=c; } } if(best) anchors.push(best); }
-  // anchor 3: minimises its strongest tie to the existing anchors (farthest point)
-  if(cand.length>=3){ let best=null, bv=Infinity; for(const c of cand){ if(anchors.includes(c)) continue;
-      const v=Math.max(...anchors.map(a=>cooc(c,a))); if(v<bv){ bv=v; best=c; } } if(best) anchors.push(best); }
-  const color=new Map(); anchors.forEach((a,i)=>color.set(a,i));
-  const left=[];
-  for(const t of terms){ if(color.has(t)) continue;
-    let bi=-1, bv=0; anchors.forEach((a,i)=>{ const v=cooc(t,a); if(v>bv){ bv=v; bi=i; } });
-    if(bi>=0) color.set(t,bi); else left.push(t); }
-  for(const t of left){ const m=adj.get(t); let bi=-1, bv=0;
-    if(m) for(const [nb,w] of m){ if(color.has(nb) && w>bv){ bv=w; bi=color.get(nb); } }
-    color.set(t, bi>=0?bi:0); }
-  return {color, anchors};
 }
 // ---- packed word cloud (Wordle-style spiral layout) ----
 // Place the salient terms largest-first along an Archimedean spiral from the
@@ -2010,6 +1993,10 @@ function renderInsights(){
       if(hi.size) docTokens=docTokens.map(t=>t.filter(w=>!hi.has(w))); } }
   const freq=iFreq(docTokens);
   const bm=bm25Rank(recs, insightTerms()); const bmScore=new Map(bm.map(o=>[o.i,o.score]));
+  // Cluster the salient terms once (spherical k-means), then share it between the
+  // word cloud (colour) and the Emergent-themes card (record grouping) so they agree.
+  const cloud=textRankTerms(docTokens,40);
+  const {assign:termCluster, groups:termGroups}=clusterTerms(cloud.map(c=>c[0]), docTokens, 3);
   const cut=iCutoff(), base=iBaseline();
   const perAgency={}; let newN=0, newest="", oldest="";
   for(const t of TABS) perAgency[t]=0;
@@ -2053,13 +2040,13 @@ function renderInsights(){
       `</div>`;
   }
 
-  // ---- Emergent themes (label-propagation clustering) ----
-  const clusters=themeClusters(recs, docTokens, {minSize:2, maxClusters:6, maxTerms:3});
+  // ---- Emergent themes (spherical k-means; colours match the word cloud) ----
+  const clusters=buildThemes(recs, docTokens, termCluster, termGroups);
   if(clusters.length){
-    html+=`<div class="icard ithemes"><h3>Emergent themes — label-propagation clustering <span class="ihint">click to filter</span></h3><div class="themerow">`+
+    html+=`<div class="icard ithemes"><h3>Emergent themes — k-means clustering <span class="ihint">click to filter</span></h3><div class="themerow">`+
       clusters.map(c=>{ const ids=c.recIdxs.map(i=>recs[i].id);
-        return `<button class="theme ifacet" data-facet="theme:${escA(c.label)}" data-ids="${escA(JSON.stringify(ids))}">`+
-          `<span class="tlabel">${esc(c.label)}</span><span class="tcount">${c.count}</span></button>`; }).join("")+
+        return `<button class="theme ifacet tc${c.cidx}" data-facet="theme:${escA(c.label)}" data-ids="${escA(JSON.stringify(ids))}">`+
+          `<span class="tdot"></span><span class="tlabel">${esc(c.label)}</span><span class="tcount">${c.count}</span></button>`; }).join("")+
       `</div></div>`;
   }
 
@@ -2083,18 +2070,12 @@ function renderInsights(){
       `</div></div>`;
   }
 
-  const cloud=textRankTerms(docTokens,40);
   if(cloud.length){
     const maxF=cloud[0][1]||1;
-    // color = association group: 3 spread anchor terms (validated blue/orange/aqua),
-    // every term colored by the anchor it co-occurs with most — reliably multi-color.
-    const {color:termColor}=anchorColors(cloud.map(c=>c[0]), docTokens);
-    const colorClass=w=>"tc"+(termColor.get(w)||0);
-    // legend = each colour group's most-salient member terms (not a single anchor),
-    // so the "color map" actually describes what the colour groups together.
-    const grp=[[],[],[]];
-    cloud.forEach(([t])=>{ const g=termColor.get(t); if(g!=null && grp[g]) grp[g].push(t); });
-    const legend=grp.map((ts,i)=> ts.length?`<span class="mlg"><i style="background:var(--viz${i+1})"></i>${esc(ts.slice(0,3).join(" · "))}</span>`:"").join("");
+    // colour = k-means term cluster (shared with the themes card); legend names each
+    // colour by its most-salient member terms so the "color map" is meaningful.
+    const colorClass=w=>"tc"+(termCluster.get(w)||0);
+    const legend=termGroups.slice(0,3).map((ts,i)=>`<span class="mlg"><i style="background:var(--viz${i+1})"></i>${esc(ts.slice(0,3).join(" · "))}</span>`).join("");
     // packed word cloud: spiral layout, sized by salience, colored by theme
     const layout=wordleLayout(cloud.slice(0,45));
     if(layout){
@@ -2180,7 +2161,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
-  iCoGraph,labelProp,themeClusters,anchorColors,risingTerms,notableEvents,monthlyVolume,wordleLayout,
+  clusterTerms,buildThemes,risingTerms,notableEvents,monthlyVolume,wordleLayout,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----

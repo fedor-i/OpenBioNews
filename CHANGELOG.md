@@ -28,22 +28,21 @@ to follow [Semantic Versioning](https://semver.org/).
   - **Packed word cloud** — a deterministic Wordle-style spiral layout (largest
     term first, each spiralling out until it clears the placed words; ~a quarter
     set vertical; text measured with canvas `measureText`), rendered as pure SVG.
-    Terms are **sized by TextRank salience** and **colored into 3 association
-    groups**: three spread "anchor" terms are chosen by farthest-point sampling on
-    the co-occurrence graph, and every term takes the colour of the anchor it
-    co-occurs with most (validated 3-hue palette). This reliably yields multiple
-    colours — label-propagation clustering collapses a dense term graph into one
-    community, leaving the cloud a single colour. The legend labels each colour by
-    its top member terms (not a single word). Click a term to filter sources.
+    Terms are **sized by TextRank salience** and **colored by their k-means cluster**
+    (the same clustering as the themes card, validated 3-hue palette), so terms
+    used in similar contexts share a colour and the colours match the theme chips.
+    The legend labels each colour by its top member terms. Click a term to filter.
   - **YAKE!** (Campos et al., 2020) extracts the **key phrases** (unsupervised,
     statistical; casing + position + frequency + dispersion + context).
   - **BM25** (Robertson / Spärck Jones) ranks the source records by relevance to
     the subject.
-  - **Emergent themes** — label-propagation community detection (Raghavan, Albert
-    & Kumara, 2007) on the term co-occurrence graph groups the records into labeled
-    sub-themes (top terms + record count), made fully deterministic (fixed visiting
-    order, lexicographic tie-breaks, capped iterations). Records are assigned to the
-    theme their salience-weighted terms favour.
+  - **Emergent themes** — **spherical k-means on PPMI co-occurrence vectors**:
+    each salient term becomes a vector of what it appears beside, and cosine
+    k-means groups terms used in similar contexts (deterministic farthest-point
+    seeding + fixed Lloyd iterations). Records are assigned to the cluster their
+    tokens most belong to; each theme shows its top terms + record count. The same
+    clustering colours the word cloud, so theme chips and cloud colours agree. This
+    replaced label propagation, which collapsed a dense term graph into one theme.
   - **Rising terms** — deterministic novelty/burst detection: terms whose share in
     the highlighted window materially exceeds (or are entirely new vs.) the older
     baseline, so "what's new" names the *themes that are accelerating*, not just a
