@@ -1850,7 +1850,9 @@ function countField(records, pick){
 // closure simFor(i) → [[j, cosine], …] (other records, most similar first, above a
 // small floor so unrelated records aren't surfaced as "similar"). Uses the same
 // filtered docTokens as the rest of the digest, so the match reflects the concepts
-// shown in the cloud/themes, not ubiquitous trial language.
+// shown in the cloud/themes, not ubiquitous trial language. Content duplicates (the
+// same item arriving twice under different ids) are collapsed to one representative,
+// and an exact duplicate of the anchor is never offered as its own "similar".
 function similarRecords(docTokens, opts){
   opts=opts||{}; const topn=opts.topn||8, floor=opts.floor!=null?opts.floor:0.08;
   const N=docTokens.length, df=new Map();
@@ -1859,15 +1861,18 @@ function similarRecords(docTokens, opts){
   const vecs=docTokens.map(toks=>{ const tf=new Map(); for(const w of toks) tf.set(w,(tf.get(w)||0)+1);
     const v=new Map(); let nn=0; for(const [w,f] of tf){ const x=f*idf(w); if(x>0){ v.set(w,x); nn+=x*x; } }
     return {v, norm:Math.sqrt(nn)}; });
+  const sig=docTokens.map(t=>t.slice().sort().join("\u0001"));   // content signature → detect duplicate records
   return i=>{
     const a=vecs[i]; if(!a||!a.norm) return [];
-    const out=[];
+    const scored=[];
     for(let j=0;j<N;j++){ if(j===i) continue; const b=vecs[j]; if(!b.norm) continue;
       const [sm,bg]=a.v.size<=b.v.size?[a.v,b.v]:[b.v,a.v];      // iterate the smaller vector
       let dot=0; for(const [w,x] of sm){ const y=bg.get(w); if(y) dot+=x*y; }
-      const cos=dot/(a.norm*b.norm); if(cos>=floor) out.push([j,cos]); }
-    out.sort((p,q)=>q[1]-p[1]||p[0]-q[0]);
-    return out.slice(0,topn);
+      const cos=dot/(a.norm*b.norm); if(cos>=floor) scored.push([j,cos]); }
+    scored.sort((p,q)=>q[1]-p[1]||p[0]-q[0]);
+    const out=[], seen=new Set([sig[i]]);    // seed with the anchor's own signature → drop its duplicates
+    for(const pair of scored){ const s=sig[pair[0]]; if(seen.has(s)) continue; seen.add(s); out.push(pair); if(out.length>=topn) break; }
+    return out;
   };
 }
 // ---- emergent sub-theme clustering (spherical k-means on PPMI vectors) ----
@@ -2148,9 +2153,10 @@ function iCard(r, isNew, simIds){
   const tags=[kind, r.company].filter(Boolean);
   // "find similar": filter the Sources list to this record + its nearest neighbours.
   // Reuses the .ifacet machinery; the set leads with the anchor so it stays in view.
-  const sim=(simIds&&simIds.length)
+  const simSet=[r.id, ...(simIds||[])].filter((v,ix,arr)=>arr.indexOf(v)===ix);   // anchor first, no repeats
+  const sim=(simSet.length>1)
     ? `<button class="isim ifacet" data-facet="similar:${escA(r.id)}" data-simlabel="${escA(clip(r.title,60))}" `+
-      `data-ids="${escA(JSON.stringify([r.id,...simIds]))}" title="Show the ${simIds.length} most similar records">⧉ find similar</button>`
+      `data-ids="${escA(JSON.stringify(simSet))}" title="Show the ${simSet.length-1} most similar records">⧉ find similar</button>`
     : "";
   el.innerHTML=
     `<h2>${isNew?'<span class="perflag">NEW</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.title)}</a></h2>`+

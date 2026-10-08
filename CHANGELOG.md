@@ -129,7 +129,10 @@ to follow [Semantic Versioning](https://semver.org/).
     over the same filtered tokens as the rest of the digest. Only genuinely close
     records are offered (a cosine floor), so an off-topic record surfaces nothing
     rather than a spurious "match", and the neighbour set leads with the anchor so
-    it stays in view.
+    it stays in view. Duplicates are collapsed — a content-duplicate of the anchor
+    (the same item arriving twice under different ids) is never offered as its own
+    match, and duplicate records fold to a single representative — so every entry
+    in "similar" is a distinct record.
 - **Build-your-own topics (hosted page)** — a "+ New topic" builder on the
   watchlist bar: name a topic and give it a bundle of terms and companies (e.g.
   "My ADC competitors" → Seagen, Daiichi Sankyo, antibody-drug conjugate). Saved

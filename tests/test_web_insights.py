@@ -109,6 +109,10 @@ def test_find_similar_on_references():
     assert "function similarRecords" in js, "find-similar similarity model removed"
     assert 'class="isim ifacet"' in js, "find-similar chip removed from source cards"
     assert "similar:" in js, "find-similar facet key removed"
+    # No duplicates in the similar set: content-duplicate records collapse, and the
+    # rendered id set is deduped before it reaches the filter.
+    assert re.search(r"const sig=docTokens\.map", js), "content-signature dedup removed from similarRecords"
+    assert "arr.indexOf(v)===ix" in js, "id-set dedup removed from the find-similar chip"
 
 
 if __name__ == "__main__":
