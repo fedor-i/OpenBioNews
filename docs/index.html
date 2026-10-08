@@ -1952,10 +1952,29 @@ function notableEvents(records){
   return out;
 }
 // ---- monthly volume, for a pure-SVG sparkline (time signal) ----
-function monthlyVolume(records){
+// Records per calendar month. Partial edge months — the window's first month (if
+// it starts mid-month) and the current month (not yet over) — are prorated up to a
+// full-month rate so the trend line isn't dragged down at the ends; interior full
+// months and anything outside [from,to] are left as the raw count. Returns
+// [ym, proratedValue, rawCount]; the sparkline plots the prorated value.
+function monthlyVolume(records, opts){
+  opts=opts||{};
+  const to=opts.to||daysAgoISO(0), from=opts.from||"";
   const m=new Map();
   for(const r of records){ const ym=(r.date||"").slice(0,7); if(/^\d{4}-\d{2}$/.test(ym)) m.set(ym,(m.get(ym)||0)+1); }
-  return [...m.entries()].sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
+  const dnum=iso=>Math.floor(Date.parse(iso+"T00:00:00Z")/864e5);
+  const dim=ym=>{ const [y,mo]=ym.split("-").map(Number); return new Date(Date.UTC(y,mo,0)).getUTCDate(); };
+  const out=[];
+  for(const [ym,raw] of m){
+    const md=dim(ym), mStart=ym+"-01", mEnd=ym+"-"+String(md).padStart(2,"0");
+    let cs=mStart, ce=mEnd;
+    if(from && from>cs) cs=from;
+    if(to && to<ce) ce=to;
+    const covered=dnum(ce)-dnum(cs)+1;
+    const prorated=(covered>0 && covered<md) ? Math.round(raw*md/covered*10)/10 : raw;  // scale partial months only
+    out.push([ym, prorated, raw]);
+  }
+  return out.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
 }
 // ---- packed word cloud (Wordle-style spiral layout) ----
 // Place the salient terms largest-first along an Archimedean spiral from the
@@ -2081,8 +2100,8 @@ function renderInsights(){
     `<p class="imeta">${recs.length} records across ${active.length} source${active.length!==1?"s":""}`+
     (newest?` · newest ${esc(newest)}`:"")+(oldest&&oldest!==newest?` · back to ${esc(oldest)}`:"")+
     ` · ${periodTxt}</p>`;
-  const vol=monthlyVolume(recs), spark=iSparkline(vol);
-  if(spark) html+=`<div class="ispark-row"><span class="isl">records/month</span>${spark}`+
+  const vol=monthlyVolume(recs, {from:daysAgoISO(days)}), spark=iSparkline(vol);
+  if(spark) html+=`<div class="ispark-row"><span class="isl" title="Partial months (the window's first month and the current month) are prorated to a full-month rate.">records/month*</span>${spark}`+
     `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
   html+=`<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>k-means</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+

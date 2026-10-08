@@ -73,7 +73,10 @@ to follow [Semantic Versioning](https://semver.org/).
     150 by relevance to keep the page light. "New since your last visit" is still
     highlighted via the per-watchlist seen-state.
   - Counted **stats** — records by source, top companies, top therapeutic areas,
-    trial phases — plus a pure-SVG **monthly-volume sparkline**.
+    trial phases — plus a pure-SVG **monthly-volume sparkline** whose partial edge
+    months (the window's first month and the current, not-yet-finished month) are
+    **prorated to a full-month rate**, so the trend line isn't dragged down at the
+    ends; interior full months stay as the raw count.
   - **Numbered citations across every list**: each card (and each Notable event)
     now carries a sequential reference number — markers run 1..N by position, and
     a card's inline markers match its source line — instead of every marker
