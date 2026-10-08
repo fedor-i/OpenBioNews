@@ -33,7 +33,8 @@ to follow [Semantic Versioning](https://semver.org/).
     the co-occurrence graph, and every term takes the colour of the anchor it
     co-occurs with most (validated 3-hue palette). This reliably yields multiple
     colours — label-propagation clustering collapses a dense term graph into one
-    community, leaving the cloud a single colour. Click a term to filter sources.
+    community, leaving the cloud a single colour. The legend labels each colour by
+    its top member terms (not a single word). Click a term to filter sources.
   - **YAKE!** (Campos et al., 2020) extracts the **key phrases** (unsupervised,
     statistical; casing + position + frequency + dispersion + context).
   - **BM25** (Robertson / Spärck Jones) ranks the source records by relevance to

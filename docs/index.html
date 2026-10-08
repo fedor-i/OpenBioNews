@@ -2088,9 +2088,13 @@ function renderInsights(){
     const maxF=cloud[0][1]||1;
     // color = association group: 3 spread anchor terms (validated blue/orange/aqua),
     // every term colored by the anchor it co-occurs with most — reliably multi-color.
-    const {color:termColor, anchors}=anchorColors(cloud.map(c=>c[0]), docTokens);
+    const {color:termColor}=anchorColors(cloud.map(c=>c[0]), docTokens);
     const colorClass=w=>"tc"+(termColor.get(w)||0);
-    const legend=anchors.map((a,i)=>`<span class="mlg"><i style="background:var(--viz${i+1})"></i>${esc(a)}</span>`).join("");
+    // legend = each colour group's most-salient member terms (not a single anchor),
+    // so the "color map" actually describes what the colour groups together.
+    const grp=[[],[],[]];
+    cloud.forEach(([t])=>{ const g=termColor.get(t); if(g!=null && grp[g]) grp[g].push(t); });
+    const legend=grp.map((ts,i)=> ts.length?`<span class="mlg"><i style="background:var(--viz${i+1})"></i>${esc(ts.slice(0,3).join(" · "))}</span>`:"").join("");
     // packed word cloud: spiral layout, sized by salience, colored by theme
     const layout=wordleLayout(cloud.slice(0,45));
     if(layout){
