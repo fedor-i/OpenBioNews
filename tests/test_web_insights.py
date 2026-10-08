@@ -103,6 +103,14 @@ def test_cross_agency_company_canonicalisation():
     assert "function companyGroups" in js, "company grouping removed"
 
 
+def test_find_similar_on_references():
+    # Each reference offers a TF-IDF-cosine "find similar" jump, reusing the filter.
+    js = _script()
+    assert "function similarRecords" in js, "find-similar similarity model removed"
+    assert 'class="isim ifacet"' in js, "find-similar chip removed from source cards"
+    assert "similar:" in js, "find-similar facet key removed"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

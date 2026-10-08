@@ -230,6 +230,10 @@
   #ifilter{background:var(--chip);border:1px solid var(--accent);border-radius:9px;padding:.45rem .7rem;
     margin:.4rem 0;font-size:.88rem}
   .ichip{background:var(--accent);color:#fff;border-radius:6px;padding:.1rem .5rem;font-size:.78rem;margin-left:.3rem}
+  .isim{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;
+    padding:.05rem .4rem;font:inherit;font-size:.76rem;cursor:pointer}
+  .isim:hover{border-color:var(--accent);color:var(--accent)}
+  .isim.on{outline:none;border-color:var(--accent);color:var(--accent);background:var(--chip)}
   [hidden]{display:none!important}
 </style>
 </head>
@@ -1839,6 +1843,33 @@ function countField(records, pick){
   for(const r of records) for(const v of [].concat(pick(r)||[])){ const k=String(v||"").trim(); if(k) m.set(k,(m.get(k)||0)+1); }
   return m;
 }
+// ---- "find similar": nearest records by content ----
+// Deterministic document similarity with no LLM and no embeddings: each record is a
+// TF-IDF bag-of-terms vector (IDF over this corpus, so shared boilerplate counts for
+// little and distinctive terms carry the match), compared by cosine. Returns a
+// closure simFor(i) → [[j, cosine], …] (other records, most similar first, above a
+// small floor so unrelated records aren't surfaced as "similar"). Uses the same
+// filtered docTokens as the rest of the digest, so the match reflects the concepts
+// shown in the cloud/themes, not ubiquitous trial language.
+function similarRecords(docTokens, opts){
+  opts=opts||{}; const topn=opts.topn||8, floor=opts.floor!=null?opts.floor:0.08;
+  const N=docTokens.length, df=new Map();
+  for(const toks of docTokens) for(const w of new Set(toks)) df.set(w,(df.get(w)||0)+1);
+  const idf=w=>Math.log(1+N/(df.get(w)||1));
+  const vecs=docTokens.map(toks=>{ const tf=new Map(); for(const w of toks) tf.set(w,(tf.get(w)||0)+1);
+    const v=new Map(); let nn=0; for(const [w,f] of tf){ const x=f*idf(w); if(x>0){ v.set(w,x); nn+=x*x; } }
+    return {v, norm:Math.sqrt(nn)}; });
+  return i=>{
+    const a=vecs[i]; if(!a||!a.norm) return [];
+    const out=[];
+    for(let j=0;j<N;j++){ if(j===i) continue; const b=vecs[j]; if(!b.norm) continue;
+      const [sm,bg]=a.v.size<=b.v.size?[a.v,b.v]:[b.v,a.v];      // iterate the smaller vector
+      let dot=0; for(const [w,x] of sm){ const y=bg.get(w); if(y) dot+=x*y; }
+      const cos=dot/(a.norm*b.norm); if(cos>=floor) out.push([j,cos]); }
+    out.sort((p,q)=>q[1]-p[1]||p[0]-q[0]);
+    return out.slice(0,topn);
+  };
+}
 // ---- emergent sub-theme clustering (spherical k-means on PPMI vectors) ----
 // Cluster the salient terms by their *distributional* profile: each term becomes a
 // PPMI co-occurrence vector (which other terms it appears beside), and we run
@@ -2108,18 +2139,24 @@ function companyGroups(records, topn){
 }
 
 // ---- render ----
-function iCard(r, isNew){
+function iCard(r, isNew, simIds){
   const el=document.createElement("article");
   if(isNew) el.classList.add("iperiod");
   el.dataset.id=r.id;
   const srcName={trials:"ClinicalTrials.gov",recalls:"FDA recall",approvals:"Drugs@FDA",shortages:"FDA Drug Shortages",sec:"SEC EDGAR"}[r.agency]||"Source";
   const kind={trials:"Trial",recalls:"Recall",approvals:"Approval",shortages:"Shortage",sec:"Filing"}[r.agency];
   const tags=[kind, r.company].filter(Boolean);
+  // "find similar": filter the Sources list to this record + its nearest neighbours.
+  // Reuses the .ifacet machinery; the set leads with the anchor so it stays in view.
+  const sim=(simIds&&simIds.length)
+    ? `<button class="isim ifacet" data-facet="similar:${escA(r.id)}" data-simlabel="${escA(clip(r.title,60))}" `+
+      `data-ids="${escA(JSON.stringify([r.id,...simIds]))}" title="Show the ${simIds.length} most similar records">⧉ find similar</button>`
+    : "";
   el.innerHTML=
     `<h2>${isNew?'<span class="perflag">NEW</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.title)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
     (r.text?`<div class="summary">${citeSentences(clip(r.text,280),r.url,srcName)}</div>`:"")+
-    `<div class="src">${r.date?`${esc(r.date)} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(srcName)}</a></div>`;
+    `<div class="src">${r.date?`${esc(r.date)} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(srcName)}</a>${sim?` · ${sim}`:""}</div>`;
   return el;
 }
 function iBars(entries, max, cls, facet){
@@ -2282,10 +2319,13 @@ function renderInsights(){
   box.innerHTML=html;
 
   const srcBox=$("isrc");
+  // Precompute nearest neighbours for the rendered cards (TF-IDF cosine over the same
+  // filtered tokens as the digest), so each reference can offer a "find similar" jump.
+  const simFor=similarRecords(docTokens);
   recs.map((r,i)=>({r,i,isNew:unseen(r)}))
     .sort((a,b)=>(b.isNew-a.isNew) || ((bmScore.get(b.i)||0)-(bmScore.get(a.i)||0)) || (b.r.date||"").localeCompare(a.r.date||""))
     .slice(0,SRC_CAP)
-    .forEach(o=>srcBox.appendChild(iCard(o.r, o.isNew)));
+    .forEach(o=>srcBox.appendChild(iCard(o.r, o.isNew, simFor(o.i).map(([j])=>recs[j].id))));
   renumberCites(srcBox);                                   // Sources: references 1..N by order
   const nb=box.querySelector(".inotable"); if(nb) renumberCites(nb, ".ievent");  // Notable: one number per event
   wireFacets(box);
@@ -2311,7 +2351,9 @@ function wireFacets(box){
     el.onclick=()=>{
       let ids; try{ ids=JSON.parse(el.getAttribute("data-ids")||"[]"); }catch(_){ ids=[]; }
       const fv=el.getAttribute("data-facet")||"";
-      const label=fv.replace(/^(theme|company|area|source|term|phrase):/,"");
+      const label=fv.startsWith("similar:")
+        ? "similar to “"+(el.getAttribute("data-simlabel")||"this record")+"”"
+        : fv.replace(/^(theme|company|area|source|term|phrase):/,"");
       if(iFilter && iFilter.key===fv){ iFilter=null; clearActiveFacet(box); }
       else { iFilter={key:fv, label, ids}; clearActiveFacet(box); el.classList.add("on"); }
       applyIFilter(box);
@@ -2341,7 +2383,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,singular,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
-  clusterTerms,buildThemes,risingTerms,riseWindow,notableEvents,monthlyVolume,wordleLayout,canonCompany,companyGroups,
+  clusterTerms,buildThemes,risingTerms,riseWindow,notableEvents,monthlyVolume,wordleLayout,canonCompany,companyGroups,similarRecords,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----

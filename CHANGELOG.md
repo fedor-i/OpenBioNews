@@ -121,6 +121,15 @@ to follow [Semantic Versioning](https://semver.org/).
   - **Click-to-drill-in**: clicking a theme, company, therapeutic area, word-cloud
     term or key phrase filters the Sources list to the matching records (with a
     clear-filter banner). All client-side, zero-dependency, shareable by URL.
+  - **"Find similar" on every reference** — each source card carries a *find
+    similar* control that narrows the Sources list to that record and its nearest
+    neighbours. Similarity is deterministic and LLM-free: each record is a TF-IDF
+    bag-of-terms vector (IDF computed over this corpus, so shared boilerplate
+    counts for little and distinctive terms drive the match) compared by cosine,
+    over the same filtered tokens as the rest of the digest. Only genuinely close
+    records are offered (a cosine floor), so an off-topic record surfaces nothing
+    rather than a spurious "match", and the neighbour set leads with the anchor so
+    it stays in view.
 - **Build-your-own topics (hosted page)** — a "+ New topic" builder on the
   watchlist bar: name a topic and give it a bundle of terms and companies (e.g.
   "My ADC competitors" → Seagen, Daiichi Sankyo, antibody-drug conjugate). Saved
