@@ -2328,6 +2328,11 @@ function renderInsights(){
   // Precompute nearest neighbours for the rendered cards (TF-IDF cosine over the same
   // filtered tokens as the digest), so each reference can offer a "find similar" jump.
   const simFor=similarRecords(docTokens);
+  // Let the filter build a card for ANY record on demand (by id), so a filter — above
+  // all "find similar" — can surface a match that ranked below the source-list cap,
+  // instead of being silently limited to the records that happened to render.
+  const recById=new Map(recs.map((r,i)=>[r.id,{r,i}]));
+  iMakeCard=id=>{ const e=recById.get(id); return e?iCard(e.r, unseen(e.r), simFor(e.i).map(([j])=>recs[j].id)):null; };
   recs.map((r,i)=>({r,i,isNew:unseen(r)}))
     .sort((a,b)=>(b.isNew-a.isNew) || ((bmScore.get(b.i)||0)-(bmScore.get(a.i)||0)) || (b.r.date||"").localeCompare(a.r.date||""))
     .slice(0,SRC_CAP)
@@ -2338,16 +2343,24 @@ function renderInsights(){
   iSaveSeen(iSig, recs.map(r=>r.id));                      // record what we showed → honest "new" next time
 }
 // ---- click-to-filter: facets narrow the Sources list to the matching records ----
-let iFilter=null;
+let iFilter=null, iMakeCard=null;
 function clearActiveFacet(box){ box.querySelectorAll(".ifacet.on").forEach(el=>el.classList.remove("on")); }
 function applyIFilter(box){
   const srcBox=box.querySelector("#isrc"), banner=box.querySelector("#ifilter");
   if(!srcBox||!banner) return;
-  if(!iFilter){ banner.hidden=true; banner.innerHTML=""; [...srcBox.children].forEach(a=>a.hidden=false); return; }
+  srcBox.querySelectorAll(".iinjected").forEach(el=>el.remove());   // drop cards a previous filter pulled in
+  if(!iFilter){ banner.hidden=true; banner.innerHTML=""; [...srcBox.children].forEach(a=>a.hidden=false); renumberCites(srcBox); return; }
+  // Pull in any matching record that ranked below the source-list cap, so the filter
+  // (and "find similar" especially) shows the complete match set, not just the shown
+  // top-N. Injected cards are tagged so they're removed again when the filter clears.
+  if(iMakeCard){ const present=new Set([...srcBox.children].map(a=>a.dataset.id));
+    for(const id of iFilter.ids){ if(present.has(id)) continue; const c=iMakeCard(id);
+      if(c){ c.classList.add("iinjected"); srcBox.appendChild(c); present.add(id); } } }
   const set=new Set(iFilter.ids); let shown=0;
   [...srcBox.children].forEach(a=>{ const on=set.has(a.dataset.id); a.hidden=!on; if(on) shown++; });
+  renumberCites(srcBox);                                           // keep citation numbers sequential after injection
   banner.hidden=false;
-  banner.innerHTML=`Showing <b>${shown}</b> of ${srcBox.children.length} records matching <b>${esc(iFilter.label)}</b> `+
+  banner.innerHTML=`Showing <b>${shown}</b> record${shown===1?"":"s"} matching <b>${esc(iFilter.label)}</b> `+
     `<button class="ichip" id="iclear">clear ✕</button>`;
   banner.querySelector("#iclear").onclick=()=>{ iFilter=null; clearActiveFacet(box); applyIFilter(box); };
 }

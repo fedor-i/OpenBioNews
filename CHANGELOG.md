@@ -96,8 +96,10 @@ to follow [Semantic Versioning](https://semver.org/).
     openFDA by skip, SEC by offset) until the reported total is reached — no fixed
     first-page cap, so different topics over different periods each get their
     complete set. Analysis runs over every record; the source list renders the top
-    150 by relevance to keep the page light. "New since your last visit" is still
-    highlighted via the per-watchlist seen-state.
+    150 by relevance to keep the page light, but a filter (a theme, company, term
+    or "find similar") pulls in any matching record that ranked below that cap on
+    demand, so filtering is never silently limited to the shown top-150. "New since
+    your last visit" is still highlighted via the per-watchlist seen-state.
   - **Cross-agency company canonicalisation** — the same firm is written
     differently per agency ("Recursion Pharmaceuticals" as a trial sponsor vs
     "RECURSION PHARMACEUTICALS INC (RXRX)" as an SEC filer), which used to split
@@ -132,7 +134,10 @@ to follow [Semantic Versioning](https://semver.org/).
     it stays in view. Duplicates are collapsed — a content-duplicate of the anchor
     (the same item arriving twice under different ids) is never offered as its own
     match, and duplicate records fold to a single representative — so every entry
-    in "similar" is a distinct record.
+    in "similar" is a distinct record. Cosine is computed over the whole pulled
+    corpus, not just the rendered references, and a neighbour that ranked below the
+    source-list cap is pulled into the list when you click, so "find similar" isn't
+    limited to the top records on screen.
 - **Build-your-own topics (hosted page)** — a "+ New topic" builder on the
   watchlist bar: name a topic and give it a bundle of terms and companies (e.g.
   "My ADC competitors" → Seagen, Daiichi Sankyo, antibody-drug conjugate). Saved
