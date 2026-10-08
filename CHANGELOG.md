@@ -64,10 +64,16 @@ to follow [Semantic Versioning](https://semver.org/).
     boilerplate), so the terms read as concepts rather than trial jargon — keeping
     dual-use domain nouns (target, screen, guide, support,
     vector), so the terms read as concepts rather than sentence fragments.
+  - **Time window drives the pull, fully paginated** — the window selector
+    (7 / 30 / 90 days, 6 months, 1 year) now scopes what is *fetched*, and each
+    source paginates through the whole window (ClinicalTrials.gov by page token,
+    openFDA by skip, SEC by offset) until the reported total is reached — no fixed
+    first-page cap, so different topics over different periods each get their
+    complete set. Analysis runs over every record; the source list renders the top
+    150 by relevance to keep the page light. "New since your last visit" is still
+    highlighted via the per-watchlist seen-state.
   - Counted **stats** — records by source, top companies, top therapeutic areas,
-    trial phases — plus a pure-SVG **monthly-volume sparkline** and a **"since last
-    you checked"** highlight over a chosen window (7 / 30 / 90 / 365 days) or
-    everything new since your last visit.
+    trial phases — plus a pure-SVG **monthly-volume sparkline**.
   - **Numbered citations across every list**: each card (and each Notable event)
     now carries a sequential reference number — markers run 1..N by position, and
     a card's inline markers match its source line — instead of every marker

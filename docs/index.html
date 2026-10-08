@@ -498,12 +498,12 @@
     <div class="filters">
       <div class="grid">
         <div><label for="i_q">Topic / subject</label><input id="i_q" placeholder="Defaults to your watchlist — or type a subject (e.g. CRISPR, Moderna)"></div>
-        <div><label for="i_period">Highlight activity</label>
+        <div><label for="i_period">Time window</label>
           <select id="i_period">
-            <option value="visit">Since my last visit</option>
             <option value="7">Last 7 days</option>
-            <option value="30" selected>Last 30 days</option>
-            <option value="90">Last 90 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90" selected>Last 90 days</option>
+            <option value="180">Last 6 months</option>
             <option value="365">Last year</option>
           </select>
         </div>
@@ -1557,7 +1557,6 @@ function fdaOrExpr(terms, fields){
   for(const t of terms){ const v=String(t).replace(/"/g,""); if(!v) continue; for(const f of fields) parts.push(`${f}:"${v}"`); }
   return parts.length ? "("+parts.join("+OR+")+")" : "";
 }
-function fdaInsightUrl(base, search, limit){ return `${base}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&limit=${limit}`; }
 
 // What are we summarizing? The watchlist (expanded to its variants) if set, else
 // whatever is typed in the Insights box (also topic-expanded).
@@ -1635,24 +1634,69 @@ function normFiling(h){
     text:s.file_description||"", company:names.length?names[0]:"", areas:[], form};
 }
 
-// ---- gather one broad, recent page from each agency, in parallel, fault-tolerant ----
-async function fetchOne(agency, url, map, noMatch){
-  try{ const d=await getJson(url, noMatch); if(d.__empty) return []; return map(d).flat().filter(Boolean); }
-  catch(err){ iErrors.push(agency+" ("+err.message+")"); return []; }
+// ---- windowed, fully-paginated gather ----
+// Pull *every* record in the chosen time window — not a fixed first page — so
+// different topics over different periods each get their complete set. Each source
+// pages until the window is exhausted (reported total reached, a short last page,
+// or no more results), with only a generous per-source page cap as a safety net.
+async function pageCt(agency, base, parse, maxPages){
+  const out=[], seen=new Set(); let token=null;
+  try{ for(let p=0;p<maxPages;p++){
+    const d=await getJson(base+(token?"&pageToken="+encodeURIComponent(token):""));
+    for(const r of parse(d)){ if(r&&r.id&&!seen.has(r.id)){ seen.add(r.id); out.push(r); } }
+    token=d&&d.nextPageToken; if(!token) break;
+  } }catch(err){ iErrors.push(agency+" ("+err.message+")"); }
+  return out;
 }
-async function fetchInsights(terms){
+async function pageSkip(agency, base, parse, step, maxPages, noMatch){
+  const out=[], seen=new Set();
+  try{ for(let p=0, skip=0; p<maxPages; p++, skip+=step){
+    const d=await getJson(base+(base.includes("?")?"&":"?")+"limit="+step+"&skip="+skip, noMatch);
+    if(d&&d.__empty) break;
+    const raw=(d.results||[]).length;                       // raw page fill drives pagination
+    for(const r of parse(d)){ if(r&&r.id&&!seen.has(r.id)){ seen.add(r.id); out.push(r); } }
+    const total=dig(d,"meta","results","total");
+    if(raw<step || (total!=null && skip+step>=total)) break;
+  } }catch(err){ iErrors.push(agency+" ("+err.message+")"); }
+  return out;
+}
+async function pageSec(agency, base, parse, maxPages){
+  const out=[], seen=new Set();
+  try{ for(let p=0, from=0; p<maxPages; p++, from+=10){
+    const d=await getJson(base+(base.includes("?")?"&":"?")+"from="+from);
+    const hits=dig(d,"hits","hits")||[];
+    for(const r of parse(d)){ if(r&&r.id&&!seen.has(r.id)){ seen.add(r.id); out.push(r); } }
+    const total=dig(d,"hits","total","value");
+    if(hits.length<10 || (total!=null && from+10>=total)) break;
+  } }catch(err){ iErrors.push(agency+" ("+err.message+")"); }
+  return out;
+}
+async function fetchInsights(terms, days){
   iErrors=[];
+  days=days||90;
+  const fromISO=daysAgoISO(days), fromYmd=fromISO.replace(/-/g,""), toYmd=daysAgoISO(0).replace(/-/g,"");
+  const inWin=r=>!r.date || r.date>=fromISO;                // client-side window for undated-sort sources
+  // ClinicalTrials.gov — last-update window, newest first
   const ctp=new URLSearchParams(); const oe=ctOrExpr(terms); if(oe) ctp.append("query.term",oe);
-  ctp.append("sort","LastUpdatePostDate:desc"); ctp.append("fields",CT_FIELDS); ctp.append("pageSize","75"); ctp.append("countTotal","true");
+  ctp.append("filter.advanced",`AREA[LastUpdatePostDate]RANGE[${fromISO},MAX]`);
+  ctp.append("sort","LastUpdatePostDate:desc"); ctp.append("fields",CT_FIELDS); ctp.append("pageSize","500"); ctp.append("countTotal","true");
+  // openFDA recalls — report_date window (server-filtered + sorted)
+  const recSearch=fdaOrExpr(terms,["recalling_firm","product_description"])+`+AND+report_date:[${fromYmd}+TO+${toYmd}]`;
+  const recBase=`${FDA_API}?search=${encodeURIComponent(recSearch).replace(/%2B/g,"+")}&sort=report_date:desc`;
+  // Drugs@FDA — no server date filter; keep AP submissions in-window client-side
   const aprSearch=fdaOrExpr(terms,["sponsor_name","openfda.brand_name","openfda.generic_name"])+'+AND+submissions.submission_status:"AP"';
-  const secp=new URLSearchParams();
-  secp.append("q", terms.map(t=>/[\s&]/.test(t)?`"${t}"`:t).join(" OR ")); secp.append("from","0");
+  const aprBase=`${FDA_APPROVALS_API}?search=${encodeURIComponent(aprSearch).replace(/%2B/g,"+")}`;
+  // openFDA shortages — no reliable date filter; keep in-window client-side
+  const shrBase=`${FDA_SHORTAGES_API}?search=${encodeURIComponent(fdaOrExpr(terms,["company_name","generic_name","proprietary_name"])).replace(/%2B/g,"+")}`;
+  // SEC EDGAR — filed-within window
+  const secp=new URLSearchParams(); secp.append("q", terms.map(t=>/[\s&]/.test(t)?`"${t}"`:t).join(" OR "));
+  secp.append("dateRange","custom"); secp.append("startdt",fromISO); secp.append("enddt",daysAgoISO(0));
   const groups=await Promise.all([
-    fetchOne("ClinicalTrials.gov", CT_API+"?"+ctp.toString(), d=>(d.studies||[]).map(normTrial)),
-    fetchOne("openFDA recalls", fdaInsightUrl(FDA_API, fdaOrExpr(terms,["recalling_firm","product_description"]), 100), d=>(d.results||[]).map(normRecall), true),
-    fetchOne("Drugs@FDA", fdaInsightUrl(FDA_APPROVALS_API, aprSearch, 100), d=>(d.results||[]).map(normApproval), true),
-    fetchOne("openFDA shortages", fdaInsightUrl(FDA_SHORTAGES_API, fdaOrExpr(terms,["company_name","generic_name","proprietary_name"]), 100), d=>(d.results||[]).map(normShortage), true),
-    fetchOne("SEC EDGAR", SEC_API+"?"+secp.toString(), d=>(dig(d,"hits","hits")||[]).map(normFiling)),
+    pageCt("ClinicalTrials.gov", CT_API+"?"+ctp.toString(), d=>(d.studies||[]).map(normTrial).filter(Boolean), 6),
+    pageSkip("openFDA recalls", recBase, d=>(d.results||[]).map(normRecall).filter(Boolean), 1000, 6, true),
+    pageSkip("Drugs@FDA", aprBase, d=>(d.results||[]).map(normApproval).flat().filter(r=>r&&inWin(r)), 1000, 6, true),
+    pageSkip("openFDA shortages", shrBase, d=>(d.results||[]).map(normShortage).filter(r=>r&&inWin(r)), 1000, 4, true),
+    pageSec("SEC EDGAR", SEC_API+"?"+secp.toString(), d=>(dig(d,"hits","hits")||[]).map(normFiling).filter(Boolean), 8),
   ]);
   const seen=new Set(), recs=[];
   for(const g of groups) for(const r of g){ if(r && r.id && !seen.has(r.id)){ seen.add(r.id); recs.push(r); } }
@@ -1947,15 +1991,13 @@ function wordleLayout(entries){
 }
 
 // "since last you checked" — a chosen window, or everything unseen since last visit.
-function iCutoff(){ const v=$("i_period").value; return v==="visit" ? {mode:"visit"} : {mode:"days", iso:daysAgoISO(+v), days:+v}; }
+// The selected time window, in days — now scopes what fetchInsights pulls.
+function windowDays(){ return +($("i_period")&&$("i_period").value) || 90; }
+function windowLabel(d){ return d<=7?"last 7 days":d<=30?"last 30 days":d<=90?"last 90 days":d<=180?"last 6 months":"last year"; }
 function iBaseline(){
   const entry=seenStore[watchSig()]; const set=new Set();
   if(entry) for(const t of TABS) for(const id of (entry[t]||[])) set.add(id);
   return {has:!!entry, set};
-}
-function iIsNew(r, cut, base){
-  if(cut.mode==="visit") return base.has ? !base.set.has(r.id) : false;
-  return r.date && r.date >= cut.iso;
 }
 
 // ---- render ----
@@ -2015,19 +2057,20 @@ function renderInsights(){
   // word cloud (colour) and the Emergent-themes card (record grouping) so they agree.
   const cloud=textRankTerms(docTokens,40);
   const {assign:termCluster, groups:termGroups}=clusterTerms(cloud.map(c=>c[0]), docTokens, 3);
-  const cut=iCutoff(), base=iBaseline();
+  const days=windowDays(), base=iBaseline();
+  // newer half of the window = "recent" for rising-term momentum
+  const midISO=daysAgoISO(Math.max(1,Math.round(days/2)));
+  const recentFlags=recs.map(r=>!!(r.date && r.date>=midISO));
+  const unseen=r=> base.has ? !base.set.has(r.id) : false;     // genuinely new to this viewer
   const perAgency={}; let newN=0, newest="", oldest="";
   for(const t of TABS) perAgency[t]=0;
-  const recentFlags=recs.map(r=>iIsNew(r,cut,base));
-  recs.forEach((r,i)=>{
+  recs.forEach((r)=>{
     perAgency[r.agency]=(perAgency[r.agency]||0)+1;
     if(r.date){ if(!newest||r.date>newest) newest=r.date; if(!oldest||r.date<oldest) oldest=r.date; }
-    if(recentFlags[i]) newN++;
+    if(unseen(r)) newN++;
   });
   const active=TABS.filter(t=>perAgency[t]>0);
-  const periodTxt = cut.mode==="visit"
-    ? (base.has ? `<b>${newN} new since your last visit</b>` : `<b>first look — nothing to compare yet</b>`)
-    : `<b>${newN} new in the last ${cut.days} days</b>`;
+  const periodTxt = base.has ? `${windowLabel(days)} · <b>${newN} new since your last visit</b>` : `<b>${windowLabel(days)}</b>`;
   // records matching a facet value — the drill-in targets
   const idsWhere=pred=>recs.filter(pred).map(r=>r.id);
   const idsForTerm=w=>recs.filter((r,i)=>docTokens[i].includes(w)).map(r=>r.id);
@@ -2042,7 +2085,7 @@ function renderInsights(){
   if(spark) html+=`<div class="ispark-row"><span class="isl">records/month</span>${spark}`+
     `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
-  html+=`<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>label-propagation</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
+  html+=`<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>k-means</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
     `</div>`;
 
   // ---- Notable right now (cited event scan) ----
@@ -2081,8 +2124,7 @@ function renderInsights(){
   // ---- Rising terms (momentum) ----
   const rising=risingTerms(docTokens, recentFlags, 10);
   if(rising.length){
-    const wlabel = cut.mode==="visit" ? "since your last visit" : `in the last ${cut.days} days`;
-    html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating ${esc(wlabel)} vs. the earlier baseline</span></h3><div class="riserow">`+
+    html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating in the newer half of the ${esc(windowLabel(days))} vs. the earlier half</span></h3><div class="riserow">`+
       rising.map(t=>`<span class="riseterm ifacet${t.fresh?" fresh":""}" data-facet="term:${escA(t.term)}" data-ids="${escA(JSON.stringify(idsForTerm(t.term)))}" title="${t.recent}× recently vs ${t.base}× before">`+
         `${esc(t.term)} <b>${t.fresh?"new":"×"+t.lift.toFixed(1)}</b></span>`).join("")+
       `</div></div>`;
@@ -2117,13 +2159,16 @@ function renderInsights(){
   if(phrases.length)
     html+=`<div class="icard"><h3>Key phrases — YAKE! <span class="ihint">click to filter</span></h3>`+phrases.map(([p])=>`<span class="kphrase ifacet" data-facet="phrase:${escA(p)}" data-ids="${escA(JSON.stringify(idsForPhrase(p)))}">${esc(p)}</span>`).join("")+`</div>`;
 
-  html+=`<h3 class="isrc-h">Sources — every figure above is counted from these ${recs.length} records, ranked by BM25 relevance (new first)</h3>`+
+  const SRC_CAP=150;   // analyse all records; render at most this many cards to keep the DOM light
+  const srcNote = recs.length>SRC_CAP ? ` (showing the top ${SRC_CAP})` : "";
+  html+=`<h3 class="isrc-h">Sources — every figure above is counted from all ${recs.length} records, ranked by BM25 relevance${srcNote}</h3>`+
     `<div id="ifilter" hidden></div><div id="isrc"></div></div>`;
   box.innerHTML=html;
 
   const srcBox=$("isrc");
-  recs.map((r,i)=>({r,i,isNew:recentFlags[i]}))
+  recs.map((r,i)=>({r,i,isNew:unseen(r)}))
     .sort((a,b)=>(b.isNew-a.isNew) || ((bmScore.get(b.i)||0)-(bmScore.get(a.i)||0)) || (b.r.date||"").localeCompare(a.r.date||""))
+    .slice(0,SRC_CAP)
     .forEach(o=>srcBox.appendChild(iCard(o.r, o.isNew)));
   renumberCites(srcBox);                                   // Sources: references 1..N by order
   const nb=box.querySelector(".inotable"); if(nb) renumberCites(nb, ".ievent");  // Notable: one number per event
@@ -2162,8 +2207,8 @@ async function runInsights(){
   if(!terms.length){ $("insights").innerHTML=`<div class="iempty">Add something to your watchlist above, or type a subject (e.g. <b>CRISPR</b>), then hit Summarize.</div>`; return; }
   if(iBusy) return; iBusy=true;
   iSubjectLabel=insightLabel();
-  $("insights").innerHTML=`<div class="iempty">Gathering records from ClinicalTrials.gov, openFDA and SEC EDGAR…</div>`;
-  try{ iRecords=await fetchInsights(terms); renderInsights(); }
+  $("insights").innerHTML=`<div class="iempty">Gathering every record in the ${windowLabel(windowDays())} from ClinicalTrials.gov, openFDA and SEC EDGAR… (a wider window takes a little longer)</div>`;
+  try{ iRecords=await fetchInsights(terms, windowDays()); renderInsights(); }
   catch(err){ $("insights").innerHTML=`<div class="ierr">Could not build insights: ${esc(err.message)}</div>`; }
   finally{ iBusy=false; }
 }
@@ -2174,7 +2219,7 @@ function maybeAutoInsights(){
 }
 $("i_run").onclick=()=>{ iRecords=[]; runInsights(); };
 $("i_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ iRecords=[]; runInsights(); }});
-$("i_period").onchange=()=>{ if(iRecords.length) renderInsights(); else maybeAutoInsights(); };
+$("i_period").onchange=()=>{ iRecords=[]; runInsights(); };   // window changed → re-pull
 $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
