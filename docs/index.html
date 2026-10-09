@@ -589,6 +589,10 @@ const $ = id => document.getElementById(id);
 const CT_API = "https://clinicaltrials.gov/api/v2/studies";
 const CT_FIELDS = ["NCTId","BriefTitle","OverallStatus","LastUpdatePostDate","LeadSponsorName",
   "Condition","InterventionName","BriefSummary","Phase","StudyType"].join(",");
+// Data-tab / watchlist cards also pull the full DetailedDescription so a study's
+// whole write-up is available (shown via the "… more" expander). The Insights pull
+// keeps the lean field set — it fetches up to 500 records and only needs the brief.
+const CT_FIELDS_FULL = CT_FIELDS + ",DetailedDescription";
 const FDA_API = "https://api.fda.gov/drug/enforcement.json";
 const FDA_APPROVALS_API = "https://api.fda.gov/drug/drugsfda.json";
 const FDA_SHORTAGES_API = "https://api.fda.gov/drug/shortages.json";
@@ -723,7 +727,7 @@ function buildCtUrl(f, token){
   if(f.recent) adv.push(`AREA[LastUpdatePostDate]RANGE[${daysAgoISO(+f.recent)},MAX]`);
   if(adv.length) p.append("filter.advanced", adv.join(" AND "));
   p.append("sort", f.sort||"LastUpdatePostDate:desc");
-  p.append("fields", CT_FIELDS); p.append("pageSize","25"); p.append("countTotal","true");
+  p.append("fields", CT_FIELDS_FULL); p.append("pageSize","25"); p.append("countTotal","true");
   if(token) p.append("pageToken", token);
   return CT_API+"?"+p.toString();
 }
@@ -755,7 +759,9 @@ function renderTrial(st){
   const date=dig(ps,"statusModule","lastUpdatePostDateStruct","date")||"";
   const spons=dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")||"";
   const conds=dig(ps,"conditionsModule","conditions")||[];
-  const summary=dig(ps,"descriptionModule","briefSummary")||"";
+  // Prefer the full DetailedDescription; fall back to the BriefSummary when a study
+  // has no detailed write-up. The "… more" expander reveals the whole thing.
+  const summary=dig(ps,"descriptionModule","detailedDescription")||dig(ps,"descriptionModule","briefSummary")||"";
   const url="https://clinicaltrials.gov/study/"+nct;
   const tags=[prettyStatus(status),prettyPhase(phases),spons].filter(Boolean);
   const el=document.createElement("article");
