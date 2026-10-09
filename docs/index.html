@@ -159,6 +159,27 @@
   .icov b{color:var(--ink)}
   .imethods{color:var(--muted);font-size:.73rem;margin-top:.6rem;border-top:1px dashed var(--line);padding-top:.5rem}
   .ehint{color:var(--muted);font-size:.85rem;margin-top:.5rem;max-width:60rem;line-height:1.4}
+  /* Record focused view (related records across sources) */
+  .focusbtn{background:none;border:1px solid var(--line);color:var(--accent);border-radius:999px;
+    font-size:.78rem;padding:.05rem .5rem;cursor:pointer;margin-left:.4rem}
+  .focusbtn:hover{background:var(--chip)}
+  .fmodal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.5);display:flex;
+    align-items:flex-start;justify-content:center;padding:4vh 16px;overflow:auto}
+  .fmodal[hidden]{display:none}
+  .fpanel{background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);
+    width:min(60rem,100%);max-height:92vh;overflow:auto;padding:1rem 1.2rem}
+  .fhead{display:flex;align-items:flex-start;gap:.6rem;justify-content:space-between;margin-bottom:.3rem}
+  .fhead h2{margin:0;font-size:1.05rem}
+  .fclose{background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;line-height:1}
+  .fsub{color:var(--muted);font-size:.85rem;margin-bottom:.8rem}
+  .fgroup{margin:.7rem 0;border-top:1px solid var(--line);padding-top:.6rem}
+  .fgroup h3{margin:0 0 .4rem;font-size:.92rem}
+  .fgroup h3 .fcount{color:var(--muted);font-weight:normal;font-size:.82rem;margin-left:.3rem}
+  .fitem{margin:.35rem 0;font-size:.88rem;line-height:1.35}
+  .fitem a{color:var(--accent);text-decoration:none}
+  .fitem a:hover{text-decoration:underline}
+  .fmeta{color:var(--muted);font-size:.8rem}
+  .fnote{color:var(--muted);font-size:.84rem;font-style:italic}
   .istats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.7rem;margin:.6rem 0}
   .icard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.85rem 1rem;box-shadow:var(--shadow)}
   .icard h3{margin:0 0 .55rem;font-size:.92rem}
@@ -706,7 +727,7 @@ function renumberCites(container, itemSel){
 }
 // Renumber the main results list on any append (manual search, watchlist, Load more).
 // Watches direct children only; our own text edits are deeper, so no feedback loop.
-new MutationObserver(()=>{ renumberCites($("results")); markSummaries($("results")); }).observe($("results"), {childList:true});
+new MutationObserver(()=>{ renumberCites($("results")); markSummaries($("results")); addFocusButtons($("results")); }).observe($("results"), {childList:true});
 function fmtFdaDate(d){ return (d&&d.length===8)?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:d||""; }
 function prettyStatus(s){ return s ? s.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()) : ""; }
 function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&p!=="NA").map(p=>p.replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase ")).join("/"); }
@@ -1298,6 +1319,134 @@ async function searchFedReg(){
 function maybeAutoFedReg(){
   if($("g_q").value.trim() || watch.length) searchFedReg();
   else $("status").textContent="Enter a term (e.g. accelerated approval), or add to your watchlist, then Search.";
+}
+
+// ================= RECORD FOCUSED VIEW =================
+// "🔍 related" on any record opens an overlay that pulls in connected records
+// across sources: publications (PubMed), trials, FDA recalls / shortages / labels
+// / adverse events, and Federal Register documents — all keyed off the record's
+// main entity, each cited and linked to its primary source. Every group loads
+// independently, so one source being slow or unreachable never blocks the rest.
+// (SEC is omitted — EDGAR full-text search isn't reliably browser-fetchable.)
+const PM_ESEARCH="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi";
+const PM_ESUMMARY="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi";
+function focusTerm(title){
+  let t=String(title||"").split(" — ")[0].split("(")[0].trim();
+  t=t.replace(/^(a |an |the )/i,"").replace(/^(phase [\w/]+ )?(study|trial) of /i,"").trim();
+  return t.split(/\s+/).slice(0,8).join(" ");
+}
+function ofdaClause(fields, term){
+  const d=String(term).replace(/"/g,"").trim();
+  const clause="("+fields.map(f=>`${f}:"${d}"`).join("+OR+")+")";
+  return encodeURIComponent(clause).replace(/%2B/g,"+");
+}
+async function fGroupPubs(term){
+  const s=await getJson(`${PM_ESEARCH}?db=pubmed&term=${encodeURIComponent(term)}&retmax=5&retmode=json&sort=date`, true);
+  const ids=((s.esearchresult||{}).idlist)||[];
+  if(!ids.length) return [];
+  const d=await getJson(`${PM_ESUMMARY}?db=pubmed&id=${ids.join(",")}&retmode=json`, true);
+  const res=d.result||{}; const order=res.uids||ids;
+  return order.map(id=>{ const r=res[id]; if(!r) return null;
+    return {title:r.title||("PMID "+id), url:`https://pubmed.ncbi.nlm.nih.gov/${id}/`,
+            meta:[r.source,r.pubdate].filter(Boolean).join(" · ")}; }).filter(Boolean);
+}
+async function fGroupTrials(term){
+  const d=await getJson(`${CT_API}?query.term=${encodeURIComponent(term)}&fields=NCTId,BriefTitle,OverallStatus,LeadSponsorName&pageSize=5`, true);
+  return ((d.studies)||[]).map(st=>{ const ps=st.protocolSection||{};
+    const nct=dig(ps,"identificationModule","nctId");
+    return {title:dig(ps,"identificationModule","briefTitle")||nct,
+            url:`https://clinicaltrials.gov/study/${nct}`,
+            meta:[dig(ps,"statusModule","overallStatus"),dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")].filter(Boolean).join(" · ")}; });
+}
+async function fGroupRecalls(term){
+  const d=await getJson(`${FDA_API}?search=${ofdaClause(["openfda.brand_name","openfda.generic_name","product_description"],term)}&limit=5`, true);
+  return ((d.results)||[]).map(r=>{ const of=r.openfda||{};
+    const name=(of.brand_name&&of.brand_name[0])||clip(r.product_description,80)||"Recall";
+    return {title:name+" — recall",
+            url:r.recall_number?`${FDA_API}?search=recall_number:%22${encodeURIComponent(r.recall_number)}%22`:"https://www.fda.gov/drugs/drug-recalls",
+            meta:[r.classification,r.recalling_firm].filter(Boolean).join(" · ")}; });
+}
+async function fGroupShortages(term){
+  const d=await getJson(`${FDA_SHORTAGES_API}?search=${ofdaClause(["generic_name","proprietary_name"],term)}&limit=5`, true);
+  return ((d.results)||[]).map(r=>{ const first=v=>Array.isArray(v)?(v[0]||""):(v||"");
+    const name=first(r.proprietary_name)||first(r.generic_name)||"Shortage";
+    return {title:name+" — shortage"+(r.status?` (${r.status})`:""),
+            url:`https://dps.fda.gov/drugshortages/search?query=${encodeURIComponent(name)}`,
+            meta:r.company_name||""}; });
+}
+async function fGroupLabels(term){
+  const d=await getJson(`${LABEL_API}?search=${ofdaClause(["openfda.brand_name","openfda.generic_name","openfda.substance_name"],term)}&limit=3`, true);
+  return ((d.results)||[]).map(r=>{ const of=r.openfda||{}; const brand=(of.brand_name&&of.brand_name[0])||term;
+    const boxed=r.boxed_warning&&r.boxed_warning.length;
+    return {title:brand+" — FDA label",
+            url:`${LABEL_API}?search=${ofdaClause(["openfda.brand_name","openfda.generic_name","openfda.substance_name"],brand)}&limit=1`,
+            meta:boxed?"⚠ boxed warning":""}; });
+}
+async function fGroupFaers(term){
+  const d=await getJson(eventsCountUrl(term), true); const rows=((d&&d.results)||[]).slice(0,6);
+  if(!rows.length) return [];
+  return [{title:`Top FAERS reactions for ${term}`, url:eventsCountUrl(term),
+           meta:rows.map(r=>titleCase(r.term)+" ("+Number(r.count).toLocaleString()+")").join(", ")}];
+}
+async function fGroupFedReg(term){
+  const d=await getJson(fedregUrl(term), true);
+  return ((d&&d.results)||[]).slice(0,5).map(r=>({title:r.title||"Document", url:r.html_url||"",
+    meta:[r.type,(r.publication_date||"").slice(0,10)].filter(Boolean).join(" · ")}));
+}
+const FOCUS_GROUPS=[
+  ["Publications (PubMed)", fGroupPubs],
+  ["Clinical trials", fGroupTrials],
+  ["FDA recalls", fGroupRecalls],
+  ["FDA shortages", fGroupShortages],
+  ["FDA labels", fGroupLabels],
+  ["Adverse events (FAERS)", fGroupFaers],
+  ["Federal Register", fGroupFedReg],
+];
+let focusModalEl=null;
+function ensureFocusModal(){
+  if(focusModalEl) return focusModalEl;
+  const m=document.createElement("div"); m.className="fmodal"; m.id="focusModal"; m.hidden=true;
+  m.innerHTML=`<div class="fpanel"><div class="fhead"><h2 id="ftitle"></h2><button class="fclose" id="fclose" aria-label="Close">×</button></div><div class="fsub" id="fsub"></div><div id="fbody"></div></div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click",e=>{ if(e.target===m || e.target.id==="fclose") closeFocus(); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape" && focusModalEl && !focusModalEl.hidden) closeFocus(); });
+  focusModalEl=m; return m;
+}
+function closeFocus(){ if(focusModalEl) focusModalEl.hidden=true; }
+function openFocus(title){
+  const term=focusTerm(title);
+  const m=ensureFocusModal(); m.hidden=false;
+  $("ftitle").textContent=title;
+  $("fsub").textContent=`Related records across primary sources, matched on “${term}”. Each links to its source.`;
+  const body=$("fbody"); body.innerHTML="";
+  FOCUS_GROUPS.forEach(([label,fn],i)=>{
+    const sec=document.createElement("div"); sec.className="fgroup"; sec.id="fg"+i;
+    sec.innerHTML=`<h3>${esc(label)} <span class="fcount">…</span></h3><div class="fnote">Loading…</div>`;
+    body.appendChild(sec);
+    Promise.resolve().then(()=>fn(term)).then(items=>fillFocusGroup(i,items)).catch(()=>fillFocusGroup(i,null));
+  });
+}
+function fillFocusGroup(i, items){
+  const sec=$("fg"+i); if(!sec) return;
+  const cnt=sec.querySelector(".fcount"), note=sec.querySelector(".fnote");
+  if(items===null){ cnt.textContent=""; if(note) note.textContent="Couldn’t load (source unavailable in-browser)."; return; }
+  if(!items.length){ cnt.textContent="0"; if(note) note.textContent="No related records found."; return; }
+  cnt.textContent=items.length;
+  const html=items.map(it=>`<div class="fitem"><a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a>${it.meta?` <span class="fmeta">— ${esc(it.meta)}</span>`:""}</div>`).join("");
+  if(note) note.outerHTML=html;
+}
+// Append a "🔍 related" affordance to every rendered record (idempotent).
+function addFocusButtons(scope){
+  (scope||document).querySelectorAll("article:not([data-focus])").forEach(a=>{
+    a.setAttribute("data-focus","1");
+    const h2=a.querySelector("h2"); if(!h2) return;
+    const src=a.querySelector(".src")||a;
+    const title=(h2.textContent||"").replace(/^NEW/,"").trim();
+    const btn=document.createElement("button"); btn.className="focusbtn"; btn.type="button";
+    btn.textContent="🔍 related"; btn.title="Pull in related records across sources";
+    btn.onclick=()=>openFocus(title);
+    src.appendChild(document.createTextNode(" ")); src.appendChild(btn);
+  });
 }
 
 // ---- current search dispatch ----
@@ -2664,6 +2813,7 @@ function renderInsights(){
   wireSourceGrouping(box, srcBox, recCluster);
   markSummaries(srcBox);                                   // brief summaries + "… more" expanders
   markClippedBars(box);                                    // spell out truncated stat-bar labels on hover
+  addFocusButtons(srcBox);                                 // "🔍 related" on each Insights source card
   iSaveSeen(iSig, recs.map(r=>r.id));                      // record what we showed → honest "new" next time
 }
 // Lay the rendered Source cards out ranked (flat) or grouped into cluster sections.

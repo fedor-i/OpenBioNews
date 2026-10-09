@@ -166,6 +166,17 @@ def test_fda_adverse_events_tab():
     assert "not incidence rates" in SRC, "FAERS no-causation caveat removed"
 
 
+def test_record_focused_view():
+    # Every record gets a "related" affordance that opens a focus overlay pulling
+    # connected records across sources — including PubMed publications.
+    js = _script()
+    assert "function openFocus" in js, "focused-view opener removed"
+    assert "function addFocusButtons" in js, "related-record buttons removed"
+    assert "FOCUS_GROUPS" in js, "focus source groups removed"
+    assert "eutils.ncbi.nlm.nih.gov" in js, "PubMed (publications strand) removed from focus view"
+    assert "fGroupPubs" in js and "fGroupTrials" in js, "focus group fetchers removed"
+
+
 def test_fda_labeling_tab():
     # The FDA labels tab looks up the current SPL label per drug and surfaces its
     # approved indications and any boxed warning, cited to openFDA.

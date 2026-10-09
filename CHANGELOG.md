@@ -7,6 +7,15 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Record focused view (hosted page)**. Every record now has a **"🔍 related"**
+  button that opens an overlay pulling in connected records across sources, keyed
+  off the record's main entity: publications (PubMed), clinical trials, FDA recalls
+  / shortages / labels / adverse events, and Federal Register documents — each
+  linked to its primary source. Groups load independently, so one slow or
+  unreachable source never blocks the rest, and a source that can't be reached
+  in-browser degrades to a per-group note. This answers "show me everything related
+  to this item" — e.g. a trial's publications, or whether a drug in the news also
+  has a recall.
 - **PubMed — new source**. A new connector (NCBI E-utilities: `esearch` →
   `esummary`) surfaces biomedical literature for a watch term, each cited to its
   PubMed record and DOI. Added to the CLI connector registry and the MCP server
