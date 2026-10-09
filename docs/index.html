@@ -1330,18 +1330,53 @@ function maybeAutoFedReg(){
 // (SEC is omitted — EDGAR full-text search isn't reliably browser-fetchable.)
 const PM_ESEARCH="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi";
 const PM_ESUMMARY="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi";
-function focusTerm(title){
-  let t=String(title||"").split(" — ")[0].split("(")[0].trim();
-  t=t.replace(/^(a |an |the )/i,"").replace(/^(phase [\w/]+ )?(study|trial) of /i,"").trim();
-  return t.split(/\s+/).slice(0,8).join(" ");
+// Trial titles are descriptive sentences ("Assessing Benefits and Harms of
+// Cannabis/Cannabinoid Use Among Cancer Patients…"); the useful match signal is the
+// distinctive nouns (cannabis, cannabinoid, cancer), not the boilerplate. Strip the
+// filler and keep the content words. FDA/label/FAERS titles put the drug before
+// " — ", so we take that head first and it survives as-is.
+const FOCUS_STOP=new Set(("a an the of in on at by for to and or but with without versus vs among between into "+
+  "from about over under study studies trial trials phase open label randomized randomised double blind blinded "+
+  "placebo controlled control pilot feasibility evaluation evaluating assessment assessing benefit benefits harm "+
+  "harms use using uses patient patients treated treatment treatments community clinic clinics effect effects "+
+  "safety efficacy response responses outcome outcomes adult adults pediatric paediatric subject subjects "+
+  "participant participants group groups arm arms cohort dose escalation first second third line prospective "+
+  "retrospective multicenter multicentre comparison comparing compared new novel early late long term short "+
+  "role impact association associations health care disease disorder syndrome therapy therapies based within").split(/\s+/));
+// Drug (INN) name stems — tokens ending in these are almost certainly the drug,
+// so they rank first and drive the FDA lookups.
+const DRUG_SUFFIX=/(mab|nib|tinib|ciclib|parib|lisib|degib|rafenib|zomib|zumab|ximab|umab|vir|vastatin|statin|sartan|prazole|gliptin|gliflozin|afil|dipine|olol|pril|azepam|cycline|mycin|cillin|conazole|navir|ciclovir|setron|tide|sen|parin)$/;
+function focusKeywords(text){
+  const words=String(text||"").toLowerCase().replace(/[\/,;:]/g," ").replace(/[^\w\s-]/g,"").split(/\s+/).filter(Boolean);
+  const kept=[]; const seen=new Set();
+  for(const w of words){ if(w.length>2 && !FOCUS_STOP.has(w) && !seen.has(w)){ seen.add(w); kept.push(w); } }
+  // Drug-like tokens first (keeps original order within each group).
+  return kept.slice().sort((a,b)=>(DRUG_SUFFIX.test(b)?1:0)-(DRUG_SUFFIX.test(a)?1:0));
 }
-function ofdaClause(fields, term){
-  const d=String(term).replace(/"/g,"").trim();
-  const clause="("+fields.map(f=>`${f}:"${d}"`).join("+OR+")+")";
+// A record's related-search tokens: the drug/brand head (FDA cards) plus ranked
+// content words. Returns {tokens, term} — tokens drive the FDA OR-queries, term
+// (top few, space-joined) is the free-text query for PubMed / trials / Fed Register.
+function focusTokens(title){
+  const head=String(title||"").split(" — ")[0].split("(")[0].trim();
+  let toks=focusKeywords(head);
+  if(!toks.length) toks=[head.replace(/^(a |an |the )/i,"").split(/\s+/)[0]].filter(Boolean);
+  const drugs=toks.filter(t=>DRUG_SUFFIX.test(t));
+  // Free-text term: prefer the drug names when present, else the top content words.
+  const term=(drugs.length?drugs:toks).slice(0,3).join(" ");
+  return {tokens:toks.slice(0,6), term};
+}
+// OR every token across every field, so each distinct drug in a comparison trial
+// ("rituximab" OR "mosunetuzumab") matches — openFDA matches a quoted phrase, so a
+// multi-word term as one phrase would match nothing.
+function ofdaClause(fields, tokens){
+  const toks=(Array.isArray(tokens)?tokens:[tokens]).map(t=>String(t).replace(/"/g,"").trim()).filter(Boolean);
+  const parts=[];
+  for(const t of toks) for(const f of fields) parts.push(`${f}:"${t}"`);
+  const clause="("+parts.join("+OR+")+")";
   return encodeURIComponent(clause).replace(/%2B/g,"+");
 }
-async function fGroupPubs(term){
-  const s=await getJson(`${PM_ESEARCH}?db=pubmed&term=${encodeURIComponent(term)}&retmax=5&retmode=json&sort=date`, true);
+async function fGroupPubs(ctx){
+  const s=await getJson(`${PM_ESEARCH}?db=pubmed&term=${encodeURIComponent(ctx.term)}&retmax=5&retmode=json&sort=date`, true);
   const ids=((s.esearchresult||{}).idlist)||[];
   if(!ids.length) return [];
   const d=await getJson(`${PM_ESUMMARY}?db=pubmed&id=${ids.join(",")}&retmode=json`, true);
@@ -1350,46 +1385,49 @@ async function fGroupPubs(term){
     return {title:r.title||("PMID "+id), url:`https://pubmed.ncbi.nlm.nih.gov/${id}/`,
             meta:[r.source,r.pubdate].filter(Boolean).join(" · ")}; }).filter(Boolean);
 }
-async function fGroupTrials(term){
-  const d=await getJson(`${CT_API}?query.term=${encodeURIComponent(term)}&fields=NCTId,BriefTitle,OverallStatus,LeadSponsorName&pageSize=5`, true);
+async function fGroupTrials(ctx){
+  const d=await getJson(`${CT_API}?query.term=${encodeURIComponent(ctx.term)}&fields=NCTId,BriefTitle,OverallStatus,LeadSponsorName&pageSize=6`, true);
   return ((d.studies)||[]).map(st=>{ const ps=st.protocolSection||{};
     const nct=dig(ps,"identificationModule","nctId");
     return {title:dig(ps,"identificationModule","briefTitle")||nct,
             url:`https://clinicaltrials.gov/study/${nct}`,
             meta:[dig(ps,"statusModule","overallStatus"),dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")].filter(Boolean).join(" · ")}; });
 }
-async function fGroupRecalls(term){
-  const d=await getJson(`${FDA_API}?search=${ofdaClause(["openfda.brand_name","openfda.generic_name","product_description"],term)}&limit=5`, true);
+async function fGroupRecalls(ctx){
+  const d=await getJson(`${FDA_API}?search=${ofdaClause(["openfda.brand_name","openfda.generic_name"],ctx.fdaTokens)}&limit=5`, true);
   return ((d.results)||[]).map(r=>{ const of=r.openfda||{};
     const name=(of.brand_name&&of.brand_name[0])||clip(r.product_description,80)||"Recall";
     return {title:name+" — recall",
             url:r.recall_number?`${FDA_API}?search=recall_number:%22${encodeURIComponent(r.recall_number)}%22`:"https://www.fda.gov/drugs/drug-recalls",
             meta:[r.classification,r.recalling_firm].filter(Boolean).join(" · ")}; });
 }
-async function fGroupShortages(term){
-  const d=await getJson(`${FDA_SHORTAGES_API}?search=${ofdaClause(["generic_name","proprietary_name"],term)}&limit=5`, true);
+async function fGroupShortages(ctx){
+  const d=await getJson(`${FDA_SHORTAGES_API}?search=${ofdaClause(["generic_name","proprietary_name"],ctx.fdaTokens)}&limit=5`, true);
   return ((d.results)||[]).map(r=>{ const first=v=>Array.isArray(v)?(v[0]||""):(v||"");
     const name=first(r.proprietary_name)||first(r.generic_name)||"Shortage";
     return {title:name+" — shortage"+(r.status?` (${r.status})`:""),
             url:`https://dps.fda.gov/drugshortages/search?query=${encodeURIComponent(name)}`,
             meta:r.company_name||""}; });
 }
-async function fGroupLabels(term){
-  const d=await getJson(`${LABEL_API}?search=${ofdaClause(["openfda.brand_name","openfda.generic_name","openfda.substance_name"],term)}&limit=3`, true);
-  return ((d.results)||[]).map(r=>{ const of=r.openfda||{}; const brand=(of.brand_name&&of.brand_name[0])||term;
+async function fGroupLabels(ctx){
+  const LF=["openfda.brand_name","openfda.generic_name","openfda.substance_name"];
+  const d=await getJson(`${LABEL_API}?search=${ofdaClause(LF,ctx.fdaTokens)}&limit=3`, true);
+  return ((d.results)||[]).map(r=>{ const of=r.openfda||{}; const brand=(of.brand_name&&of.brand_name[0])||ctx.fdaTokens[0]||ctx.term;
     const boxed=r.boxed_warning&&r.boxed_warning.length;
     return {title:brand+" — FDA label",
-            url:`${LABEL_API}?search=${ofdaClause(["openfda.brand_name","openfda.generic_name","openfda.substance_name"],brand)}&limit=1`,
+            url:`${LABEL_API}?search=${ofdaClause(LF,[brand])}&limit=1`,
             meta:boxed?"⚠ boxed warning":""}; });
 }
-async function fGroupFaers(term){
-  const d=await getJson(eventsCountUrl(term), true); const rows=((d&&d.results)||[]).slice(0,6);
+async function fGroupFaers(ctx){
+  const clause=ofdaClause(["patient.drug.openfda.brand_name","patient.drug.openfda.generic_name","patient.drug.medicinalproduct"], ctx.fdaTokens);
+  const url=`${FAERS_API}?search=${clause}&count=patient.reaction.reactionmeddrapt.exact`;
+  const d=await getJson(url, true); const rows=((d&&d.results)||[]).slice(0,6);
   if(!rows.length) return [];
-  return [{title:`Top FAERS reactions for ${term}`, url:eventsCountUrl(term),
+  return [{title:`Top FAERS reactions for ${ctx.fdaTokens.join(", ")}`, url:url,
            meta:rows.map(r=>titleCase(r.term)+" ("+Number(r.count).toLocaleString()+")").join(", ")}];
 }
-async function fGroupFedReg(term){
-  const d=await getJson(fedregUrl(term), true);
+async function fGroupFedReg(ctx){
+  const d=await getJson(fedregUrl(ctx.term), true);
   return ((d&&d.results)||[]).slice(0,5).map(r=>({title:r.title||"Document", url:r.html_url||"",
     meta:[r.type,(r.publication_date||"").slice(0,10)].filter(Boolean).join(" · ")}));
 }
@@ -1413,8 +1451,13 @@ function ensureFocusModal(){
   focusModalEl=m; return m;
 }
 function closeFocus(){ if(focusModalEl) focusModalEl.hidden=true; }
-function openFocus(title){
-  const term=focusTerm(title);
+function openFocus(title, anchorUrl){
+  const {tokens, term}=focusTokens(title);
+  const drugs=tokens.filter(t=>DRUG_SUFFIX.test(t));
+  const ctx={term, tokens, fdaTokens:(drugs.length?drugs:tokens.slice(0,3))};
+  // Don't offer the record back to itself: drop a related item that is the anchor.
+  const anchor=(anchorUrl||"").trim(), aTitle=String(title||"").trim().toLowerCase();
+  const notAnchor=it=> (it.url||"")!==anchor && String(it.title||"").trim().toLowerCase()!==aTitle;
   const m=ensureFocusModal(); m.hidden=false;
   $("ftitle").textContent=title;
   $("fsub").textContent=`Related records across primary sources, matched on “${term}”. Each links to its source.`;
@@ -1423,7 +1466,8 @@ function openFocus(title){
     const sec=document.createElement("div"); sec.className="fgroup"; sec.id="fg"+i;
     sec.innerHTML=`<h3>${esc(label)} <span class="fcount">…</span></h3><div class="fnote">Loading…</div>`;
     body.appendChild(sec);
-    Promise.resolve().then(()=>fn(term)).then(items=>fillFocusGroup(i,items)).catch(()=>fillFocusGroup(i,null));
+    Promise.resolve().then(()=>fn(ctx)).then(items=>fillFocusGroup(i, items && items.filter(notAnchor)))
+      .catch(()=>fillFocusGroup(i,null));
   });
 }
 function fillFocusGroup(i, items){
@@ -1442,9 +1486,10 @@ function addFocusButtons(scope){
     const h2=a.querySelector("h2"); if(!h2) return;
     const src=a.querySelector(".src")||a;
     const title=(h2.textContent||"").replace(/^NEW/,"").trim();
+    const anchorUrl=(h2.querySelector("a")||{}).href||"";
     const btn=document.createElement("button"); btn.className="focusbtn"; btn.type="button";
     btn.textContent="🔍 related"; btn.title="Pull in related records across sources";
-    btn.onclick=()=>openFocus(title);
+    btn.onclick=()=>openFocus(title, anchorUrl);
     src.appendChild(document.createTextNode(" ")); src.appendChild(btn);
   });
 }
