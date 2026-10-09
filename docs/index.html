@@ -161,8 +161,15 @@
   .istats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.7rem;margin:.6rem 0}
   .icard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.85rem 1rem;box-shadow:var(--shadow)}
   .icard h3{margin:0 0 .55rem;font-size:.92rem}
-  .istat{display:flex;align-items:center;gap:.5rem;margin:.3rem 0;font-size:.87rem}
+  .istat{display:flex;align-items:center;gap:.5rem;margin:.3rem 0;font-size:.87rem;position:relative}
   .istat .lbl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Truncated bar labels (set by markClippedBars) spell out in full on hover/focus. */
+  .istat.clipped>.lbl{cursor:help}
+  .istat.clipped:hover::after,.istat.clipped:focus-within::after{
+    content:attr(data-full);position:absolute;left:0;bottom:calc(100% + 4px);z-index:30;
+    max-width:min(28rem,90vw);white-space:normal;background:var(--card);color:var(--text);
+    border:1px solid var(--line);border-radius:8px;padding:.3rem .5rem;font-size:.82rem;
+    line-height:1.3;box-shadow:var(--shadow);pointer-events:none}
   .istat .bar2{height:.5rem;border-radius:999px;background:var(--accent)}
   .istat .bar2.a2{background:var(--accent2)}
   .istat .cnt{color:var(--muted);font-variant-numeric:tabular-nums;min-width:2.2em;text-align:right}
@@ -1137,6 +1144,16 @@ function markSummaries(scope){
     }
   });
 }
+// Stat-bar labels are ellipsis-truncated to keep the bars aligned; flag the ones that
+// actually overflow so CSS can spell out the full name (data-full) on hover/focus.
+function markClippedBars(scope){
+  (scope||document).querySelectorAll(".istat").forEach(row=>{
+    const lbl=row.querySelector(".lbl"); if(!lbl) return;
+    const clipped = lbl.scrollWidth > lbl.clientWidth + 1;
+    row.classList.toggle("clipped", clipped);
+    if(clipped && row.getAttribute("tabindex")===null) row.setAttribute("tabindex","0");  // keyboard-reachable
+  });
+}
 $("t_search").onclick=()=>{ searchTrials(true); syncUrl(); };
 $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
 $("a_search").onclick=()=>{ searchApprovals(true); syncUrl(); };
@@ -1653,7 +1670,10 @@ function normTrial(st){
   return {agency:"trials", id:"t:"+nct, url:"https://clinicaltrials.gov/study/"+nct,
     date:dig(ps,"statusModule","lastUpdatePostDateStruct","date")||"",
     title:dig(ps,"identificationModule","briefTitle")||nct,
+    // text = brief (keeps the word cloud / clustering / similarity lean and fast);
+    // full = the complete detailed write-up, shown on the card behind a "… more".
     text:dig(ps,"descriptionModule","briefSummary")||"",
+    full:dig(ps,"descriptionModule","detailedDescription")||dig(ps,"descriptionModule","briefSummary")||"",
     company:dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")||"",
     areas:dig(ps,"conditionsModule","conditions")||[],
     status:dig(ps,"statusModule","overallStatus")||"",
@@ -1754,7 +1774,9 @@ async function fetchInsights(terms, days){
   // ClinicalTrials.gov — last-update window, newest first
   const ctp=new URLSearchParams(); const oe=ctOrExpr(terms); if(oe) ctp.append("query.term",oe);
   ctp.append("filter.advanced",`AREA[LastUpdatePostDate]RANGE[${fromISO},MAX]`);
-  ctp.append("sort","LastUpdatePostDate:desc"); ctp.append("fields",CT_FIELDS); ctp.append("pageSize","500"); ctp.append("countTotal","true");
+  // Fetch the detailed write-up too, so Insights source cards can show the full study
+  // description (behind "… more"); analytics still key off the brief summary (r.text).
+  ctp.append("sort","LastUpdatePostDate:desc"); ctp.append("fields",CT_FIELDS_FULL); ctp.append("pageSize","500"); ctp.append("countTotal","true");
   // openFDA recalls — report_date window (server-filtered + sorted)
   const recSearch=fdaOrExpr(terms,["recalling_firm","product_description"])+`+AND+report_date:[${fromYmd}+TO+${toYmd}]`;
   const recBase=`${FDA_API}?search=${encodeURIComponent(recSearch).replace(/%2B/g,"+")}&sort=report_date:desc`;
@@ -2232,14 +2254,14 @@ function iCard(r, isNew, simIds){
   el.innerHTML=
     `<h2>${isNew?'<span class="perflag">NEW</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.title)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
-    (r.text?`<div class="summary">${citeSentences(r.text,r.url,srcName)}</div>`:"")+
+    ((r.full||r.text)?`<div class="summary">${citeSentences(r.full||r.text,r.url,srcName)}</div>`:"")+
     `<div class="src">${r.date?`${esc(r.date)} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(srcName)}</a>${sim?` · ${sim}`:""}</div>`;
   return el;
 }
 function iBars(entries, max, cls, facet){
   if(!max) max=1;
-  return entries.map(([k,v,ids])=>`<div class="istat${facet?" ifacet":""}"${facet&&ids?` data-facet="${escA(facet)}:${escA(String(k))}" data-ids="${escA(JSON.stringify(ids))}"`:""}>`+
-    `<span class="lbl" title="${esc(k)}">${esc(k)}</span>`+
+  return entries.map(([k,v,ids])=>`<div class="istat${facet?" ifacet":""}" data-full="${escA(k)}"${facet&&ids?` data-facet="${escA(facet)}:${escA(String(k))}" data-ids="${escA(JSON.stringify(ids))}"`:""}>`+
+    `<span class="lbl">${esc(k)}</span>`+
     `<span class="bar2${cls?" "+cls:""}" style="width:${Math.max(2,Math.round(72*v/max))}px"></span>`+
     `<span class="cnt">${v}</span></div>`).join("");
 }
@@ -2420,6 +2442,7 @@ function renderInsights(){
   clusters.forEach(c=>{ const lbl=c.label; for(const ri of c.recIdxs) recCluster.set(recs[ri].id, lbl); });
   wireSourceGrouping(box, srcBox, recCluster);
   markSummaries(srcBox);                                   // brief summaries + "… more" expanders
+  markClippedBars(box);                                    // spell out truncated stat-bar labels on hover
   iSaveSeen(iSig, recs.map(r=>r.id));                      // record what we showed → honest "new" next time
 }
 // Lay the rendered Source cards out ranked (flat) or grouped into cluster sections.

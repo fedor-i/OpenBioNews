@@ -136,6 +136,26 @@ def test_therapeutic_areas_expand_to_condition_bundles():
         assert re.search(area + r":\{label:", js), f"{area} therapeutic-area topic removed"
 
 
+def test_stat_bar_labels_spell_out_on_hover():
+    # Truncated company/area/source bar labels must carry their full text (data-full)
+    # and be flagged for the CSS hover tooltip, so a name like "M.D. Anderson…" spells out.
+    js = _script()
+    assert "function markClippedBars" in js, "stat-bar clip-flagging pass removed"
+    assert 'data-full="' in js, "bar rows no longer carry the full label text"
+    assert "content:attr(data-full)" in SRC, "hover tooltip CSS (spell-out) removed"
+
+
+def test_insights_cards_carry_full_description():
+    # Insights source cards show the full detailed study write-up (behind "… more"),
+    # while the analytics keep keying off the brief summary (r.text stays the brief).
+    js = _script()
+    assert "full:dig(ps,\"descriptionModule\",\"detailedDescription\")" in js, \
+        "normTrial no longer carries the full detailed description"
+    assert "r.full||r.text" in js, "Insights card no longer prefers the full description"
+    assert 'ctp.append("fields",CT_FIELDS_FULL)' in js, \
+        "Insights CT fetch no longer requests DetailedDescription"
+
+
 def test_group_sources_by_cluster():
     # The Sources list can be grouped into its emergent-theme clusters (+ an Other
     # bucket) as a clustered way to read the references.
