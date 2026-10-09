@@ -47,7 +47,10 @@ to follow [Semantic Versioning](https://semver.org/).
     clusters, K is chosen by **mean cosine silhouette** over K = 2…6, so a broad
     watchlist spreads while a genuinely single-topic one stays **one theme**: a
     silhouette floor gates the split, so no artificial boundary is drawn through a
-    coherent corpus. Farthest-point seeding breaks ties by *total* distance to the
+    coherent corpus. (The floor is tuned so a large, vocabulary-dense pull —
+    hundreds of records sharing generic clinical/AI language — still separates into
+    its real sub-themes instead of collapsing to one, which also keeps the word
+    cloud multi-coloured and the Grouped-by-cluster toggle available.) Farthest-point seeding breaks ties by *total* distance to the
     seed set, so seeds land one-per-island instead of doubling up and leaving a
     real theme unseeded. A cluster needs **≥2 records** to earn a theme chip (a lone
     record is already in Sources — no one-item "themes"), and the word cloud keeps

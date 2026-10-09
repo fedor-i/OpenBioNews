@@ -1950,7 +1950,11 @@ function clusterTerms(terms, docTokens, K){
   // Pick K: honour an explicit K; otherwise choose by silhouette over 2..kmax so the
   // theme count fits the data (a mono-topic list stays 1, a broad one spreads),
   // instead of always forcing 3. Deterministic; ties prefer fewer clusters.
-  const SIL_FLOOR=0.12;                                   // below this, no real multi-theme structure → one theme
+  const SIL_FLOOR=0.05;                                   // below this, no real multi-theme structure → one theme.
+  // (Measured: a genuinely single-topic corpus scores ~0; real-but-dense corpora — many
+  // records sharing clinical/AI vocabulary — land ~0.05–0.12, so 0.12 was clipping real
+  // structure and collapsing large pulls to a single theme. 0.05 keeps the mono-topic
+  // guard while letting dense multi-topic pulls separate.)
   let assign;
   if(K){ assign=run(Math.max(1,Math.min(K,n))); }
   else {
