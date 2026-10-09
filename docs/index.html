@@ -124,9 +124,9 @@
   .tag.c1{background:var(--critbg);color:var(--crit)}
   .tag.c2{background:var(--warnbg);color:var(--warn)}
   .summary{font-size:.95rem;margin:.3rem 0 .5rem}
-  /* Brief (default): clamp the summary to a few lines; "Full" (body.sum-full) shows all.
-     Full text is always in the DOM, so toggling never needs a re-fetch. */
-  body:not(.sum-full) .summary{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  /* Full (default): the whole summary shows. "Brief" (body.sum-brief) clamps it to a
+     few lines. Full text is always in the DOM, so toggling never needs a re-fetch. */
+  body.sum-brief .summary{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .src{font-size:.82rem;color:var(--muted)}
   sup.cite{font-size:.68em;line-height:0}
   sup.cite a{color:var(--accent);text-decoration:none;font-weight:700;padding:0 .05em}
@@ -544,8 +544,8 @@
       </select></label>
     <label class="sortby" title="Brief shows a short preview; Full shows the complete summary from the record">Summaries
       <select id="sumLen">
-        <option value="brief">Brief</option>
         <option value="full">Full</option>
+        <option value="brief">Brief</option>
       </select></label>
     <label class="auto" title="Re-run this search automatically every 15 minutes while the page is open">
       <input type="checkbox" id="autoRefresh"> Auto-refresh (15 min)</label>
@@ -1114,10 +1114,10 @@ $("sortBy").onchange = () => {
 };
 // Summary length: full text is always rendered; "Full" just removes the CSS clamp,
 // so there's nothing to re-fetch. Remembered per viewer.
-function applySumLen(){ document.body.classList.toggle("sum-full",
-  ($("sumLen") && $("sumLen").value) === "full"); }
+function applySumLen(){ document.body.classList.toggle("sum-brief",
+  ($("sumLen") && $("sumLen").value) === "brief"); }
 if($("sumLen")){
-  try{ $("sumLen").value = localStorage.getItem("obn_sumlen") || "brief"; }catch(e){}
+  try{ $("sumLen").value = localStorage.getItem("obn_sumlen") || "full"; }catch(e){ $("sumLen").value = "full"; }
   $("sumLen").onchange = () => { try{ localStorage.setItem("obn_sumlen", $("sumLen").value); }catch(e){} applySumLen(); };
   applySumLen();
 }
