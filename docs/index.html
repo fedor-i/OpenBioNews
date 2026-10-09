@@ -1593,7 +1593,7 @@ const I_STOP = new Set(("a an and or the of to in for on at by from with without
   "duration period washout tolerability adverse event events interim process processes agreement material review line "+
   "followup follow phase cohort feature features characteristic characteristics condition conditions "+
   // connectives / discourse words / comparatives / generic verbs seen leaking on live data
-  "which through whose whom thereby thereof wherein herein overall thus hence meanwhile "+
+  "which through whose whom thereby thereof wherein herein thus hence meanwhile "+
   "actually namely essentially basically merely simply indeed rather quite fairly "+
   "show shows showed showing shown develop develops developed developing "+
   "broader wider narrower larger smaller higher lower greater fewer better worse stronger weaker "+
@@ -1951,8 +1951,8 @@ function clusterTerms(terms, docTokens, K){
     const seeds=[0];
     while(seeds.length<k){ let best=-1, bestd=-1, bestfar=-1;
       for(let i=0;i<n;i++){ if(seeds.includes(i)) continue;
-        let mn=1, sm=0; for(const s of seeds){ const dv=dot(V[i],V[s]); mn=Math.min(mn,dv); sm+=dv; }
-        const d=1-mn, far=seeds.length-sm;        // tie-break farthest-point by total distance to the seed set
+        let mx=-1, sm=0; for(const s of seeds){ const dv=dot(V[i],V[s]); mx=Math.max(mx,dv); sm+=dv; }
+        const d=1-mx, far=seeds.length-sm;        // farthest-point: distance to the NEAREST seed; tie-break by total distance to the seed set
         if(d>bestd+1e-9 || (Math.abs(d-bestd)<=1e-9 && far>bestfar+1e-9)){ bestd=d; bestfar=far; best=i; } }
       if(best<0) break; seeds.push(best); }
     let cent=seeds.map(s=>Float64Array.from(V[s]));
