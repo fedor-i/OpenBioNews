@@ -27,6 +27,7 @@ from datetime import datetime
 from .connectors.clinicaltrials import ClinicalTrialsConnector
 from .connectors.edgar import EdgarConnector
 from .connectors.openfda import OpenFDAConnector
+from .connectors.federalregister import FederalRegisterConnector
 from .connectors.openfda_approvals import OpenFDAApprovalsConnector
 from .connectors.openfda_events import OpenFDAEventsConnector
 from .connectors.openfda_shortages import OpenFDAShortagesConnector
@@ -150,6 +151,17 @@ def search_fda_adverse_events(query: str, top_reactions: int = 8, limit: int = 2
     return _search(OpenFDAEventsConnector, interventions=_as_list(query), cfg=cfg)
 
 
+def search_federal_register(query: str = "", recent_days: int = 30, limit: int = 20,
+                            all_agencies: bool = False) -> dict:
+    """Search Federal Register documents (FDA guidances, advisory-committee notices,
+    proposed/final rules). ``query`` is the search text; by default results are
+    limited to the FDA — set ``all_agencies`` true to search every agency. Each
+    result cites its Federal Register document."""
+    cfg = {"recent_days": recent_days, "max_total": limit, "max_per_query": limit,
+           "agencies": [] if all_agencies else ["food-and-drug-administration"]}
+    return _search(FederalRegisterConnector, terms=_as_list(query), cfg=cfg)
+
+
 def search_sec_filings(query: str, company: str | None = None, form: str | None = None,
                        recent_days: int = 90, limit: int = 20) -> dict:
     """Full-text search SEC EDGAR filings. ``query`` is the search text; ``company``
@@ -169,6 +181,7 @@ _DIGEST_SPEC = [
     (OpenFDAApprovalsConnector, "interventions"),
     (OpenFDAShortagesConnector, "interventions"),
     (OpenFDAEventsConnector, "interventions"),
+    (FederalRegisterConnector, "terms"),
     (EdgarConnector, "terms"),
 ]
 
@@ -191,8 +204,8 @@ def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15) -
 
 TOOLS = [
     search_clinical_trials, search_fda_recalls, search_fda_approvals,
-    search_fda_shortages, search_fda_adverse_events, search_sec_filings,
-    watchlist_digest,
+    search_fda_shortages, search_fda_adverse_events, search_federal_register,
+    search_sec_filings, watchlist_digest,
 ]
 
 

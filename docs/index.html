@@ -323,6 +323,7 @@
     <button class="tab" id="tab-approvals" role="tab" aria-selected="false" aria-controls="panel-approvals">FDA approvals</button>
     <button class="tab" id="tab-shortages" role="tab" aria-selected="false" aria-controls="panel-shortages">FDA shortages</button>
     <button class="tab" id="tab-events" role="tab" aria-selected="false" aria-controls="panel-events">FDA adverse events</button>
+    <button class="tab" id="tab-fedreg" role="tab" aria-selected="false" aria-controls="panel-fedreg">Federal Register</button>
     <button class="tab" id="tab-sec" role="tab" aria-selected="false" aria-controls="panel-sec">SEC filings</button>
     <button class="tab" id="tab-insights" role="tab" aria-selected="false" aria-controls="panel-insights">📊 Insights<span class="ibeta">beta</span></button>
   </div>
@@ -494,6 +495,20 @@
         <button class="ghost" id="e_clear">Clear</button>
       </div>
       <div class="ehint">The most-reported adverse reactions per drug, from the FDA Adverse Event Reporting System (FAERS). Counts are <b>spontaneous reports, not incidence rates</b>, and do not establish that the drug caused the reaction.</div>
+    </div>
+  </section>
+
+  <!-- FEDERAL REGISTER -->
+  <section id="panel-fedreg" role="tabpanel" hidden>
+    <div class="filters">
+      <div class="grid">
+        <div><label for="g_q">Search term</label><input id="g_q" placeholder="e.g. accelerated approval — or leave blank to use your watchlist"></div>
+      </div>
+      <div class="row">
+        <button class="go" id="g_search">Search</button>
+        <button class="ghost" id="g_clear">Clear</button>
+      </div>
+      <div class="ehint">FDA documents from the <b>Federal Register</b> — guidances, advisory-committee (adcomm) meeting notices, and proposed / final rules. The primary records behind a regulatory calendar.</div>
     </div>
   </section>
 
@@ -683,7 +698,7 @@ function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&
 
 // ---- tab switching ----
 const TABS = ["trials","recalls","approvals","shortages","sec"];   // record-list agencies (seen-state, analytics)
-const VIEW_TABS = TABS.concat("events","insights");                // + FAERS (aggregate) + the Insights view
+const VIEW_TABS = TABS.concat("events","fedreg","insights");       // + FAERS + Federal Register + Insights
 function selectTab(name, run){
   tab = name;
   for(const t of VIEW_TABS){
@@ -695,9 +710,11 @@ function selectTab(name, run){
   $("moreBtn").hidden = true;
   const onInsights = name==="insights";
   const onEvents = name==="events";             // FAERS: aggregate, no sort/paging
+  const onFedReg = name==="fedreg";             // Federal Register: simple search, no paging
   $("resultsBar").hidden = onInsights || onEvents;   // sort / auto-refresh / copy-link don't apply
   if(onInsights){ maybeAutoInsights(); return; }
   if(onEvents){ maybeAutoEvents(); return; }
+  if(onFedReg){ maybeAutoFedReg(); return; }
   if(run){ watchActive = false; run(); }
   else if(watch.length){ runWatch(true); }
   else { $("status").textContent = "Pick a filter and hit Search — or tap a chip above."; }
@@ -1163,11 +1180,62 @@ function maybeAutoEvents(){
   else $("status").textContent="Enter a drug (e.g. semaglutide), or add one to your watchlist, then Summarize reactions.";
 }
 
+// ================= FEDERAL REGISTER =================
+// FDA guidances / advisory-committee notices / rules — record-list, newest first.
+const FEDREG_API="https://www.federalregister.gov/api/v1/documents.json";
+const FEDREG_FIELDS=["title","html_url","publication_date","abstract","type","document_number","agencies"];
+function fedregUrl(term){
+  const p=new URLSearchParams();
+  p.set("per_page","20"); p.set("order","newest");
+  p.append("conditions[agencies][]","food-and-drug-administration");
+  if(term) p.set("conditions[term]", term);
+  const since=new Date(Date.now()-365*864e5).toISOString().slice(0,10);  // last year
+  p.set("conditions[publication_date][gte]", since);
+  for(const f of FEDREG_FIELDS) p.append("fields[]", f);
+  return `${FEDREG_API}?${p.toString()}`;
+}
+function renderFedReg(d){
+  const url=d.html_url||""; const title=d.title||"Federal Register document";
+  const type=d.type||""; const ag=(d.agencies||[]).map(a=>a&&a.name).filter(Boolean)[0]||"";
+  const date=(d.publication_date||"").slice(0,10);
+  const abstract=d.abstract||"";
+  const tags=[type,ag].filter(Boolean);
+  const el=document.createElement("article");
+  el.dataset.id="g:"+(d.document_number||url);
+  el.dataset.date=String(date).replace(/[^0-9]/g,"").slice(0,8);
+  el.innerHTML=
+    `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(title)}</a></h2>`+
+    `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
+    (abstract?`<div class="summary">${citeSentences(abstract,url,"Federal Register")}</div>`:"")+
+    `<div class="src">${date?`${esc(date)} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Federal Register</a></div>`;
+  return el;
+}
+async function searchFedReg(){
+  watchActive=false;
+  const typed=$("g_q").value.trim();
+  const term = typed || (watch.length ? allWatchVariants().slice(0,12).map(t=>/[\s]/.test(t)?`"${t}"`:t).join(" OR ") : "");
+  $("results").innerHTML=""; $("status").textContent="Searching the Federal Register…"; $("moreBtn").hidden=true;
+  let data;
+  try{ data=await getJson(fedregUrl(term), true); }
+  catch(err){ return showErr("Federal Register", err); }
+  const rows=(data && data.results) || [];
+  for(const d of rows) $("results").appendChild(renderFedReg(d));
+  if(!sortRelevant()) sortLoadedByDate();
+  renumberCites($("results"));
+  $("status").textContent = rows.length
+    ? `Showing ${rows.length} Federal Register document${rows.length>1?"s":""} (FDA, last 12 months).`
+    : "No matching Federal Register documents in the last 12 months.";
+}
+function maybeAutoFedReg(){
+  if($("g_q").value.trim() || watch.length) searchFedReg();
+  else $("status").textContent="Enter a term (e.g. accelerated approval), or add to your watchlist, then Search.";
+}
+
 // ---- current search dispatch ----
 function runSearch(reset){
   return tab==="trials" ? searchTrials(reset) : tab==="recalls" ? searchRecalls(reset)
     : tab==="approvals" ? searchApprovals(reset) : tab==="shortages" ? searchShortages(reset)
-    : tab==="events" ? searchEvents()
+    : tab==="events" ? searchEvents() : tab==="fedreg" ? searchFedReg()
     : searchSec(reset);
 }
 
@@ -1233,6 +1301,7 @@ $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
 $("a_search").onclick=()=>{ searchApprovals(true); syncUrl(); };
 $("h_search").onclick=()=>{ searchShortages(true); syncUrl(); };
 $("e_search").onclick=()=>{ searchEvents(); syncUrl(); };
+$("g_search").onclick=()=>{ searchFedReg(); syncUrl(); };
 $("s_search").onclick=()=>{ searchSec(true); syncUrl(); };
 $("moreBtn").onclick=()=> (watchActive ? runWatch(false) : runSearch(false));
 $("t_clear").onclick=()=>{ ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).value=""); $("t_status").value=""; $("t_phase").value=""; $("t_recent").value=""; $("t_industry").checked=false; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
@@ -1240,6 +1309,7 @@ $("r_clear").onclick=()=>{ ["r_firm","r_drug","r_reason"].forEach(id=>$(id).valu
 $("a_clear").onclick=()=>{ ["a_spons","a_drug"].forEach(id=>$(id).value=""); $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("h_clear").onclick=()=>{ ["h_drug","h_company"].forEach(id=>$(id).value=""); $("h_status").value="Current"; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("e_clear").onclick=()=>{ $("e_drug").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Enter a drug, or add one to your watchlist, then Summarize reactions."; syncUrl(); };
+$("g_clear").onclick=()=>{ $("g_q").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Enter a term, or add to your watchlist, then Search."; syncUrl(); };
 $("s_clear").onclick=()=>{ $("s_q").value=""; $("s_form").value=""; $("s_recent").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 
 ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchTrials(true); syncUrl(); }}));
@@ -1247,6 +1317,7 @@ $("s_clear").onclick=()=>{ $("s_q").value=""; $("s_form").value=""; $("s_recent"
 ["a_spons","a_drug"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchApprovals(true); syncUrl(); }}));
 ["h_drug","h_company"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchShortages(true); syncUrl(); }}));
 $("e_drug").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchEvents(); syncUrl(); }});
+$("g_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchFedReg(); syncUrl(); }});
 $("s_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchSec(true); syncUrl(); }});
 document.querySelectorAll('.chips[data-for="shortages"] .chip').forEach(c=>c.onclick=()=>{
   if(c.dataset.drug) $("h_drug").value=c.dataset.drug;

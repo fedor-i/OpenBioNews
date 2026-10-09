@@ -117,6 +117,13 @@ def default_config() -> dict[str, Any]:
                 "top_reactions": 8,       # most-reported FAERS reactions per drug
                 "max_total": 20,          # at most N watched drugs summarised
             },
+            "federalregister": {
+                "enabled": False,
+                "recent_days": 30,        # documents published within N days
+                "max_per_query": 20,
+                "max_total": 40,
+                "agencies": ["food-and-drug-administration"],  # [] = all agencies
+            },
             "edgar": {
                 "enabled": False,
                 "recent_days": 30,       # filings filed within N days

@@ -7,6 +7,12 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Federal Register — new source**. A new connector and a hosted-page tab surface
+  FDA regulatory documents — guidances, advisory-committee (adcomm) meeting
+  notices, and proposed / final rules — the primary records behind a regulatory
+  calendar. Added across the CLI connector registry, the MCP server
+  (`search_federal_register` + the cross-agency digest) and the web app. FDA-scoped
+  by default, with an `all_agencies` option.
 - **FDA adverse events (FAERS) — new source**. A new connector and a hosted-page
   tab summarise, per drug, the most-reported adverse reactions from the FDA
   Adverse Event Reporting System, using openFDA's server-side `count`

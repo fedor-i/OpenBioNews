@@ -533,6 +533,37 @@ def test_openfda_shortages_parse_and_query():
     assert any(x.name == "openFDA (Drug Shortages)" for x in get_connectors(cfg))
 
 
+FEDREG_FIXTURE = {"results": [{
+    "title": "Oncologic Drugs Advisory Committee; Notice of Meeting",
+    "html_url": "https://www.federalregister.gov/documents/2026/10/01/2026-12345/odac",
+    "publication_date": "2026-10-01", "type": "Notice",
+    "abstract": "<p>The FDA announces a forthcoming meeting of the ODAC.</p>",
+    "document_number": "2026-12345",
+    "agencies": [{"name": "Food and Drug Administration"}]}]}
+
+
+def test_federal_register_parse_and_query():
+    from openbionews.connectors.federalregister import (
+        parse_documents, FederalRegisterConnector)
+    from openbionews.connectors import get_connectors
+    it = parse_documents(FEDREG_FIXTURE)[0]
+    assert it.title.startswith("Oncologic Drugs Advisory Committee")
+    assert it.source == "Federal Register" and it.topic == "federal_register"
+    assert it.tag == "Notice · Food and Drug Administration"
+    assert "<p>" not in it.summary and "forthcoming meeting" in it.summary   # HTML stripped
+    assert it.guid == "2026-12345"
+    assert "federalregister.gov" in it.citations[0].url
+    c = FederalRegisterConnector({"recent_days": 30}, {"terms": ["advisory committee"]})
+    params = c._params("advisory committee")
+    assert params["conditions[term]"] == "advisory committee"
+    assert params["conditions[agencies][]"] == ["food-and-drug-administration"]
+    assert "conditions[publication_date][gte]" in params and params["order"] == "newest"
+    assert c.available()[0] is True
+    cfg = config.default_config()
+    cfg["connectors"]["federalregister"]["enabled"] = True
+    assert any(x.name == "Federal Register" for x in get_connectors(cfg))
+
+
 def test_edgar_parse():
     from openbionews.connectors.edgar import parse_hits
     items = parse_hits(SEC_FIXTURE)

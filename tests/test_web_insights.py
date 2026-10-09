@@ -166,6 +166,16 @@ def test_fda_adverse_events_tab():
     assert "not incidence rates" in SRC, "FAERS no-causation caveat removed"
 
 
+def test_federal_register_tab():
+    # The Federal Register tab queries the FR documents API scoped to the FDA and
+    # renders cited document cards (guidances, adcomm notices, rules).
+    js = _script()
+    assert 'id="tab-fedreg"' in SRC and 'id="panel-fedreg"' in SRC, "Federal Register tab markup removed"
+    assert "function searchFedReg" in js, "Federal Register search handler removed"
+    assert "federalregister.gov/api" in js, "Federal Register API endpoint removed"
+    assert "food-and-drug-administration" in js, "FDA agency scope removed"
+
+
 def test_group_sources_by_cluster():
     # The Sources list can be grouped into its emergent-theme clusters (+ an Other
     # bucket) as a clustered way to read the references.
