@@ -159,6 +159,9 @@
   .icov b{color:var(--ink)}
   .imethods{color:var(--muted);font-size:.73rem;margin-top:.6rem;border-top:1px dashed var(--line);padding-top:.5rem}
   .ehint{color:var(--muted);font-size:.85rem;margin-top:.5rem;max-width:60rem;line-height:1.4}
+  .daterange{display:flex;gap:.3rem;margin-top:.35rem}
+  .daterange input{flex:1;min-width:0}
+  .daterange[hidden]{display:none}
   /* Record focused view (related records across sources) */
   .focusbtn{background:none;border:1px solid var(--line);color:var(--accent);border-radius:999px;
     font-size:.78rem;padding:.05rem .5rem;cursor:pointer;margin-left:.4rem}
@@ -387,7 +390,11 @@
             <option value="30">30 days</option>
             <option value="90">90 days</option>
             <option value="180">6 months</option>
+            <option value="custom">Specific range…</option>
           </select>
+          <div class="daterange" id="t_range" hidden>
+            <input type="date" id="t_from" aria-label="From date"><input type="date" id="t_to" aria-label="To date">
+          </div>
         </div>
       </div>
       <div class="row">
@@ -436,7 +443,11 @@
             <option value="90">90 days</option>
             <option value="365">1 year</option>
             <option value="1095">3 years</option>
+            <option value="custom">Specific range…</option>
           </select>
+          <div class="daterange" id="r_range" hidden>
+            <input type="date" id="r_from" aria-label="From date"><input type="date" id="r_to" aria-label="To date">
+          </div>
         </div>
         <div><label for="r_type">Type</label>
           <select id="r_type">
@@ -465,7 +476,11 @@
             <option value="180">6 months</option>
             <option value="365">1 year</option>
             <option value="1095">3 years</option>
+            <option value="custom">Specific range…</option>
           </select>
+          <div class="daterange" id="a_range" hidden>
+            <input type="date" id="a_from" aria-label="From date"><input type="date" id="a_to" aria-label="To date">
+          </div>
         </div>
         <div><label for="a_suppl">Include</label>
           <select id="a_suppl">
@@ -580,7 +595,11 @@
             <option value="30">30 days</option>
             <option value="90">90 days</option>
             <option value="365">1 year</option>
+            <option value="custom">Specific range…</option>
           </select>
+          <div class="daterange" id="s_range" hidden>
+            <input type="date" id="s_from" aria-label="From date"><input type="date" id="s_to" aria-label="To date">
+          </div>
         </div>
       </div>
       <div class="row">
@@ -602,7 +621,11 @@
             <option value="90" selected>Last 90 days</option>
             <option value="180">Last 6 months</option>
             <option value="365">Last year</option>
+            <option value="custom">Specific range…</option>
           </select>
+          <div class="daterange" id="i_range" hidden>
+            <input type="date" id="i_from" aria-label="From date"><input type="date" id="i_to" aria-label="To date">
+          </div>
         </div>
       </div>
       <div class="row">
@@ -782,10 +805,34 @@ function sortRelevant(){ return currentSort()==="relevant"; }
 
 // ================= TRIALS =================
 function daysAgoISO(n){ return new Date(Date.now()-n*864e5).toISOString().slice(0,10); }
+function todayISO(){ return daysAgoISO(0); }
+// Resolve a time control (a "last N days" select + an optional "Specific range…"
+// date pair) to {fromISO, toISO, custom} in YYYY-MM-DD, or null for "Any time".
+// Presets keep their exact behaviour (from = today−N, to = today); "custom" uses
+// the two date inputs (either end may be left open).
+function dateRange(selId){
+  const sel=$(selId); if(!sel) return null;
+  const base=selId.replace(/_(recent|period)$/,"");
+  if(sel.value==="custom"){
+    const from=($(base+"_from")||{}).value||"", to=($(base+"_to")||{}).value||"";
+    if(!from && !to) return null;
+    return {fromISO:from||"1990-01-01", toISO:to||todayISO(), custom:true};
+  }
+  if(!sel.value) return null;                        // "Any time"
+  return {fromISO:daysAgoISO(+sel.value), toISO:todayISO(), custom:false};
+}
+// Show the date inputs only when "Specific range…" is picked.
+function wireRange(selId){
+  const sel=$(selId); if(!sel) return;
+  const box=$(selId.replace(/_(recent|period)$/,"")+"_range");
+  const upd=()=>{ if(box) box.hidden = sel.value!=="custom"; };
+  sel.addEventListener("change", upd); upd();
+}
+["t_recent","r_recent","a_recent","s_recent","i_period"].forEach(wireRange);
 function trialsFilters(){
   return {spons:$("t_spons").value.trim(), cond:$("t_cond").value.trim(), intr:$("t_intr").value.trim(),
     term:$("t_term").value.trim(), status:$("t_status").value, phase:$("t_phase").value,
-    recent:$("t_recent").value, industry:$("t_industry").checked,
+    recent:$("t_recent").value, range:dateRange("t_recent"), industry:$("t_industry").checked,
     sort:(sortRelevant()?"@relevance":"LastUpdatePostDate:desc")};
 }
 function trialsHasFilter(f){ return f.spons||f.cond||f.intr||f.term||f.status||f.phase||f.recent||f.industry; }
@@ -805,7 +852,7 @@ function buildCtUrl(f, token){
   const adv=[];
   if(f.phase) adv.push(`AREA[Phase]${f.phase}`);
   if(f.industry) adv.push("AREA[LeadSponsorClass]INDUSTRY");
-  if(f.recent) adv.push(`AREA[LastUpdatePostDate]RANGE[${daysAgoISO(+f.recent)},MAX]`);
+  if(f.range) adv.push(`AREA[LastUpdatePostDate]RANGE[${f.range.fromISO},${f.range.custom?f.range.toISO:"MAX"}]`);
   if(adv.length) p.append("filter.advanced", adv.join(" AND "));
   p.append("sort", f.sort||"LastUpdatePostDate:desc");
   p.append("fields", CT_FIELDS_FULL); p.append("pageSize","25"); p.append("countTotal","true");
@@ -860,7 +907,8 @@ function renderTrial(st){
 // ================= FDA RECALLS =================
 function recallsFilters(){
   return {firm:$("r_firm").value.trim(), drug:$("r_drug").value.trim(), reason:$("r_reason").value.trim(),
-    cls:$("r_class").value, status:$("r_status").value, recent:$("r_recent").value, type:$("r_type").value};
+    cls:$("r_class").value, status:$("r_status").value, recent:$("r_recent").value,
+    range:dateRange("r_recent"), type:$("r_type").value};
 }
 function recallsHasFilter(f){ return f.firm||f.drug||f.reason||f.cls||f.status||f.recent||f.type; }
 function buildFdaUrl(f, skip){
@@ -873,8 +921,8 @@ function buildFdaUrl(f, skip){
   if(f.status) terms.push(`status:"${f.status}"`);
   if(f.type==="voluntary") terms.push(`voluntary_mandated:"Voluntary: Firm Initiated"`);
   else if(f.type==="mandated") terms.push(`voluntary_mandated:"FDA Mandated"`);
-  if(f.recent){
-    const s=daysAgoISO(+f.recent).replace(/-/g,""), e=daysAgoISO(0).replace(/-/g,"");
+  if(f.range){
+    const s=f.range.fromISO.replace(/-/g,""), e=f.range.toISO.replace(/-/g,"");
     terms.push(`report_date:[${s} TO ${e}]`);
   }
   const search = terms.join("+AND+");
@@ -923,7 +971,7 @@ function renderRecall(r){
 // ================= FDA APPROVALS (Drugs@FDA) =================
 function apprFilters(){
   return {spons:$("a_spons").value.trim(), drug:$("a_drug").value.trim(),
-    recent:$("a_recent").value, suppl:$("a_suppl").value==="1"};
+    recent:$("a_recent").value, range:dateRange("a_recent"), suppl:$("a_suppl").value==="1"};
 }
 function apprHasFilter(f){ return f.spons||f.drug; }
 function buildApprUrl(f, skip){
@@ -933,7 +981,8 @@ function buildApprUrl(f, skip){
   const search=terms.join("+AND+");
   return `${FDA_APPROVALS_API}?search=${encodeURIComponent(search).replace(/%2B/g,"+")}&limit=25&skip=${skip||0}`;
 }
-function approvalCards(app, cutoffMs, includeSuppl){
+function approvalCards(app, range, includeSuppl){
+  const fromMs = range && range.fromMs, toMs = range && range.toMs;
   const of=app.openfda||{}; const first=v=>Array.isArray(v)?(v[0]||""):(v||"");
   const brands=of.brand_name||[]; const generics=of.generic_name||[];
   const products=app.products||[];
@@ -952,7 +1001,8 @@ function approvalCards(app, cutoffMs, includeSuppl){
     const isOrig=(sub.submission_type||"").toUpperCase()!=="SUPPL";
     if(!isOrig && !includeSuppl) continue;
     const d=sub.submission_status_date||""; const dt=(d.length===8)?Date.UTC(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6,8)):NaN;
-    if(cutoffMs && !isNaN(dt) && dt<cutoffMs) continue;
+    if(fromMs && !isNaN(dt) && dt<fromMs) continue;
+    if(toMs && !isNaN(dt) && dt>toMs) continue;
     const kind=isOrig?"FDA approval":"FDA supplemental approval";
     const priority=(sub.review_priority||"").toUpperCase()==="PRIORITY"?"Priority review":"";
     const tags=[isOrig?"New approval":"Supplement",priority,sponsorDisp].filter(Boolean);
@@ -975,12 +1025,13 @@ async function searchApprovals(reset){
   if(reset){ aprSkip=0; aprParams=f; $("results").innerHTML=""; }
   if(!apprHasFilter(f)){ if(watch.length) return runWatch(true); $("status").textContent="Enter a company or a drug name — or add one to your watchlist above."; return; }
   $("status").textContent="Searching Drugs@FDA…"; $("moreBtn").hidden=true;
-  const cutoffMs=Date.now()-(+ (aprParams||f).recent)*864e5;
+  const rng=(aprParams||f).range;
+  const range = rng ? {fromMs:Date.parse(rng.fromISO), toMs:Date.parse(rng.toISO)+864e5} : null;  // include the end day
   try{
     const data=await getJson(buildApprUrl(aprParams||f, reset?0:aprSkip), true);
     if(data.__empty){ if($("results").children.length===0) $("status").textContent="No matching approvals."; $("moreBtn").hidden=true; return; }
     const apps=data.results||[];
-    for(const app of apps) approvalCards(app, cutoffMs, (aprParams||f).suppl).forEach(c=>$("results").appendChild(c));
+    for(const app of apps) approvalCards(app, range, (aprParams||f).suppl).forEach(c=>$("results").appendChild(c));
     if(!sortRelevant()) sortLoadedByDate();
     aprSkip += apps.length;
     const total=dig(data,"meta","results","total")||0;
@@ -1055,14 +1106,14 @@ async function searchShortages(reset){
 
 // ================= SEC EDGAR =================
 function secFilters(){
-  return {q:$("s_q").value.trim(), form:$("s_form").value, recent:$("s_recent").value};
+  return {q:$("s_q").value.trim(), form:$("s_form").value, recent:$("s_recent").value, range:dateRange("s_recent")};
 }
 function secHasFilter(f){ return !!f.q; }
 function buildSecUrl(f, from){
   const p=new URLSearchParams();
   if(f.q) p.append("q", f.q);
   if(f.form) p.append("forms", f.form);
-  if(f.recent){ p.append("dateRange","custom"); p.append("startdt", daysAgoISO(+f.recent)); p.append("enddt", daysAgoISO(0)); }
+  if(f.range){ p.append("dateRange","custom"); p.append("startdt", f.range.fromISO); p.append("enddt", f.range.toISO); }
   if(from) p.append("from", from);
   return SEC_API+"?"+p.toString();
 }
@@ -1073,7 +1124,7 @@ function secUiLink(f){
   const parts=[];
   if(f.q) parts.push("q="+encodeURIComponent(f.q));
   if(f.form) parts.push("forms="+encodeURIComponent(f.form));
-  if(f.recent) parts.push("dateRange=custom","startdt="+daysAgoISO(+f.recent),"enddt="+daysAgoISO(0));
+  if(f.range) parts.push("dateRange=custom","startdt="+f.range.fromISO,"enddt="+f.range.toISO);
   return "https://www.sec.gov/edgar/search/#/"+parts.join("&");
 }
 function secFallbackCard(f, note){
@@ -2181,14 +2232,15 @@ async function pageSec(agency, base, parse, maxPages){
   } }catch(err){ iErrors.push(agency+" ("+err.message+")"); }
   return out;
 }
-async function fetchInsights(terms, days){
+async function fetchInsights(terms, range){
   iErrors=[];
-  days=days||90;
-  const fromISO=daysAgoISO(days), fromYmd=fromISO.replace(/-/g,""), toYmd=daysAgoISO(0).replace(/-/g,"");
-  const inWin=r=>!r.date || r.date>=fromISO;                // client-side window for undated-sort sources
+  range = range || {fromISO:daysAgoISO(90), toISO:todayISO(), custom:false};
+  const fromISO=range.fromISO, toISO=range.toISO||todayISO();
+  const fromYmd=fromISO.replace(/-/g,""), toYmd=toISO.replace(/-/g,"");
+  const inWin=r=>!r.date || (r.date>=fromISO && r.date<=toISO);   // client-side window (both bounds) for undated-sort sources
   // ClinicalTrials.gov — last-update window, newest first
   const ctp=new URLSearchParams(); const oe=ctOrExpr(terms); if(oe) ctp.append("query.term",oe);
-  ctp.append("filter.advanced",`AREA[LastUpdatePostDate]RANGE[${fromISO},MAX]`);
+  ctp.append("filter.advanced",`AREA[LastUpdatePostDate]RANGE[${fromISO},${range.custom?toISO:"MAX"}]`);
   // Fetch the detailed write-up too, so Insights source cards can show the full study
   // description (behind "… more"); analytics still key off the brief summary (r.text).
   ctp.append("sort","LastUpdatePostDate:desc"); ctp.append("fields",CT_FIELDS_FULL); ctp.append("pageSize","500"); ctp.append("countTotal","true");
@@ -2202,7 +2254,7 @@ async function fetchInsights(terms, days){
   const shrBase=`${FDA_SHORTAGES_API}?search=${encodeURIComponent(fdaOrExpr(terms,["company_name","generic_name","proprietary_name"])).replace(/%2B/g,"+")}`;
   // SEC EDGAR — filed-within window
   const secp=new URLSearchParams(); secp.append("q", terms.map(t=>/[\s&]/.test(t)?`"${t}"`:t).join(" OR "));
-  secp.append("dateRange","custom"); secp.append("startdt",fromISO); secp.append("enddt",daysAgoISO(0));
+  secp.append("dateRange","custom"); secp.append("startdt",fromISO); secp.append("enddt",toISO);
   const groups=await Promise.all([
     pageCt("ClinicalTrials.gov", CT_API+"?"+ctp.toString(), d=>(d.studies||[]).map(normTrial).filter(Boolean), 6),
     pageSkip("openFDA recalls", recBase, d=>(d.results||[]).map(normRecall).filter(Boolean), 1000, 6, true),
@@ -2614,6 +2666,16 @@ function wordleLayout(entries){
 // The selected time window, in days — now scopes what fetchInsights pulls.
 function windowDays(){ return +($("i_period")&&$("i_period").value) || 90; }
 function windowLabel(d){ return d<=7?"last 7 days":d<=30?"last 30 days":d<=90?"last 90 days":d<=180?"last 6 months":"last year"; }
+// The Insights time window as a range — a preset ("last N days") or a custom from–to.
+function windowRange(){
+  const dr=dateRange("i_period");
+  if(dr && dr.custom){
+    const days=Math.max(1,Math.round((Date.parse(dr.toISO)-Date.parse(dr.fromISO))/864e5));
+    return {fromISO:dr.fromISO, toISO:dr.toISO, days, label:`${dr.fromISO} to ${dr.toISO}`, custom:true};
+  }
+  const days=windowDays();
+  return {fromISO:daysAgoISO(days), toISO:todayISO(), days, label:windowLabel(days), custom:false};
+}
 // Insights keeps its OWN seen-state, keyed by the subject it actually pulled, so
 // "new since your last visit" is honest and self-consistent — it diffs against what
 // Insights showed you before, not the per-tab watchlist views (which only record
@@ -2715,10 +2777,10 @@ function renderInsights(){
   // word cloud (colour) and the Emergent-themes card (record grouping) so they agree.
   const cloud=textRankTerms(docTokens,40);
   const {assign:termCluster, groups:termGroups}=clusterTerms(cloud.map(c=>c[0]), docTokens);  // adaptive K (silhouette)
-  const days=windowDays();
+  const R=windowRange(); const days=R.days, winLabel=R.label;
   const iSig=iSubjectSig(), prevSeen=iSeen[iSig], baseHas=!!prevSeen, baseSet=new Set(prevSeen||[]);
-  // newer half of the window = "recent" for rising-term momentum
-  const midISO=daysAgoISO(Math.max(1,Math.round(days/2)));
+  // newer half of the window = "recent" for rising-term momentum (midpoint of the span)
+  const midISO=new Date((Date.parse(R.fromISO)+Date.parse(R.toISO))/2).toISOString().slice(0,10);
   const unseen=r=> baseHas ? !baseSet.has(r.id) : false;       // new since Insights last showed this subject
   const perAgency={}; let newN=0, newest="", oldest="";
   for(const t of TABS) perAgency[t]=0;
@@ -2728,7 +2790,7 @@ function renderInsights(){
     if(unseen(r)) newN++;
   });
   const active=TABS.filter(t=>perAgency[t]>0);
-  const periodTxt = baseHas ? `${windowLabel(days)} · <b>${newN} new since your last visit</b>` : `<b>${windowLabel(days)}</b>`;
+  const periodTxt = baseHas ? `${winLabel} · <b>${newN} new since your last visit</b>` : `<b>${winLabel}</b>`;
   // records matching a facet value — the drill-in targets
   const idsWhere=pred=>recs.filter(pred).map(r=>r.id);
   const idsForTerm=w=>recs.filter((r,i)=>docTokens[i].includes(w)).map(r=>r.id);
@@ -2784,7 +2846,7 @@ function renderInsights(){
   const riseW=riseWindow(recs, docTokens, midISO);
   const rising=risingTerms(riseW.tokens, riseW.flags, 10);
   if(rising.length){
-    html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating in the newer half of the ${esc(windowLabel(days))} vs. the earlier half</span></h3><div class="riserow">`+
+    html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating in the newer half of the ${esc(winLabel)} vs. the earlier half</span></h3><div class="riserow">`+
       rising.map(t=>`<span class="riseterm ifacet${t.fresh?" fresh":""}" data-facet="term:${escA(t.term)}" data-ids="${escA(JSON.stringify(idsForTerm(t.term)))}" title="${t.recent}× recently vs ${t.base}× before">`+
         `${esc(t.term)} <b>${t.fresh?"new":"×"+t.lift.toFixed(1)}</b></span>`).join("")+
       `</div></div>`;
@@ -2941,8 +3003,8 @@ async function runInsights(){
   if(!terms.length){ $("insights").innerHTML=`<div class="iempty">Add something to your watchlist above, or type a subject (e.g. <b>CRISPR</b>), then hit Summarize.</div>`; return; }
   if(iBusy) return; iBusy=true;
   iSubjectLabel=insightLabel();
-  $("insights").innerHTML=`<div class="iempty">Gathering every record in the ${windowLabel(windowDays())} from ClinicalTrials.gov, openFDA and SEC EDGAR… (a wider window takes a little longer)</div>`;
-  try{ iRecords=await fetchInsights(terms, windowDays()); renderInsights(); }
+  $("insights").innerHTML=`<div class="iempty">Gathering every record in the ${windowRange().label} from ClinicalTrials.gov, openFDA and SEC EDGAR… (a wider window takes a little longer)</div>`;
+  try{ iRecords=await fetchInsights(terms, windowRange()); renderInsights(); }
   catch(err){ $("insights").innerHTML=`<div class="ierr">Could not build insights: ${esc(err.message)}</div>`; }
   finally{ iBusy=false; }
 }
@@ -2962,10 +3024,10 @@ window.OBN_INSIGHTS={iTokens,singular,iDocTokens,iFreq,pageRank,textRankTerms,ya
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----
-const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent"};
-const R_FIELDS={r_firm:"firm",r_drug:"drug",r_reason:"reason",r_class:"class",r_status:"rstatus",r_recent:"rrecent",r_type:"rtype"};
-const S_FIELDS={s_q:"q",s_form:"form",s_recent:"srecent"};
-const A_FIELDS={a_spons:"aspons",a_drug:"adrug",a_recent:"arecent",a_suppl:"asuppl"};
+const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent",t_from:"tfrom",t_to:"tto"};
+const R_FIELDS={r_firm:"firm",r_drug:"drug",r_reason:"reason",r_class:"class",r_status:"rstatus",r_recent:"rrecent",r_type:"rtype",r_from:"rfrom",r_to:"rto"};
+const S_FIELDS={s_q:"q",s_form:"form",s_recent:"srecent",s_from:"sfrom",s_to:"sto"};
+const A_FIELDS={a_spons:"aspons",a_drug:"adrug",a_recent:"arecent",a_suppl:"asuppl",a_from:"afrom",a_to:"ato"};
 const H_FIELDS={h_drug:"hdrug",h_company:"hcompany",h_status:"hstatus"};
 function fieldsFor(t){
   return t==="trials"?T_FIELDS : t==="recalls"?R_FIELDS : t==="approvals"?A_FIELDS
@@ -3006,6 +3068,8 @@ function loadFromUrl(){
   for(const map of [T_FIELDS,R_FIELDS,A_FIELDS,H_FIELDS,S_FIELDS])
     for(const [id,key] of Object.entries(map)) if(p.get(key)) $(id).value=p.get(key);
   $("t_industry").checked = p.get("industry")==="1";
+  ["t_recent","r_recent","a_recent","s_recent"].forEach(id=>{ const sel=$(id); if(!sel) return;  // refresh range-input visibility after restoring a shared link
+    const box=$(id.replace(/_recent$/,"_range")); if(box) box.hidden=sel.value!=="custom"; });
   selectTab(t);                       // auto-runs the watchlist when present
   if(watch.length) return;            // watchlist drives the view
   if(t==="trials" && trialsHasFilter(trialsFilters())) searchTrials(true);

@@ -166,6 +166,17 @@ def test_fda_adverse_events_tab():
     assert "not incidence rates" in SRC, "FAERS no-causation caveat removed"
 
 
+def test_custom_date_range():
+    # Each time control (data tabs + Insights) offers a "Specific range…" option that
+    # reveals from/to date inputs and drives an explicit historic range query.
+    js = _script()
+    assert "function dateRange" in js, "shared date-range resolver removed"
+    assert "function windowRange" in js, "Insights custom-range resolver removed"
+    assert SRC.count('class="daterange"') >= 5, "custom-range date inputs missing from a time control"
+    assert SRC.count('>Specific range…<') >= 5, "'Specific range' option missing from a time control"
+    assert 'id="t_from"' in SRC and 'id="i_from"' in SRC, "from/to date inputs removed"
+
+
 def test_record_focused_view():
     # Every record gets a "related" affordance that opens a focus overlay pulling
     # connected records across sources — including PubMed publications.

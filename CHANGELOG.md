@@ -7,6 +7,13 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Custom historic date range (hosted page)**. Every time control — the Insights
+  period selector and each data tab's recency dropdown (trials, recalls, approvals,
+  SEC) — keeps its "last N days" presets and adds a **"Specific range…"** option that
+  reveals from/to date pickers, so you can pull e.g. all 2019 recalls or run Insights
+  over any historic span. The explicit range is threaded into each source's native
+  date filter (ClinicalTrials.gov `RANGE`, openFDA `report_date`, SEC `startdt/enddt`)
+  and persists in shareable links.
 - **Record focused view (hosted page)**. Every record now has a **"🔍 related"**
   button that opens an overlay pulling in connected records across sources, keyed
   off the record's main entity: publications (PubMed), clinical trials, FDA recalls
