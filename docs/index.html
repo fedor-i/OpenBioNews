@@ -1407,8 +1407,14 @@ function focusKeywords(text){
   const words=String(text||"").toLowerCase().replace(/[\/,;:]/g," ").replace(/[^\w\s-]/g,"").split(/\s+/).filter(Boolean);
   const kept=[]; const seen=new Set();
   for(const w of words){ if(w.length>2 && !FOCUS_STOP.has(w) && !seen.has(w)){ seen.add(w); kept.push(w); } }
-  // Drug-like tokens first (keeps original order within each group).
-  return kept.slice().sort((a,b)=>(DRUG_SUFFIX.test(b)?1:0)-(DRUG_SUFFIX.test(a)?1:0));
+  // Rank: drug-name stems first, then longer (more distinctive) terms — so a title
+  // like "Single Port … Laparoscopic Cholecystectomy" keys off "cholecystectomy",
+  // not "single port four".
+  return kept.sort((a,b)=>{
+    const da=DRUG_SUFFIX.test(a), db=DRUG_SUFFIX.test(b);
+    if(da!==db) return da?-1:1;
+    return b.length-a.length;
+  });
 }
 // A record's related-search tokens: the drug/brand head (FDA cards) plus ranked
 // content words. Returns {tokens, term} — tokens drive the FDA OR-queries, term
