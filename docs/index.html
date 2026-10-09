@@ -124,9 +124,13 @@
   .tag.c1{background:var(--critbg);color:var(--crit)}
   .tag.c2{background:var(--warnbg);color:var(--warn)}
   .summary{font-size:.95rem;margin:.3rem 0 .5rem}
-  /* Full (default): the whole summary shows. "Brief" (body.sum-brief) clamps it to a
-     few lines. Full text is always in the DOM, so toggling never needs a re-fetch. */
-  body.sum-brief .summary{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  /* Brief by default: a long summary is clamped to a few lines with a "… more" link
+     that expands this card to the full text (added only when it actually overflows).
+     The full cited text is always in the DOM, so expanding never needs a re-fetch. */
+  .summary.clampable:not(.open){display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .morelink{background:none;border:0;padding:0;margin:.1rem 0 .3rem;font:inherit;font-size:.86rem;
+    color:var(--accent);cursor:pointer;text-decoration:underline}
+  .morelink:hover{opacity:.8}
   .src{font-size:.82rem;color:var(--muted)}
   sup.cite{font-size:.68em;line-height:0}
   sup.cite a{color:var(--accent);text-decoration:none;font-weight:700;padding:0 .05em}
@@ -542,11 +546,6 @@
         <option value="recent">Most recent</option>
         <option value="relevant">Most relevant</option>
       </select></label>
-    <label class="sortby" title="Brief shows a short preview; Full shows the complete summary from the record">Summaries
-      <select id="sumLen">
-        <option value="full">Full</option>
-        <option value="brief">Brief</option>
-      </select></label>
     <label class="auto" title="Re-run this search automatically every 15 minutes while the page is open">
       <input type="checkbox" id="autoRefresh"> Auto-refresh (15 min)</label>
     <span class="upd" id="updated" hidden></span>
@@ -649,7 +648,7 @@ function renumberCites(container, itemSel){
 }
 // Renumber the main results list on any append (manual search, watchlist, Load more).
 // Watches direct children only; our own text edits are deeper, so no feedback loop.
-new MutationObserver(()=>renumberCites($("results"))).observe($("results"), {childList:true});
+new MutationObserver(()=>{ renumberCites($("results")); markSummaries($("results")); }).observe($("results"), {childList:true});
 function fmtFdaDate(d){ return (d&&d.length===8)?`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`:d||""; }
 function prettyStatus(s){ return s ? s.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()) : ""; }
 function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&p!=="NA").map(p=>p.replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase ")).join("/"); }
@@ -1112,14 +1111,24 @@ $("sortBy").onchange = () => {
   if(watchActive) runWatch(true);
   else if($("results").children.length>0) runSearch(true);
 };
-// Summary length: full text is always rendered; "Full" just removes the CSS clamp,
-// so there's nothing to re-fetch. Remembered per viewer.
-function applySumLen(){ document.body.classList.toggle("sum-brief",
-  ($("sumLen") && $("sumLen").value) === "brief"); }
-if($("sumLen")){
-  try{ $("sumLen").value = localStorage.getItem("obn_sumlen") || "full"; }catch(e){ $("sumLen").value = "full"; }
-  $("sumLen").onchange = () => { try{ localStorage.setItem("obn_sumlen", $("sumLen").value); }catch(e){} applySumLen(); };
-  applySumLen();
+// Brief summaries with a "… more" hyperlink to the full text. The full cited text is
+// always rendered; we clamp long summaries to a few lines and, only where the text
+// actually overflows, add a link that expands this card (and collapses it again).
+function markSummaries(scope){
+  (scope||document).querySelectorAll(".summary:not([data-sum])").forEach(el=>{
+    el.setAttribute("data-sum","1");
+    el.classList.add("clampable");                       // clamp, then measure overflow
+    if(el.scrollHeight > el.clientHeight + 2){
+      const link=document.createElement("button");
+      link.className="morelink"; link.type="button"; link.textContent="… more";
+      link.setAttribute("aria-expanded","false");
+      link.onclick=()=>{ const open=el.classList.toggle("open");
+        link.textContent=open?"show less":"… more"; link.setAttribute("aria-expanded", open?"true":"false"); };
+      el.insertAdjacentElement("afterend", link);
+    } else {
+      el.classList.remove("clampable");                  // short enough — no clamp, no link
+    }
+  });
 }
 $("t_search").onclick=()=>{ searchTrials(true); syncUrl(); };
 $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
@@ -2382,6 +2391,7 @@ function renderInsights(){
   const recCluster=new Map();
   clusters.forEach(c=>{ const lbl=c.label; for(const ri of c.recIdxs) recCluster.set(recs[ri].id, lbl); });
   wireSourceGrouping(box, srcBox, recCluster);
+  markSummaries(srcBox);                                   // brief summaries + "… more" expanders
   iSaveSeen(iSig, recs.map(r=>r.id));                      // record what we showed → honest "new" next time
 }
 // Lay the rendered Source cards out ranked (flat) or grouped into cluster sections.

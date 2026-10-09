@@ -7,13 +7,14 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- **Brief / Full summaries toggle (hosted page)**. Study and record summaries were
-  previewed at a fixed length and could cut off mid-thought. Cards now show the
-  **complete text from the record by default**, and a new **Summaries: Full / Brief**
-  control in the results bar lets you collapse them to a short preview instead. The
-  full cited text is always rendered and the toggle only adds/removes a CSS
-  line-clamp, so it never re-fetches; the choice is remembered per viewer and
-  applies across every tab (and the Insights source list).
+- **"… more" to expand a summary (hosted page)**. Study and record summaries were
+  previewed at a fixed length and could cut off mid-thought. Each card now shows a
+  brief, few-line preview with a **"… more"** link that expands it to the complete
+  text from the record (and "show less" to collapse). The link appears only when a
+  summary actually overflows, so short ones are untouched. The full cited text is
+  always in the DOM and the link only toggles a CSS clamp — expanding never
+  re-fetches. Works on every tab (trials, recalls, approvals, shortages, SEC) and
+  the Insights source list.
 
 ## [0.5.0] — 2026-10-09
 
