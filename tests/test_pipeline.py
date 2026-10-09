@@ -593,6 +593,40 @@ def test_federal_register_parse_and_query():
     assert any(x.name == "Federal Register" for x in get_connectors(cfg))
 
 
+PUBMED_SUMMARY_FIXTURE = {"result": {
+    "uids": ["40000001"],
+    "40000001": {
+        "title": "Base editing restores fetal hemoglobin in sickle cell disease.",
+        "fulljournalname": "New England Journal of Medicine", "source": "N Engl J Med",
+        "pubdate": "2026 Sep 15",
+        "authors": [{"name": "Smith J"}, {"name": "Doe A"}],
+        "articleids": [{"idtype": "pubmed", "value": "40000001"},
+                       {"idtype": "doi", "value": "10.1056/NEJMexample"}]}}}
+
+
+def test_pubmed_parse_and_query():
+    from openbionews.connectors.pubmed import parse_summary, PubMedConnector
+    from openbionews.connectors import get_connectors
+    it = parse_summary(PUBMED_SUMMARY_FIXTURE)[0]
+    assert it.title.startswith("Base editing restores")
+    assert it.source == "PubMed" and it.topic == "pubmed"
+    assert it.link == "https://pubmed.ncbi.nlm.nih.gov/40000001/"
+    assert it.guid == "pmid:40000001"
+    assert "Smith J et al." in it.summary and "New England Journal" in it.summary
+    assert it.meta["doi"] == "10.1056/NEJMexample"
+    assert any("doi.org/10.1056" in c.url for c in it.citations)   # DOI cited too
+    assert it.published is not None and it.published.year == 2026
+    empty = PubMedConnector({}, {})
+    assert empty.available()[0] is False
+    c = PubMedConnector({"recent_days": 365}, {"terms": ["base editing"]})
+    assert c.available()[0] is True
+    params = c._esearch_params("base editing")
+    assert params["db"] == "pubmed" and params["sort"] == "date" and params["reldate"] == 365
+    cfg = config.default_config()
+    cfg["connectors"]["pubmed"]["enabled"] = True
+    assert any(x.name == "PubMed" for x in get_connectors(cfg))
+
+
 def test_edgar_parse():
     from openbionews.connectors.edgar import parse_hits
     items = parse_hits(SEC_FIXTURE)

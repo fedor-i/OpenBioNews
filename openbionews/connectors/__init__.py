@@ -21,6 +21,7 @@ from .openfda_approvals import OpenFDAApprovalsConnector
 from .openfda_events import OpenFDAEventsConnector
 from .openfda_labels import OpenFDALabelsConnector
 from .openfda_shortages import OpenFDAShortagesConnector
+from .pubmed import PubMedConnector
 
 _REGISTRY = {
     "clinicaltrials": ClinicalTrialsConnector,
@@ -30,6 +31,7 @@ _REGISTRY = {
     "openfda_events": OpenFDAEventsConnector,
     "openfda_labels": OpenFDALabelsConnector,
     "federalregister": FederalRegisterConnector,
+    "pubmed": PubMedConnector,
     "edgar": EdgarConnector,
 }
 
@@ -55,6 +57,7 @@ __all__ = [
     "OpenFDAEventsConnector",
     "OpenFDALabelsConnector",
     "FederalRegisterConnector",
+    "PubMedConnector",
     "EdgarConnector",
     "get_connectors",
 ]

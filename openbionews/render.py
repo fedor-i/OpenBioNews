@@ -21,6 +21,7 @@ _TOPIC_LABELS = {
     "fda_events": "FDA Adverse Events (FAERS)",
     "fda_labels": "FDA Drug Labeling",
     "federal_register": "Federal Register",
+    "pubmed": "PubMed",
     "sec_filings": "SEC Filings",
 }
 

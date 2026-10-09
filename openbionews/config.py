@@ -129,6 +129,13 @@ def default_config() -> dict[str, Any]:
                 "max_total": 40,
                 "agencies": ["food-and-drug-administration"],  # [] = all agencies
             },
+            "pubmed": {
+                "enabled": False,
+                "recent_days": 365,       # publications within N days
+                "max_per_query": 10,
+                "max_total": 30,
+                "api_key": "",            # optional NCBI key (raises the rate limit)
+            },
             "edgar": {
                 "enabled": False,
                 "recent_days": 30,       # filings filed within N days

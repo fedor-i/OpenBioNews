@@ -32,6 +32,7 @@ from .connectors.openfda_approvals import OpenFDAApprovalsConnector
 from .connectors.openfda_events import OpenFDAEventsConnector
 from .connectors.openfda_labels import OpenFDALabelsConnector
 from .connectors.openfda_shortages import OpenFDAShortagesConnector
+from .connectors.pubmed import PubMedConnector
 from .httputil import HTTPJSONError
 from .models import Item
 
@@ -160,6 +161,13 @@ def search_fda_labeling(query: str, limit: int = 10) -> dict:
     return _search(OpenFDALabelsConnector, interventions=_as_list(query), cfg=cfg)
 
 
+def search_pubmed(query: str, recent_days: int = 365, limit: int = 10) -> dict:
+    """Search PubMed (NCBI E-utilities) for recent biomedical literature matching
+    ``query``. Each result cites its PubMed record (and DOI when present)."""
+    cfg = {"recent_days": recent_days, "max_total": limit, "max_per_query": limit}
+    return _search(PubMedConnector, terms=_as_list(query), cfg=cfg)
+
+
 def search_federal_register(query: str = "", recent_days: int = 30, limit: int = 20,
                             all_agencies: bool = False) -> dict:
     """Search Federal Register documents (FDA guidances, advisory-committee notices,
@@ -192,6 +200,7 @@ _DIGEST_SPEC = [
     (OpenFDAEventsConnector, "interventions"),
     (OpenFDALabelsConnector, "interventions"),
     (FederalRegisterConnector, "terms"),
+    (PubMedConnector, "terms"),
     (EdgarConnector, "terms"),
 ]
 
@@ -215,7 +224,7 @@ def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15) -
 TOOLS = [
     search_clinical_trials, search_fda_recalls, search_fda_approvals,
     search_fda_shortages, search_fda_adverse_events, search_fda_labeling,
-    search_federal_register, search_sec_filings, watchlist_digest,
+    search_federal_register, search_pubmed, search_sec_filings, watchlist_digest,
 ]
 
 

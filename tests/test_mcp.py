@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from openbionews import mcp_server
 from openbionews.connectors import (
     clinicaltrials, edgar, federalregister, openfda, openfda_approvals,
-    openfda_events, openfda_labels, openfda_shortages,
+    openfda_events, openfda_labels, openfda_shortages, pubmed,
 )
 from openbionews.httputil import HTTPJSONError
 from openbionews.models import Citation, Item
@@ -75,6 +75,13 @@ FEDREG = {"results": [{
     "html_url": "https://www.federalregister.gov/documents/2026/10/01/2026-9/g",
     "publication_date": "2026-10-01", "document_number": "2026-9",
     "agencies": [{"name": "Food and Drug Administration"}]}]}
+PM_SEARCH = {"esearchresult": {"idlist": ["40000001"]}}
+PM_SUMMARY = {"result": {"uids": ["40000001"], "40000001": {
+    "title": "Base editing in sickle cell disease.", "source": "N Engl J Med",
+    "pubdate": "2026 Sep 15", "authors": [{"name": "Smith J"}],
+    "articleids": [{"idtype": "doi", "value": "10.1056/ex"}]}}}
+def _pubmed_fake(url, *a, **k):
+    return PM_SUMMARY if "esummary" in url else PM_SEARCH
 
 
 class _patch:
@@ -86,9 +93,13 @@ class _patch:
     def __enter__(self):
         self._orig = self.module.get_json
 
-        def fake(*_a, **_k):
+        def fake(*a, **k):
             if self.raise_exc:
                 raise self.raise_exc
+            # A callable payload lets a connector that makes several calls (e.g.
+            # PubMed: esearch then esummary) return a different shape per URL.
+            if callable(self.payload):
+                return self.payload(*a, **k)
             return self.payload
         self.module.get_json = fake
         return self
@@ -166,6 +177,15 @@ def test_search_fda_labeling():
     assert "/drug/label.json" in r["citations"][0]["url"]
 
 
+def test_search_pubmed():
+    with _patch(pubmed, _pubmed_fake):
+        out = mcp_server.search_pubmed("base editing")
+    assert out["count"] == 1
+    r = out["results"][0]
+    assert "pubmed.ncbi.nlm.nih.gov/40000001" in r["url"]
+    assert any("doi.org" in c["url"] for c in r["citations"])
+
+
 def test_search_federal_register():
     with _patch(federalregister, FEDREG):
         out = mcp_server.search_federal_register("guidance")
@@ -184,15 +204,16 @@ def test_watchlist_digest_spans_all_sources():
     with _patch(clinicaltrials, CT), _patch(openfda, RECALLS), \
          _patch(openfda_approvals, APPROVALS), _patch(openfda_shortages, SHORTAGES), \
          _patch(openfda_events, EVENTS), _patch(openfda_labels, LABELS), \
-         _patch(federalregister, FEDREG), _patch(edgar, EDGAR):
+         _patch(federalregister, FEDREG), _patch(pubmed, _pubmed_fake), \
+         _patch(edgar, EDGAR):
         out = mcp_server.watchlist_digest(["beam"], limit_per_source=5)
     names = {s["source"] for s in out["sources"]}
     assert names == {"ClinicalTrials.gov", "openFDA (Drug Recalls)",
                      "Drugs@FDA (Approvals)", "FDA Drug Shortages",
                      "openFDA (FAERS)", "openFDA (Drug Labeling)",
-                     "Federal Register", "SEC EDGAR"} \
-        or len(out["sources"]) == 8  # names may vary; eight blocks either way
-    assert out["total"] >= 8 and len(out["sources"]) == 8
+                     "Federal Register", "PubMed", "SEC EDGAR"} \
+        or len(out["sources"]) == 9  # names may vary; nine blocks either way
+    assert out["total"] >= 9 and len(out["sources"]) == 9
 
 
 def test_upstream_failure_is_returned_as_data():
@@ -202,7 +223,7 @@ def test_upstream_failure_is_returned_as_data():
 
 
 def test_all_tools_registered():
-    assert len(mcp_server.TOOLS) == 9
+    assert len(mcp_server.TOOLS) == 10
     assert all(callable(fn) and fn.__doc__ for fn in mcp_server.TOOLS)
     assert hasattr(mcp_server, "serve") and hasattr(mcp_server, "build_server")
 

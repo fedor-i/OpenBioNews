@@ -7,6 +7,11 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **PubMed — new source**. A new connector (NCBI E-utilities: `esearch` →
+  `esummary`) surfaces biomedical literature for a watch term, each cited to its
+  PubMed record and DOI. Added to the CLI connector registry and the MCP server
+  (`search_pubmed` + the cross-agency digest, now nine sources). Powers the
+  publications strand of the record focused view on the hosted page.
 - **FDA drug labeling — new source**. A new connector and a hosted-page tab surface
   the current FDA structured product label (SPL) for a drug — its approved
   indications and any boxed warning. Added across the CLI connector registry, the
