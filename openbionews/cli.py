@@ -70,6 +70,17 @@ def cmd_doctor(args) -> int:
     return run_doctor(cfg, check_feeds=not args.no_feeds)
 
 
+def cmd_mcp(args) -> int:
+    """Run the Model Context Protocol server (stdio), exposing the connectors as
+    tools an AI assistant can call. The optional 'mcp' package is required."""
+    from . import mcp_server
+    try:
+        return mcp_server.serve()
+    except ImportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+
 def cmd_sources(args) -> int:
     print("Available topic bundles:\n")
     for key, bundle in sources.BUNDLES.items():
@@ -120,6 +131,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_sources = sub.add_parser("sources", help="list the built-in topic bundles and feeds")
     p_sources.set_defaults(func=cmd_sources)
+
+    p_mcp = sub.add_parser("mcp", help="run the MCP server so an AI can call the primary-source connectors")
+    p_mcp.set_defaults(func=cmd_mcp)
 
     return parser
 

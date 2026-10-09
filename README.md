@@ -246,11 +246,52 @@ any number of visitors.
 
 ---
 
+## Use it from an AI assistant (MCP)
+
+The core has no LLM and invents nothing — but any assistant that speaks the
+[Model Context Protocol](https://modelcontextprotocol.io) (Claude Desktop, Claude
+Code, …) can call OpenBioNews as a tool to pull **primary-source** records, each
+returned with the exact URL it traces to. The AI gets grounded, citable facts; it
+never sees our prose.
+
+```bash
+pip install "openbionews[mcp]"   # the 'mcp' extra; the core stays dependency-free
+openbionews mcp                  # speaks MCP over stdio
+```
+
+Tools exposed: `search_clinical_trials`, `search_fda_recalls`,
+`search_fda_approvals`, `search_fda_shortages`, `search_sec_filings`, and
+`watchlist_digest` (all five agencies at once). Each returns JSON records with a
+`citation_url`.
+
+Register it with Claude Desktop (or Claude Code) — add to your MCP config
+(`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "openbionews": {
+      "command": "openbionews",
+      "args": ["mcp"],
+      "env": { "OPENBIONEWS_EDGAR_UA": "Your Name your@email.com" }
+    }
+  }
+}
+```
+
+`OPENBIONEWS_EDGAR_UA` is optional — SEC asks full-text-search callers to identify
+themselves with a contact; set it to your email to keep EDGAR happy. Then ask your
+assistant things like *"any Class I drug recalls for Moderna in the last 90 days?"*
+and it will call the tool and answer from the cited records.
+
+---
+
 ## Commands
 
 | Command | What it does |
 | --- | --- |
 | `openbionews setup` | Interactive onboarding; writes your config. |
+| `openbionews mcp` | Run the MCP server so an AI can call the primary-source connectors. |
 | `openbionews run` | Build today's digest and write it to `digest/`. |
 | `openbionews run --demo` | Build a digest offline from bundled sample data. |
 | `openbionews run --stdout` | Print the digest instead of writing a file. |

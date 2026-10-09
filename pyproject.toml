@@ -36,6 +36,9 @@ dependencies = []
 [project.optional-dependencies]
 # Optional: wider, more forgiving feed parsing. Never required.
 feeds = ["feedparser>=6.0"]
+# Optional: run `openbionews mcp` so an AI assistant can call the primary-source
+# connectors over the Model Context Protocol. The core stays dependency-free.
+mcp = ["mcp>=1.2"]
 dev = ["pytest>=7.0"]
 
 [project.urls]

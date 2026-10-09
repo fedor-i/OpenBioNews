@@ -17,6 +17,17 @@ to follow [Semantic Versioning](https://semver.org/).
   Class, shortage Status, SEC form types) stay in their panels.
 
 ### Added
+- **MCP server — call the primary sources from an AI assistant**. A new
+  `openbionews mcp` command runs a [Model Context Protocol](https://modelcontextprotocol.io)
+  server (stdio) that exposes the connectors as tools: `search_clinical_trials`,
+  `search_fda_recalls`, `search_fda_approvals`, `search_fda_shortages`,
+  `search_sec_filings`, and `watchlist_digest` (all five agencies at once). This
+  inverts the usual relationship — the core still has no LLM and invents nothing,
+  but any MCP client (Claude Desktop, Claude Code, …) can call these tools to pull
+  **primary-source** records, each returned as JSON with the exact `citation_url`
+  it traces to. The `mcp` dependency is optional (`pip install "openbionews[mcp]"`);
+  the core stays dependency-free. Supports both the current SDK (`mcp` ≥ 2) and the
+  1.x line. Tool logic is standard-library and unit-tested without the `mcp` package.
 - **Insights (beta) — a deterministic, no-LLM cross-agency digest (hosted page)**.
   A new **📊 Insights** tab gathers a broad recent sample of the primary-source
   records for your watchlist (or a typed subject) across all five agencies at once
