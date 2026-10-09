@@ -18,7 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from openbionews import mcp_server
 from openbionews.connectors import (
-    clinicaltrials, edgar, openfda, openfda_approvals, openfda_shortages,
+    clinicaltrials, edgar, openfda, openfda_approvals, openfda_events,
+    openfda_shortages,
 )
 from openbionews.httputil import HTTPJSONError
 from openbionews.models import Citation, Item
@@ -63,6 +64,7 @@ EDGAR = {"hits": {"hits": [{"_id": "0001-26-000001:filing.htm", "_source": {
     "ciks": ["0001628280"], "display_names": ["BEAM THERAPEUTICS INC (RXRX)"],
     "root_form": "8-K", "file_date": "2026-10-01",
     "file_description": "Material agreement on a collaboration."}}]}}
+EVENTS = {"results": [{"term": "NAUSEA", "count": 42}, {"term": "HEADACHE", "count": 17}]}
 
 
 class _patch:
@@ -136,6 +138,15 @@ def test_search_fda_shortages():
     assert out["count"] == 1 and "shortage" in out["results"][0]["title"].lower()
 
 
+def test_search_fda_adverse_events():
+    with _patch(openfda_events, EVENTS):
+        out = mcp_server.search_fda_adverse_events("semaglutide")
+    assert out["count"] == 1
+    r = out["results"][0]
+    assert "Nausea (42)" in r["summary"] and "not incidence rates" in r["summary"]
+    assert "count=patient.reaction" in r["citations"][0]["url"]
+
+
 def test_search_sec_filings():
     with _patch(edgar, EDGAR):
         out = mcp_server.search_sec_filings("collaboration")
@@ -145,13 +156,14 @@ def test_search_sec_filings():
 def test_watchlist_digest_spans_all_sources():
     with _patch(clinicaltrials, CT), _patch(openfda, RECALLS), \
          _patch(openfda_approvals, APPROVALS), _patch(openfda_shortages, SHORTAGES), \
-         _patch(edgar, EDGAR):
+         _patch(openfda_events, EVENTS), _patch(edgar, EDGAR):
         out = mcp_server.watchlist_digest(["beam"], limit_per_source=5)
     names = {s["source"] for s in out["sources"]}
     assert names == {"ClinicalTrials.gov", "openFDA (Drug Recalls)",
-                     "Drugs@FDA (Approvals)", "FDA Drug Shortages", "SEC EDGAR"} \
-        or len(out["sources"]) == 5  # names may vary; five blocks either way
-    assert out["total"] >= 5 and len(out["sources"]) == 5
+                     "Drugs@FDA (Approvals)", "FDA Drug Shortages",
+                     "openFDA (FAERS)", "SEC EDGAR"} \
+        or len(out["sources"]) == 6  # names may vary; six blocks either way
+    assert out["total"] >= 6 and len(out["sources"]) == 6
 
 
 def test_upstream_failure_is_returned_as_data():
@@ -161,7 +173,7 @@ def test_upstream_failure_is_returned_as_data():
 
 
 def test_all_tools_registered():
-    assert len(mcp_server.TOOLS) == 6
+    assert len(mcp_server.TOOLS) == 7
     assert all(callable(fn) and fn.__doc__ for fn in mcp_server.TOOLS)
     assert hasattr(mcp_server, "serve") and hasattr(mcp_server, "build_server")
 

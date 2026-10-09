@@ -18,6 +18,7 @@ _TOPIC_LABELS = {
     "fda_recalls": "FDA Drug Recalls",
     "fda_approvals": "FDA Drug Approvals",
     "fda_shortages": "FDA Drug Shortages",
+    "fda_events": "FDA Adverse Events (FAERS)",
     "sec_filings": "SEC Filings",
 }
 

@@ -112,6 +112,11 @@ def default_config() -> dict[str, Any]:
                 "max_total": 40,
                 "statuses": ["Current"],   # e.g. ["Current", "Resolved"]; [] = any
             },
+            "openfda_events": {
+                "enabled": False,
+                "top_reactions": 8,       # most-reported FAERS reactions per drug
+                "max_total": 20,          # at most N watched drugs summarised
+            },
             "edgar": {
                 "enabled": False,
                 "recent_days": 30,       # filings filed within N days

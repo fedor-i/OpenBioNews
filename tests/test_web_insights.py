@@ -156,6 +156,16 @@ def test_insights_cards_carry_full_description():
         "Insights CT fetch no longer requests DetailedDescription"
 
 
+def test_fda_adverse_events_tab():
+    # The FAERS adverse-events tab queries openFDA's reaction COUNT aggregation and
+    # must keep the "spontaneous reports, not incidence rates" causation caveat.
+    js = _script()
+    assert 'id="tab-events"' in SRC and 'id="panel-events"' in SRC, "FAERS tab markup removed"
+    assert "function searchEvents" in js, "FAERS search handler removed"
+    assert "count=patient.reaction.reactionmeddrapt.exact" in js, "FAERS count aggregation removed"
+    assert "not incidence rates" in SRC, "FAERS no-causation caveat removed"
+
+
 def test_group_sources_by_cluster():
     # The Sources list can be grouped into its emergent-theme clusters (+ an Other
     # bucket) as a clustered way to read the references.

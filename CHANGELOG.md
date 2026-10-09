@@ -7,6 +7,24 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **FDA adverse events (FAERS) — new source**. A new connector and a hosted-page
+  tab summarise, per drug, the most-reported adverse reactions from the FDA
+  Adverse Event Reporting System, using openFDA's server-side `count`
+  aggregation (the high-signal view, not a flood of single-patient reports).
+  Counts are spontaneous reports, not incidence rates, and the card/summary say
+  so. Added across the CLI connector registry, the MCP server
+  (`search_fda_adverse_events` + the cross-agency digest) and the web app.
+- **Therapeutic-area presets expand to condition bundles (hosted page)**. The
+  Oncology / Cardiometabolic / Neurology / Immunology / Rare-disease / Infectious
+  seed buttons each now expand to a bundle of representative conditions (mirroring
+  `sources.py`) instead of a single disease, so "Immunology" searches RA +
+  psoriasis + IBD + lupus, not only rheumatoid arthritis.
+- **Full study descriptions in Insights (hosted page)**. Insights source cards
+  now show the complete ClinicalTrials.gov detailed description (behind "… more"),
+  while the analytics still key off the brief summary so clustering and the word
+  cloud stay fast.
+- **Spell-out tooltips on Insights stat bars (hosted page)**. Truncated company /
+  therapeutic-area / source labels spell out in full on hover or keyboard focus.
 - **"… more" to expand a summary (hosted page)**. Study and record summaries were
   previewed at a fixed length and could cut off mid-thought. Each card now shows a
   brief, few-line preview with a **"… more"** link that expands it to the complete

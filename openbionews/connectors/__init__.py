@@ -17,6 +17,7 @@ from .clinicaltrials import ClinicalTrialsConnector
 from .edgar import EdgarConnector
 from .openfda import OpenFDAConnector
 from .openfda_approvals import OpenFDAApprovalsConnector
+from .openfda_events import OpenFDAEventsConnector
 from .openfda_shortages import OpenFDAShortagesConnector
 
 _REGISTRY = {
@@ -24,6 +25,7 @@ _REGISTRY = {
     "openfda": OpenFDAConnector,
     "openfda_approvals": OpenFDAApprovalsConnector,
     "openfda_shortages": OpenFDAShortagesConnector,
+    "openfda_events": OpenFDAEventsConnector,
     "edgar": EdgarConnector,
 }
 
@@ -46,6 +48,7 @@ __all__ = [
     "OpenFDAConnector",
     "OpenFDAApprovalsConnector",
     "OpenFDAShortagesConnector",
+    "OpenFDAEventsConnector",
     "EdgarConnector",
     "get_connectors",
 ]

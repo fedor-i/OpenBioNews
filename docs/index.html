@@ -158,6 +158,7 @@
   .icov{color:var(--muted);font-size:.76rem;margin-top:.5rem;background:var(--chip);border-radius:8px;padding:.4rem .6rem}
   .icov b{color:var(--ink)}
   .imethods{color:var(--muted);font-size:.73rem;margin-top:.6rem;border-top:1px dashed var(--line);padding-top:.5rem}
+  .ehint{color:var(--muted);font-size:.85rem;margin-top:.5rem;max-width:60rem;line-height:1.4}
   .istats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.7rem;margin:.6rem 0}
   .icard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.85rem 1rem;box-shadow:var(--shadow)}
   .icard h3{margin:0 0 .55rem;font-size:.92rem}
@@ -321,6 +322,7 @@
     <button class="tab" id="tab-recalls" role="tab" aria-selected="false" aria-controls="panel-recalls">FDA recalls</button>
     <button class="tab" id="tab-approvals" role="tab" aria-selected="false" aria-controls="panel-approvals">FDA approvals</button>
     <button class="tab" id="tab-shortages" role="tab" aria-selected="false" aria-controls="panel-shortages">FDA shortages</button>
+    <button class="tab" id="tab-events" role="tab" aria-selected="false" aria-controls="panel-events">FDA adverse events</button>
     <button class="tab" id="tab-sec" role="tab" aria-selected="false" aria-controls="panel-sec">SEC filings</button>
     <button class="tab" id="tab-insights" role="tab" aria-selected="false" aria-controls="panel-insights">📊 Insights<span class="ibeta">beta</span></button>
   </div>
@@ -478,6 +480,20 @@
         <button class="go" id="h_search">Search</button>
         <button class="ghost" id="h_clear">Clear</button>
       </div>
+    </div>
+  </section>
+
+  <!-- FDA ADVERSE EVENTS (FAERS) -->
+  <section id="panel-events" role="tabpanel" hidden>
+    <div class="filters">
+      <div class="grid">
+        <div><label for="e_drug">Drug (generic or brand)</label><input id="e_drug" placeholder="e.g. semaglutide — or leave blank to use your watchlist"></div>
+      </div>
+      <div class="row">
+        <button class="go" id="e_search">Summarize reactions</button>
+        <button class="ghost" id="e_clear">Clear</button>
+      </div>
+      <div class="ehint">The most-reported adverse reactions per drug, from the FDA Adverse Event Reporting System (FAERS). Counts are <b>spontaneous reports, not incidence rates</b>, and do not establish that the drug caused the reaction.</div>
     </div>
   </section>
 
@@ -666,8 +682,8 @@ function prettyStatus(s){ return s ? s.replace(/_/g," ").replace(/\b\w/g,c=>c.to
 function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&p!=="NA").map(p=>p.replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase ")).join("/"); }
 
 // ---- tab switching ----
-const TABS = ["trials","recalls","approvals","shortages","sec"];   // data agencies (seen-state, analytics)
-const VIEW_TABS = TABS.concat("insights");                         // + the Insights analysis view
+const TABS = ["trials","recalls","approvals","shortages","sec"];   // record-list agencies (seen-state, analytics)
+const VIEW_TABS = TABS.concat("events","insights");                // + FAERS (aggregate) + the Insights view
 function selectTab(name, run){
   tab = name;
   for(const t of VIEW_TABS){
@@ -678,8 +694,10 @@ function selectTab(name, run){
   $("results").innerHTML = "";
   $("moreBtn").hidden = true;
   const onInsights = name==="insights";
-  $("resultsBar").hidden = onInsights;          // sort / auto-refresh / copy-link don't apply to Insights
+  const onEvents = name==="events";             // FAERS: aggregate, no sort/paging
+  $("resultsBar").hidden = onInsights || onEvents;   // sort / auto-refresh / copy-link don't apply
   if(onInsights){ maybeAutoInsights(); return; }
+  if(onEvents){ maybeAutoEvents(); return; }
   if(run){ watchActive = false; run(); }
   else if(watch.length){ runWatch(true); }
   else { $("status").textContent = "Pick a filter and hit Search — or tap a chip above."; }
@@ -1090,10 +1108,66 @@ function showErr(name, err){
     `It may be busy or blocked by your network — try again shortly.</span>`;
 }
 
+// ================= FDA ADVERSE EVENTS (FAERS) =================
+// Aggregate, not a record list: for each drug we ask openFDA to COUNT reports by
+// reaction term, then show the top reactions as bars. FAERS is spontaneous
+// reporting, so a count is NOT an incidence rate and implies no causation — the
+// card says so and nothing is inferred.
+const FAERS_API="https://api.fda.gov/drug/event.json";
+const FAERS_DASH="https://fis.fda.gov/sense/app/95239e26-e0be-42d9-a960-9a5f7f1c25ee/sheet/7a47a261-d58b-4203-a8aa-6d3021737452/state/analysis";
+function titleCase(s){ return String(s||"").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()); }
+function eventsCountUrl(drug){
+  const d=String(drug||"").replace(/"/g,"").trim();
+  const clause=`(patient.drug.openfda.brand_name:"${d}"+OR+patient.drug.openfda.generic_name:"${d}"+OR+patient.drug.medicinalproduct:"${d}")`;
+  return `${FAERS_API}?search=${encodeURIComponent(clause).replace(/%2B/g,"+")}&count=patient.reaction.reactionmeddrapt.exact`;
+}
+function renderEventsCard(drug, rows){
+  const url=eventsCountUrl(drug);
+  const top=rows.slice(0,8);
+  const max=top.length?Number(top[0].count)||1:1;
+  const bars=top.map(r=>`<div class="istat" data-full="${escA(titleCase(r.term))}">`+
+    `<span class="lbl">${esc(titleCase(r.term))}</span>`+
+    `<span class="bar2 a2" style="width:${Math.max(2,Math.round(72*(Number(r.count)||0)/max))}px"></span>`+
+    `<span class="cnt">${Number(r.count||0).toLocaleString()}</span></div>`).join("");
+  const el=document.createElement("article");
+  el.dataset.id="e:"+String(drug).toLowerCase();
+  el.innerHTML=
+    `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(drug)} — top adverse reactions (FAERS)</a></h2>`+
+    `<div class="tags"><span class="tag">FAERS</span><span class="tag">${top.length} reactions</span></div>`+
+    `<div class="istats" style="grid-template-columns:1fr;margin:.3rem 0">${bars}</div>`+
+    `<div class="ehint">Spontaneous reports, not incidence rates — a high count does not mean the drug caused the reaction.</div>`+
+    `<div class="src">↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">openFDA FAERS query</a> · <a href="${esc(FAERS_DASH)}" target="_blank" rel="noopener noreferrer">FDA FAERS dashboard</a></div>`;
+  return el;
+}
+async function searchEvents(){
+  watchActive=false;
+  const typed=$("e_drug").value.trim();
+  const drugs = typed ? [typed] : (watch.length ? allWatchVariants().slice(0,8) : []);
+  if(!drugs.length){ $("results").innerHTML=""; $("status").textContent="Enter a drug, or add one to your watchlist above."; return; }
+  $("results").innerHTML=""; $("status").textContent="Summarizing FAERS reactions…"; $("moreBtn").hidden=true;
+  let shown=0;
+  for(const drug of drugs){
+    let data;
+    try{ data=await getJson(eventsCountUrl(drug), true); }
+    catch(err){ continue; }                               // skip a drug the API can't resolve
+    const rows=(data && data.results) || [];
+    if(rows.length){ $("results").appendChild(renderEventsCard(drug, rows)); shown++; }
+  }
+  renumberCites($("results")); markClippedBars($("results"));
+  $("status").textContent = shown
+    ? `Showing adverse-event summaries for ${shown} drug${shown>1?"s":""}.`
+    : "No adverse-event reports found for that drug in FAERS.";
+}
+function maybeAutoEvents(){
+  if($("e_drug").value.trim() || watch.length) searchEvents();
+  else $("status").textContent="Enter a drug (e.g. semaglutide), or add one to your watchlist, then Summarize reactions.";
+}
+
 // ---- current search dispatch ----
 function runSearch(reset){
   return tab==="trials" ? searchTrials(reset) : tab==="recalls" ? searchRecalls(reset)
     : tab==="approvals" ? searchApprovals(reset) : tab==="shortages" ? searchShortages(reset)
+    : tab==="events" ? searchEvents()
     : searchSec(reset);
 }
 
@@ -1158,18 +1232,21 @@ $("t_search").onclick=()=>{ searchTrials(true); syncUrl(); };
 $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
 $("a_search").onclick=()=>{ searchApprovals(true); syncUrl(); };
 $("h_search").onclick=()=>{ searchShortages(true); syncUrl(); };
+$("e_search").onclick=()=>{ searchEvents(); syncUrl(); };
 $("s_search").onclick=()=>{ searchSec(true); syncUrl(); };
 $("moreBtn").onclick=()=> (watchActive ? runWatch(false) : runSearch(false));
 $("t_clear").onclick=()=>{ ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).value=""); $("t_status").value=""; $("t_phase").value=""; $("t_recent").value=""; $("t_industry").checked=false; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("r_clear").onclick=()=>{ ["r_firm","r_drug","r_reason"].forEach(id=>$(id).value=""); $("r_class").value=""; $("r_status").value=""; $("r_recent").value=""; $("r_type").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("a_clear").onclick=()=>{ ["a_spons","a_drug"].forEach(id=>$(id).value=""); $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("h_clear").onclick=()=>{ ["h_drug","h_company"].forEach(id=>$(id).value=""); $("h_status").value="Current"; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
+$("e_clear").onclick=()=>{ $("e_drug").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Enter a drug, or add one to your watchlist, then Summarize reactions."; syncUrl(); };
 $("s_clear").onclick=()=>{ $("s_q").value=""; $("s_form").value=""; $("s_recent").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 
 ["t_spons","t_cond","t_intr","t_term"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchTrials(true); syncUrl(); }}));
 ["r_firm","r_drug","r_reason"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchRecalls(true); syncUrl(); }}));
 ["a_spons","a_drug"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchApprovals(true); syncUrl(); }}));
 ["h_drug","h_company"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchShortages(true); syncUrl(); }}));
+$("e_drug").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchEvents(); syncUrl(); }});
 $("s_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchSec(true); syncUrl(); }});
 document.querySelectorAll('.chips[data-for="shortages"] .chip').forEach(c=>c.onclick=()=>{
   if(c.dataset.drug) $("h_drug").value=c.dataset.drug;

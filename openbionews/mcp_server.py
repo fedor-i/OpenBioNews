@@ -28,6 +28,7 @@ from .connectors.clinicaltrials import ClinicalTrialsConnector
 from .connectors.edgar import EdgarConnector
 from .connectors.openfda import OpenFDAConnector
 from .connectors.openfda_approvals import OpenFDAApprovalsConnector
+from .connectors.openfda_events import OpenFDAEventsConnector
 from .connectors.openfda_shortages import OpenFDAShortagesConnector
 from .httputil import HTTPJSONError
 from .models import Item
@@ -140,6 +141,15 @@ def search_fda_shortages(query: str = "", company: str | None = None,
                    sponsors=_as_list(company), cfg=cfg)
 
 
+def search_fda_adverse_events(query: str, top_reactions: int = 8, limit: int = 20) -> dict:
+    """Summarise FAERS adverse-event reports (openFDA) for one or more drugs. For each
+    drug in ``query`` returns its most-reported reactions with counts, cited to the
+    reproducible openFDA query. Counts are spontaneous reports, NOT incidence rates,
+    and do not establish causation."""
+    cfg = {"top_reactions": top_reactions, "max_total": limit}
+    return _search(OpenFDAEventsConnector, interventions=_as_list(query), cfg=cfg)
+
+
 def search_sec_filings(query: str, company: str | None = None, form: str | None = None,
                        recent_days: int = 90, limit: int = 20) -> dict:
     """Full-text search SEC EDGAR filings. ``query`` is the search text; ``company``
@@ -158,6 +168,7 @@ _DIGEST_SPEC = [
     (OpenFDAConnector, "interventions"),
     (OpenFDAApprovalsConnector, "interventions"),
     (OpenFDAShortagesConnector, "interventions"),
+    (OpenFDAEventsConnector, "interventions"),
     (EdgarConnector, "terms"),
 ]
 
@@ -180,7 +191,8 @@ def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15) -
 
 TOOLS = [
     search_clinical_trials, search_fda_recalls, search_fda_approvals,
-    search_fda_shortages, search_sec_filings, watchlist_digest,
+    search_fda_shortages, search_fda_adverse_events, search_sec_filings,
+    watchlist_digest,
 ]
 
 

@@ -483,6 +483,38 @@ SHORTAGE_FIXTURE = {"results": [{
     "therapeutic_category": ["Anti-Infective"], "update_date": "2026-09-18",
 }]}
 
+# FAERS count aggregation: top reactions with report counts (not incidence rates).
+EVENTS_FIXTURE = {"results": [
+    {"term": "NAUSEA", "count": 1234},
+    {"term": "FATIGUE", "count": 987},
+    {"term": "HEADACHE", "count": 654},
+]}
+
+
+def test_openfda_events_parse_and_query():
+    from openbionews.connectors.openfda_events import (
+        parse_reactions, record_to_item, OpenFDAEventsConnector)
+    from openbionews.connectors import get_connectors
+    reactions = parse_reactions(EVENTS_FIXTURE, limit=8)
+    assert reactions == [("NAUSEA", 1234), ("FATIGUE", 987), ("HEADACHE", 654)]
+    it = record_to_item("semaglutide", reactions)
+    assert it.title == "semaglutide — top adverse reactions (FAERS)"
+    assert it.source == "openFDA (FAERS)" and it.topic == "fda_events" and it.age_exempt
+    assert it.published is None                      # aggregate carries no single date
+    assert "Nausea (1,234)" in it.summary            # titled + thousands-separated
+    assert "not incidence rates" in it.summary       # causation / rate caveat present
+    assert "count=patient.reaction.reactionmeddrapt.exact" in it.citations[0].url
+    # No drugs on the watch list → nothing to aggregate, and it says so.
+    empty = OpenFDAEventsConnector({}, {})
+    assert empty.available()[0] is False
+    c = OpenFDAEventsConnector({"top_reactions": 5}, {"interventions": ["semaglutide"]})
+    assert c.available()[0] is True
+    raw = c._raw_query("semaglutide")
+    assert "count=patient.reaction.reactionmeddrapt.exact" in raw and "generic_name" in raw
+    cfg = config.default_config()
+    cfg["connectors"]["openfda_events"]["enabled"] = True
+    assert any(x.name == "openFDA (FAERS)" for x in get_connectors(cfg))
+
 
 def test_openfda_shortages_parse_and_query():
     from openbionews.connectors.openfda_shortages import parse_shortages, OpenFDAShortagesConnector
