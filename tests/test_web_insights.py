@@ -119,6 +119,23 @@ def test_stoplist_covers_known_leaks():
         assert f" {w} " in js or f'"{w} ' in js, f"stopword '{w}' missing from I_STOP"
 
 
+def test_therapeutic_areas_expand_to_condition_bundles():
+    # The therapeutic-area seed buttons (Oncology/Cardiometabolic/Neurology/
+    # Immunology/Rare disease) must each expand to a *bundle* of representative
+    # conditions, not a single disease — mirrors sources.py THERAPEUTIC_AREAS.
+    # Regression guard for "Immunology returns only rheumatoid arthritis".
+    js = _script()
+    assert re.search(r"immunology:\{label:", js), "immunology therapeutic-area topic removed"
+    for cond in ("psoriasis", "inflammatory bowel disease", "lupus"):
+        assert cond in js, f"immunology lost its '{cond}' condition (narrowed to RA again)"
+    # The seed buttons point at the area names (expandable topics), not lone diseases.
+    for area in ("oncology", "cardiometabolic", "neurology", "immunology"):
+        assert f'data-add="{area}"' in SRC, f"{area} seed button no longer points at the area topic"
+    # Each area must resolve as a multi-condition topic.
+    for area in ("oncology", "cardiometabolic", "neurology", "rare_disease"):
+        assert re.search(area + r":\{label:", js), f"{area} therapeutic-area topic removed"
+
+
 def test_group_sources_by_cluster():
     # The Sources list can be grouped into its emergent-theme clusters (+ an Other
     # bucket) as a clustered way to read the references.

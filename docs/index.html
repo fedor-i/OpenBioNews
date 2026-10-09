@@ -273,9 +273,9 @@
   <div class="watchseeds" id="watchSeeds">
     <span class="seedlabel">Quick add:</span>
     <button class="seed" data-add="oncology">Oncology</button>
-    <button class="seed" data-add="type 2 diabetes">Cardiometabolic</button>
-    <button class="seed" data-add="Alzheimer disease">Neurology</button>
-    <button class="seed" data-add="rheumatoid arthritis">Immunology</button>
+    <button class="seed" data-add="cardiometabolic">Cardiometabolic</button>
+    <button class="seed" data-add="neurology">Neurology</button>
+    <button class="seed" data-add="immunology">Immunology</button>
     <button class="seed" data-add="rare disease">Rare disease</button>
     <button class="seed" data-add="AI">AI</button>
     <button class="seed" data-add="NAM">NAM</button>
@@ -1326,6 +1326,24 @@ const WATCH_ALIASES = {
 // concept phrases (full-text + drug-name hits); `sponsors` = lead companies
 // (so the topic still returns that firm's recalls / approvals / filings).
 const WATCH_TOPICS = {
+  // Therapeutic areas: one tap = a bundle of representative conditions, so
+  // "Immunology" searches RA + psoriasis + IBD + lupus, not a single disease.
+  // Mirrors openbionews/sources.py THERAPEUTIC_AREAS.
+  oncology:{label:"Oncology",
+    match:["oncology","cancer"],
+    terms:["cancer","oncology","lymphoma","melanoma","solid tumor"]},
+  cardiometabolic:{label:"Cardiometabolic",
+    match:["cardiometabolic","cardiovascular"],
+    terms:["type 2 diabetes","obesity","heart failure","cardiovascular disease"]},
+  neurology:{label:"Neurology",
+    match:["neurology","neuroscience"],
+    terms:["Alzheimer disease","Parkinson disease","multiple sclerosis","epilepsy"]},
+  immunology:{label:"Immunology & inflammation",
+    match:["immunology","immunology & inflammation","inflammation","autoimmune"],
+    terms:["rheumatoid arthritis","psoriasis","inflammatory bowel disease","lupus"]},
+  rare_disease:{label:"Rare disease",
+    match:["rare disease","rare diseases","orphan disease","orphan drug"],
+    terms:["rare disease","cystic fibrosis","sickle cell disease","muscular dystrophy"]},
   ai:{label:"AI in drug discovery",
     match:["ai","a.i.","artificial intelligence","ai drug discovery","machine learning","ml"],
     terms:["artificial intelligence","machine learning","deep learning","AI drug discovery","generative model"],
