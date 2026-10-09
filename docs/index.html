@@ -173,6 +173,8 @@
     width:min(60rem,100%);max-height:92vh;overflow:auto;padding:1rem 1.2rem}
   .fhead{display:flex;align-items:flex-start;gap:.6rem;justify-content:space-between;margin-bottom:.3rem}
   .fhead h2{margin:0;font-size:1.05rem}
+  .fhead h2 a{color:inherit;text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:2px}
+  .fhead h2 a:hover{color:var(--accent)}
   .fclose{background:none;border:none;color:var(--muted);font-size:1.4rem;cursor:pointer;line-height:1}
   .fsub{color:var(--muted);font-size:.85rem;margin-bottom:.8rem}
   .fgroup{margin:.7rem 0;border-top:1px solid var(--line);padding-top:.6rem}
@@ -1510,7 +1512,10 @@ function openFocus(title, anchorUrl){
   const anchor=(anchorUrl||"").trim(), aTitle=String(title||"").trim().toLowerCase();
   const notAnchor=it=> (it.url||"")!==anchor && String(it.title||"").trim().toLowerCase()!==aTitle;
   const m=ensureFocusModal(); m.hidden=false;
-  $("ftitle").textContent=title;
+  // Keep a link back to the original record at the top.
+  $("ftitle").innerHTML = anchor
+    ? `<a href="${esc(anchor)}" target="_blank" rel="noopener noreferrer">${esc(title)}</a>`
+    : esc(title);
   $("fsub").textContent=`Related records across primary sources, matched on “${term}”. Each links to its source.`;
   const body=$("fbody"); body.innerHTML="";
   FOCUS_GROUPS.forEach(([label,fn],i)=>{
