@@ -181,6 +181,10 @@
   .fgroup h3{margin:0 0 .4rem;font-size:.92rem}
   .fgroup h3 .fcount{color:var(--muted);font-weight:normal;font-size:.82rem;margin-left:.3rem}
   .fitem{margin:.35rem 0;font-size:.88rem;line-height:1.35}
+  .fitem.flinked{border-left:2px solid var(--accent);padding-left:.5rem}
+  .fitem.flinked a{font-weight:600}
+  .fbadge{display:inline-block;border:1px solid var(--accent);color:var(--accent);border-radius:999px;
+    font-size:.72rem;font-weight:600;padding:0 .4rem;vertical-align:middle}
   .fitem a{color:var(--accent);text-decoration:none}
   .fitem a:hover{text-decoration:underline}
   .fmeta{color:var(--muted);font-size:.8rem}
@@ -1429,14 +1433,35 @@ function ofdaClause(fields, tokens){
   return encodeURIComponent(clause).replace(/%2B/g,"+");
 }
 async function fGroupPubs(ctx){
-  const s=await getJson(`${PM_ESEARCH}?db=pubmed&term=${encodeURIComponent(ctx.term)}&retmax=5&retmode=json&sort=date`, true);
-  const ids=((s.esearchresult||{}).idlist)||[];
-  if(!ids.length) return [];
-  const d=await getJson(`${PM_ESUMMARY}?db=pubmed&id=${ids.join(",")}&retmode=json`, true);
-  const res=d.result||{}; const order=res.uids||ids;
-  return order.map(id=>{ const r=res[id]; if(!r) return null;
-    return {title:r.title||("PMID "+id), url:`https://pubmed.ncbi.nlm.nih.gov/${id}/`,
-            meta:[r.source,r.pubdate].filter(Boolean).join(" · ")}; }).filter(Boolean);
+  const out=[], seenPmid=new Set();
+  // 1) Publications the study itself links (ClinicalTrials.gov referencesModule).
+  //    RESULT/DERIVED = papers reporting this trial → the most relevant, shown first.
+  if(ctx.nct){
+    try{
+      const st=await getJson(`${CT_API}/${ctx.nct}`, true);
+      const refs=dig(st,"protocolSection","referencesModule","references")||[];
+      const rank=t=>t==="RESULT"?0:t==="DERIVED"?1:2;
+      refs.filter(r=>r&&r.pmid).sort((a,b)=>rank(a.type)-rank(b.type)).forEach(r=>{
+        const pmid=String(r.pmid); if(seenPmid.has(pmid)) return; seenPmid.add(pmid);
+        const kind=(r.type==="RESULT"||r.type==="DERIVED")?"results publication":"linked reference";
+        out.push({title:r.citation||("PMID "+pmid), url:`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+                  meta:(r.type||"").toLowerCase(), badge:kind});
+      });
+    }catch(e){/* no linked refs → fall through to keyword search */}
+  }
+  // 2) Keyword-matched literature (deduped against the linked set).
+  try{
+    const s=await getJson(`${PM_ESEARCH}?db=pubmed&term=${encodeURIComponent(ctx.term)}&retmax=5&retmode=json&sort=date`, true);
+    const ids=(((s.esearchresult||{}).idlist)||[]).filter(id=>!seenPmid.has(String(id)));
+    if(ids.length){
+      const d=await getJson(`${PM_ESUMMARY}?db=pubmed&id=${ids.join(",")}&retmode=json`, true);
+      const res=d.result||{}; const order=(res.uids||ids).filter(id=>!seenPmid.has(String(id)));
+      order.forEach(id=>{ const r=res[id]; if(!r) return; seenPmid.add(String(id));
+        out.push({title:r.title||("PMID "+id), url:`https://pubmed.ncbi.nlm.nih.gov/${id}/`,
+                  meta:[r.source,r.pubdate].filter(Boolean).join(" · ")}); });
+    }
+  }catch(e){ if(!out.length) throw e; }   // only surface the error if we have nothing
+  return out;
 }
 async function fGroupTrials(ctx){
   const d=await getJson(`${CT_API}?query.term=${encodeURIComponent(ctx.term)}&fields=NCTId,BriefTitle,OverallStatus,LeadSponsorName&pageSize=6`, true);
@@ -1507,7 +1532,8 @@ function closeFocus(){ if(focusModalEl) focusModalEl.hidden=true; }
 function openFocus(title, anchorUrl){
   const {tokens, term}=focusTokens(title);
   const drugs=tokens.filter(t=>DRUG_SUFFIX.test(t));
-  const ctx={term, tokens, fdaTokens:(drugs.length?drugs:tokens.slice(0,3))};
+  const nctM=/clinicaltrials\.gov\/study\/(NCT\d+)/i.exec(anchorUrl||"");
+  const ctx={term, tokens, fdaTokens:(drugs.length?drugs:tokens.slice(0,3)), nct:(nctM?nctM[1]:"")};
   // Don't offer the record back to itself: drop a related item that is the anchor.
   const anchor=(anchorUrl||"").trim(), aTitle=String(title||"").trim().toLowerCase();
   const notAnchor=it=> (it.url||"")!==anchor && String(it.title||"").trim().toLowerCase()!==aTitle;
@@ -1532,7 +1558,10 @@ function fillFocusGroup(i, items){
   if(items===null){ cnt.textContent=""; if(note) note.textContent="Couldn’t load (source unavailable in-browser)."; return; }
   if(!items.length){ cnt.textContent="0"; if(note) note.textContent="No related records found."; return; }
   cnt.textContent=items.length;
-  const html=items.map(it=>`<div class="fitem"><a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a>${it.meta?` <span class="fmeta">— ${esc(it.meta)}</span>`:""}</div>`).join("");
+  const html=items.map(it=>`<div class="fitem${it.badge?" flinked":""}">`+
+    (it.badge?`<span class="fbadge">🔗 ${esc(it.badge)}</span> `:"")+
+    `<a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a>`+
+    `${it.meta?` <span class="fmeta">— ${esc(it.meta)}</span>`:""}</div>`).join("");
   if(note) note.outerHTML=html;
 }
 // Append a "🔍 related" affordance to every rendered record (idempotent).

@@ -186,6 +186,10 @@ def test_record_focused_view():
     assert "FOCUS_GROUPS" in js, "focus source groups removed"
     assert "eutils.ncbi.nlm.nih.gov" in js, "PubMed (publications strand) removed from focus view"
     assert "fGroupPubs" in js and "fGroupTrials" in js, "focus group fetchers removed"
+    # A trial's own linked publications (ClinicalTrials.gov referencesModule) must lead
+    # the Publications group, flagged prominently, ahead of keyword-matched literature.
+    assert "referencesModule" in js, "study's directly-linked publications not pulled into the focus view"
+    assert '"flinked"' in js or "flinked" in SRC, "prominent styling for linked publications removed"
 
 
 def test_fda_labeling_tab():
