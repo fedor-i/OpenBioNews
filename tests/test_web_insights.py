@@ -129,10 +129,10 @@ def test_therapeutic_areas_expand_to_condition_bundles():
     for cond in ("psoriasis", "inflammatory bowel disease", "lupus"):
         assert cond in js, f"immunology lost its '{cond}' condition (narrowed to RA again)"
     # The seed buttons point at the area names (expandable topics), not lone diseases.
-    for area in ("oncology", "cardiometabolic", "neurology", "immunology"):
+    for area in ("oncology", "cardiometabolic", "neurology", "immunology", "infectious"):
         assert f'data-add="{area}"' in SRC, f"{area} seed button no longer points at the area topic"
     # Each area must resolve as a multi-condition topic.
-    for area in ("oncology", "cardiometabolic", "neurology", "rare_disease"):
+    for area in ("oncology", "cardiometabolic", "neurology", "rare_disease", "infectious"):
         assert re.search(area + r":\{label:", js), f"{area} therapeutic-area topic removed"
 
 
