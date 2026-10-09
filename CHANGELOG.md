@@ -6,6 +6,15 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Brief / Full summaries toggle (hosted page)**. Study and record summaries were
+  previewed at a fixed length and could cut off mid-thought. A new **Summaries:
+  Brief / Full** control in the results bar switches between a short clamped
+  preview (the default) and the complete text from the record. The full cited text
+  is always rendered and the toggle only adds/removes a CSS line-clamp, so it never
+  re-fetches; the choice is remembered per viewer and applies across every tab
+  (and the Insights source list).
+
 ## [0.5.0] — 2026-10-09
 
 ### Changed

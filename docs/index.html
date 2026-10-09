@@ -124,6 +124,9 @@
   .tag.c1{background:var(--critbg);color:var(--crit)}
   .tag.c2{background:var(--warnbg);color:var(--warn)}
   .summary{font-size:.95rem;margin:.3rem 0 .5rem}
+  /* Brief (default): clamp the summary to a few lines; "Full" (body.sum-full) shows all.
+     Full text is always in the DOM, so toggling never needs a re-fetch. */
+  body:not(.sum-full) .summary{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .src{font-size:.82rem;color:var(--muted)}
   sup.cite{font-size:.68em;line-height:0}
   sup.cite a{color:var(--accent);text-decoration:none;font-weight:700;padding:0 .05em}
@@ -539,6 +542,11 @@
         <option value="recent">Most recent</option>
         <option value="relevant">Most relevant</option>
       </select></label>
+    <label class="sortby" title="Brief shows a short preview; Full shows the complete summary from the record">Summaries
+      <select id="sumLen">
+        <option value="brief">Brief</option>
+        <option value="full">Full</option>
+      </select></label>
     <label class="auto" title="Re-run this search automatically every 15 minutes while the page is open">
       <input type="checkbox" id="autoRefresh"> Auto-refresh (15 min)</label>
     <span class="upd" id="updated" hidden></span>
@@ -756,7 +764,7 @@ function renderTrial(st){
   el.innerHTML =
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(title)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
-    (summary?`<div class="summary">${citeSentences(clip(summary,320),url,"ClinicalTrials.gov "+nct)}</div>`:"")+
+    (summary?`<div class="summary">${citeSentences(summary,url,"ClinicalTrials.gov "+nct)}</div>`:"")+
     `<div class="src">${conds.length?esc(conds.slice(0,4).join(", "))+" · ":""}`+
     (date?`updated ${esc(date)} · `:"")+
     `↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">ClinicalTrials.gov ${esc(nct)}</a></div>`;
@@ -819,7 +827,7 @@ function renderRecall(r){
   el.innerHTML =
     `<h2>${esc(title)}</h2>`+
     `<div class="tags">${tags.map((t,i)=>`<span class="tag${i===0&&clsN?` c${clsN}`:""}">${esc(t)}</span>`).join("")}</div>`+
-    (r.reason_for_recall?`<div class="summary">${citeSentences(clip(r.reason_for_recall,320),src,"FDA recall "+(num||"record"))}</div>`:"")+
+    (r.reason_for_recall?`<div class="summary">${citeSentences(r.reason_for_recall,src,"FDA recall "+(num||"record"))}</div>`:"")+
     `<div class="src">${r.product_description?esc(clip(r.product_description,140))+" · ":""}`+
     (date?`reported ${esc(date)} · `:"")+
     `↳ <sup class="cite">1</sup> <a href="${esc(src)}" target="_blank" rel="noopener noreferrer">FDA recall ${esc(num||"record")}</a></div>`;
@@ -931,7 +939,7 @@ function renderShortage(r){
   el.innerHTML=
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)} — shortage${status?` (${esc(status)})`:""}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
-    (reason?`<div class="summary">${citeSentences(clip(reason,320),url,"FDA Drug Shortages")}</div>`:"")+
+    (reason?`<div class="summary">${citeSentences(reason,url,"FDA Drug Shortages")}</div>`:"")+
     `<div class="src">${d?`updated ${esc(String(d).slice(0,10))} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">FDA Drug Shortages</a></div>`;
   return el;
 }
@@ -1044,7 +1052,7 @@ function renderFiling(h){
   el.innerHTML =
     `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(company)} — ${esc(form)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
-    (desc?`<div class="summary">${citeSentences(clip(desc,240),url,"EDGAR "+(accn||"filing"))}</div>`:"")+
+    (desc?`<div class="summary">${citeSentences(desc,url,"EDGAR "+(accn||"filing"))}</div>`:"")+
     `<div class="src">${date?`filed ${esc(date)} · `:""}`+
     `↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">EDGAR ${esc(accn||"filing")}</a></div>`;
   return el;
@@ -1104,6 +1112,15 @@ $("sortBy").onchange = () => {
   if(watchActive) runWatch(true);
   else if($("results").children.length>0) runSearch(true);
 };
+// Summary length: full text is always rendered; "Full" just removes the CSS clamp,
+// so there's nothing to re-fetch. Remembered per viewer.
+function applySumLen(){ document.body.classList.toggle("sum-full",
+  ($("sumLen") && $("sumLen").value) === "full"); }
+if($("sumLen")){
+  try{ $("sumLen").value = localStorage.getItem("obn_sumlen") || "brief"; }catch(e){}
+  $("sumLen").onchange = () => { try{ localStorage.setItem("obn_sumlen", $("sumLen").value); }catch(e){} applySumLen(); };
+  applySumLen();
+}
 $("t_search").onclick=()=>{ searchTrials(true); syncUrl(); };
 $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
 $("a_search").onclick=()=>{ searchApprovals(true); syncUrl(); };
@@ -2178,7 +2195,7 @@ function iCard(r, isNew, simIds){
   el.innerHTML=
     `<h2>${isNew?'<span class="perflag">NEW</span>':''}<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.title)}</a></h2>`+
     `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
-    (r.text?`<div class="summary">${citeSentences(clip(r.text,280),r.url,srcName)}</div>`:"")+
+    (r.text?`<div class="summary">${citeSentences(r.text,r.url,srcName)}</div>`:"")+
     `<div class="src">${r.date?`${esc(r.date)} · `:""}↳ <sup class="cite">1</sup> <a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(srcName)}</a>${sim?` · ${sim}`:""}</div>`;
   return el;
 }
