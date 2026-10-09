@@ -111,6 +111,14 @@ def test_find_similar_on_references():
     assert "similar:" in js, "find-similar facet key removed"
 
 
+def test_stoplist_covers_known_leaks():
+    # Connective / discourse / comparative words that leaked into the cloud and
+    # rising terms on live data must stay in the stoplist.
+    js = _script()
+    for w in ("which", "through", "actually", "namely", "showed", "broader", "develop"):
+        assert f" {w} " in js or f'"{w} ' in js, f"stopword '{w}' missing from I_STOP"
+
+
 def test_group_sources_by_cluster():
     # The Sources list can be grouped into its emergent-theme clusters (+ an Other
     # bucket) as a clustered way to read the references.

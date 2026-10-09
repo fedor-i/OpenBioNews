@@ -1560,6 +1560,11 @@ const I_STOP = new Set(("a an and or the of to in for on at by from with without
   "inclusion exclusion criteria blinded crossover comparator control active sham regimen administration route schedule "+
   "duration period washout tolerability adverse event events interim process processes agreement material review line "+
   "followup follow phase cohort feature features characteristic characteristics condition conditions "+
+  // connectives / discourse words / comparatives / generic verbs seen leaking on live data
+  "which through whose whom thereby thereof wherein herein overall thus hence meanwhile "+
+  "actually namely essentially basically merely simply indeed rather quite fairly "+
+  "show shows showed showing shown develop develops developed developing "+
+  "broader wider narrower larger smaller higher lower greater fewer better worse stronger weaker "+
   "subject object item items part parts type types kind form forms way ways case cases point points area areas field fields").split(/\s+/).filter(Boolean));
 
 let iRecords = [], iErrors = [], iSubjectLabel = "", iBusy = false;
