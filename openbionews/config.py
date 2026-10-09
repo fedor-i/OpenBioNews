@@ -117,6 +117,11 @@ def default_config() -> dict[str, Any]:
                 "top_reactions": 8,       # most-reported FAERS reactions per drug
                 "max_total": 20,          # at most N watched drugs summarised
             },
+            "openfda_labels": {
+                "enabled": False,
+                "summary_chars": 600,     # indication text length before "…"
+                "max_total": 20,          # at most N watched drug labels
+            },
             "federalregister": {
                 "enabled": False,
                 "recent_days": 30,        # documents published within N days

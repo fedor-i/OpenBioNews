@@ -30,6 +30,7 @@ from .connectors.openfda import OpenFDAConnector
 from .connectors.federalregister import FederalRegisterConnector
 from .connectors.openfda_approvals import OpenFDAApprovalsConnector
 from .connectors.openfda_events import OpenFDAEventsConnector
+from .connectors.openfda_labels import OpenFDALabelsConnector
 from .connectors.openfda_shortages import OpenFDAShortagesConnector
 from .httputil import HTTPJSONError
 from .models import Item
@@ -151,6 +152,14 @@ def search_fda_adverse_events(query: str, top_reactions: int = 8, limit: int = 2
     return _search(OpenFDAEventsConnector, interventions=_as_list(query), cfg=cfg)
 
 
+def search_fda_labeling(query: str, limit: int = 10) -> dict:
+    """Look up the current FDA drug label (openFDA SPL) for one or more drugs. For each
+    drug in ``query`` returns its approved indications and whether it carries a boxed
+    warning, cited to the reproducible openFDA label query."""
+    cfg = {"max_total": limit}
+    return _search(OpenFDALabelsConnector, interventions=_as_list(query), cfg=cfg)
+
+
 def search_federal_register(query: str = "", recent_days: int = 30, limit: int = 20,
                             all_agencies: bool = False) -> dict:
     """Search Federal Register documents (FDA guidances, advisory-committee notices,
@@ -181,6 +190,7 @@ _DIGEST_SPEC = [
     (OpenFDAApprovalsConnector, "interventions"),
     (OpenFDAShortagesConnector, "interventions"),
     (OpenFDAEventsConnector, "interventions"),
+    (OpenFDALabelsConnector, "interventions"),
     (FederalRegisterConnector, "terms"),
     (EdgarConnector, "terms"),
 ]
@@ -204,8 +214,8 @@ def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15) -
 
 TOOLS = [
     search_clinical_trials, search_fda_recalls, search_fda_approvals,
-    search_fda_shortages, search_fda_adverse_events, search_federal_register,
-    search_sec_filings, watchlist_digest,
+    search_fda_shortages, search_fda_adverse_events, search_fda_labeling,
+    search_federal_register, search_sec_filings, watchlist_digest,
 ]
 
 

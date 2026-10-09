@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from openbionews import mcp_server
 from openbionews.connectors import (
     clinicaltrials, edgar, federalregister, openfda, openfda_approvals,
-    openfda_events, openfda_shortages,
+    openfda_events, openfda_labels, openfda_shortages,
 )
 from openbionews.httputil import HTTPJSONError
 from openbionews.models import Citation, Item
@@ -65,6 +65,11 @@ EDGAR = {"hits": {"hits": [{"_id": "0001-26-000001:filing.htm", "_source": {
     "root_form": "8-K", "file_date": "2026-10-01",
     "file_description": "Material agreement on a collaboration."}}]}}
 EVENTS = {"results": [{"term": "NAUSEA", "count": 42}, {"term": "HEADACHE", "count": 17}]}
+LABELS = {"results": [{
+    "openfda": {"brand_name": ["Examplor"], "generic_name": ["examplemab"],
+                "manufacturer_name": ["Beam"]},
+    "indications_and_usage": ["Indicated for sickle cell disease."],
+    "boxed_warning": ["WARNING: SERIOUS INFECTIONS"]}]}
 FEDREG = {"results": [{
     "title": "Guidance for Industry; Availability", "type": "Notice",
     "html_url": "https://www.federalregister.gov/documents/2026/10/01/2026-9/g",
@@ -152,6 +157,15 @@ def test_search_fda_adverse_events():
     assert "count=patient.reaction" in r["citations"][0]["url"]
 
 
+def test_search_fda_labeling():
+    with _patch(openfda_labels, LABELS):
+        out = mcp_server.search_fda_labeling("examplemab")
+    assert out["count"] == 1
+    r = out["results"][0]
+    assert "Boxed warning" in r["summary"] and "sickle cell" in r["summary"].lower()
+    assert "/drug/label.json" in r["citations"][0]["url"]
+
+
 def test_search_federal_register():
     with _patch(federalregister, FEDREG):
         out = mcp_server.search_federal_register("guidance")
@@ -169,15 +183,16 @@ def test_search_sec_filings():
 def test_watchlist_digest_spans_all_sources():
     with _patch(clinicaltrials, CT), _patch(openfda, RECALLS), \
          _patch(openfda_approvals, APPROVALS), _patch(openfda_shortages, SHORTAGES), \
-         _patch(openfda_events, EVENTS), _patch(federalregister, FEDREG), \
-         _patch(edgar, EDGAR):
+         _patch(openfda_events, EVENTS), _patch(openfda_labels, LABELS), \
+         _patch(federalregister, FEDREG), _patch(edgar, EDGAR):
         out = mcp_server.watchlist_digest(["beam"], limit_per_source=5)
     names = {s["source"] for s in out["sources"]}
     assert names == {"ClinicalTrials.gov", "openFDA (Drug Recalls)",
                      "Drugs@FDA (Approvals)", "FDA Drug Shortages",
-                     "openFDA (FAERS)", "Federal Register", "SEC EDGAR"} \
-        or len(out["sources"]) == 7  # names may vary; seven blocks either way
-    assert out["total"] >= 7 and len(out["sources"]) == 7
+                     "openFDA (FAERS)", "openFDA (Drug Labeling)",
+                     "Federal Register", "SEC EDGAR"} \
+        or len(out["sources"]) == 8  # names may vary; eight blocks either way
+    assert out["total"] >= 8 and len(out["sources"]) == 8
 
 
 def test_upstream_failure_is_returned_as_data():
@@ -187,7 +202,7 @@ def test_upstream_failure_is_returned_as_data():
 
 
 def test_all_tools_registered():
-    assert len(mcp_server.TOOLS) == 8
+    assert len(mcp_server.TOOLS) == 9
     assert all(callable(fn) and fn.__doc__ for fn in mcp_server.TOOLS)
     assert hasattr(mcp_server, "serve") and hasattr(mcp_server, "build_server")
 

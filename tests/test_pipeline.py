@@ -542,6 +542,35 @@ FEDREG_FIXTURE = {"results": [{
     "agencies": [{"name": "Food and Drug Administration"}]}]}
 
 
+LABEL_FIXTURE = {"results": [{
+    "openfda": {"brand_name": ["Examplor"], "generic_name": ["examplemab"],
+                "manufacturer_name": ["Beam Therapeutics"]},
+    "indications_and_usage": ["<p>Examplor is indicated for the treatment of adults with sickle cell disease.</p>"],
+    "boxed_warning": ["WARNING: SERIOUS INFECTIONS"],
+    "effective_time": "20260901"}]}
+
+
+def test_openfda_labels_parse_and_query():
+    from openbionews.connectors.openfda_labels import parse_labels, OpenFDALabelsConnector
+    from openbionews.connectors import get_connectors
+    it = parse_labels(LABEL_FIXTURE, "examplemab")[0]
+    assert it.title == "Examplor — FDA label (indications & warnings)"
+    assert it.source == "openFDA (Drug Labeling)" and it.topic == "fda_labels" and it.age_exempt
+    assert it.published is None
+    assert it.meta["boxed_warning"] is True and "Boxed warning" in it.tag
+    assert "Boxed warning on the label" in it.summary          # flagged
+    assert "indicated for the treatment" in it.summary and "<p>" not in it.summary  # HTML stripped
+    assert "/drug/label.json?search=" in it.citations[0].url
+    empty = OpenFDALabelsConnector({}, {})
+    assert empty.available()[0] is False                        # needs a drug
+    c = OpenFDALabelsConnector({}, {"interventions": ["examplemab"]})
+    assert c.available()[0] is True
+    assert "openfda.generic_name" in c._raw_query("examplemab")
+    cfg = config.default_config()
+    cfg["connectors"]["openfda_labels"]["enabled"] = True
+    assert any(x.name == "openFDA (Drug Labeling)" for x in get_connectors(cfg))
+
+
 def test_federal_register_parse_and_query():
     from openbionews.connectors.federalregister import (
         parse_documents, FederalRegisterConnector)

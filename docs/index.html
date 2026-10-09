@@ -323,6 +323,7 @@
     <button class="tab" id="tab-approvals" role="tab" aria-selected="false" aria-controls="panel-approvals">FDA approvals</button>
     <button class="tab" id="tab-shortages" role="tab" aria-selected="false" aria-controls="panel-shortages">FDA shortages</button>
     <button class="tab" id="tab-events" role="tab" aria-selected="false" aria-controls="panel-events">FDA adverse events</button>
+    <button class="tab" id="tab-labels" role="tab" aria-selected="false" aria-controls="panel-labels">FDA labels</button>
     <button class="tab" id="tab-fedreg" role="tab" aria-selected="false" aria-controls="panel-fedreg">Federal Register</button>
     <button class="tab" id="tab-sec" role="tab" aria-selected="false" aria-controls="panel-sec">SEC filings</button>
     <button class="tab" id="tab-insights" role="tab" aria-selected="false" aria-controls="panel-insights">📊 Insights<span class="ibeta">beta</span></button>
@@ -495,6 +496,20 @@
         <button class="ghost" id="e_clear">Clear</button>
       </div>
       <div class="ehint">The most-reported adverse reactions per drug, from the FDA Adverse Event Reporting System (FAERS). Counts are <b>spontaneous reports, not incidence rates</b>, and do not establish that the drug caused the reaction.</div>
+    </div>
+  </section>
+
+  <!-- FDA DRUG LABELING -->
+  <section id="panel-labels" role="tabpanel" hidden>
+    <div class="filters">
+      <div class="grid">
+        <div><label for="l_drug">Drug (generic or brand)</label><input id="l_drug" placeholder="e.g. lecanemab — or leave blank to use your watchlist"></div>
+      </div>
+      <div class="row">
+        <button class="go" id="l_search">Look up label</button>
+        <button class="ghost" id="l_clear">Clear</button>
+      </div>
+      <div class="ehint">The current FDA structured product label (SPL) for a drug — its approved <b>indications</b> and any <b>boxed warning</b>. Reference data, cited to openFDA.</div>
     </div>
   </section>
 
@@ -698,7 +713,7 @@ function prettyPhase(ps){ if(!ps||!ps.length) return ""; return ps.filter(p=>p&&
 
 // ---- tab switching ----
 const TABS = ["trials","recalls","approvals","shortages","sec"];   // record-list agencies (seen-state, analytics)
-const VIEW_TABS = TABS.concat("events","fedreg","insights");       // + FAERS + Federal Register + Insights
+const VIEW_TABS = TABS.concat("events","labels","fedreg","insights");  // + FAERS + labels + Fed Register + Insights
 function selectTab(name, run){
   tab = name;
   for(const t of VIEW_TABS){
@@ -710,10 +725,12 @@ function selectTab(name, run){
   $("moreBtn").hidden = true;
   const onInsights = name==="insights";
   const onEvents = name==="events";             // FAERS: aggregate, no sort/paging
+  const onLabels = name==="labels";             // SPL labels: one card per drug, no paging
   const onFedReg = name==="fedreg";             // Federal Register: simple search, no paging
-  $("resultsBar").hidden = onInsights || onEvents;   // sort / auto-refresh / copy-link don't apply
+  $("resultsBar").hidden = onInsights || onEvents || onLabels;   // sort / auto-refresh / copy-link don't apply
   if(onInsights){ maybeAutoInsights(); return; }
   if(onEvents){ maybeAutoEvents(); return; }
+  if(onLabels){ maybeAutoLabels(); return; }
   if(onFedReg){ maybeAutoFedReg(); return; }
   if(run){ watchActive = false; run(); }
   else if(watch.length){ runWatch(true); }
@@ -1180,6 +1197,58 @@ function maybeAutoEvents(){
   else $("status").textContent="Enter a drug (e.g. semaglutide), or add one to your watchlist, then Summarize reactions.";
 }
 
+// ================= FDA DRUG LABELING =================
+// One current SPL label per drug: approved indications + any boxed warning.
+const LABEL_API="https://api.fda.gov/drug/label.json";
+function labelUrl(drug){
+  const d=String(drug||"").replace(/"/g,"").trim();
+  const clause=`(openfda.brand_name:"${d}"+OR+openfda.generic_name:"${d}"+OR+openfda.substance_name:"${d}")`;
+  return `${LABEL_API}?search=${encodeURIComponent(clause).replace(/%2B/g,"+")}&limit=1`;
+}
+function renderLabelCard(drug, rec){
+  const url=labelUrl(drug);
+  const of=rec.openfda||{}; const first=v=>Array.isArray(v)?(v[0]||""):(v||"");
+  const join=v=>Array.isArray(v)?v.join(" "):(v||"");
+  const brand=first(of.brand_name)||drug;
+  const manuf=first(of.manufacturer_name);
+  const indications=join(rec.indications_and_usage).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+  const boxed=join(rec.boxed_warning).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+  const tags=[boxed?"Boxed warning":"", manuf].filter(Boolean);
+  const body=[boxed?"⚠ Boxed warning on the label.":"", indications?("Indications: "+indications):""].filter(Boolean).join(" ")
+    || "FDA label on file; no indication text parsed.";
+  const el=document.createElement("article");
+  el.dataset.id="l:"+String(drug).toLowerCase();
+  el.innerHTML=
+    `<h2><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(brand)} — FDA label (indications & warnings)</a></h2>`+
+    `<div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`+
+    `<div class="summary">${citeSentences(body,url,"openFDA (Drug Labeling)")}</div>`+
+    `<div class="src">↳ <sup class="cite">1</sup> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer">openFDA label</a></div>`;
+  return el;
+}
+async function searchLabels(){
+  watchActive=false;
+  const typed=$("l_drug").value.trim();
+  const drugs = typed ? [typed] : (watch.length ? allWatchVariants().slice(0,8) : []);
+  if(!drugs.length){ $("results").innerHTML=""; $("status").textContent="Enter a drug, or add one to your watchlist above."; return; }
+  $("results").innerHTML=""; $("status").textContent="Looking up FDA labels…"; $("moreBtn").hidden=true;
+  let shown=0;
+  for(const drug of drugs){
+    let data;
+    try{ data=await getJson(labelUrl(drug), true); }
+    catch(err){ continue; }
+    const rec=(data && data.results && data.results[0]);
+    if(rec){ $("results").appendChild(renderLabelCard(drug, rec)); shown++; }
+  }
+  renumberCites($("results")); markSummaries($("results"));
+  $("status").textContent = shown
+    ? `Showing FDA label highlights for ${shown} drug${shown>1?"s":""}.`
+    : "No FDA label found for that drug.";
+}
+function maybeAutoLabels(){
+  if($("l_drug").value.trim() || watch.length) searchLabels();
+  else $("status").textContent="Enter a drug (e.g. lecanemab), or add one to your watchlist, then Look up label.";
+}
+
 // ================= FEDERAL REGISTER =================
 // FDA guidances / advisory-committee notices / rules — record-list, newest first.
 const FEDREG_API="https://www.federalregister.gov/api/v1/documents.json";
@@ -1235,7 +1304,8 @@ function maybeAutoFedReg(){
 function runSearch(reset){
   return tab==="trials" ? searchTrials(reset) : tab==="recalls" ? searchRecalls(reset)
     : tab==="approvals" ? searchApprovals(reset) : tab==="shortages" ? searchShortages(reset)
-    : tab==="events" ? searchEvents() : tab==="fedreg" ? searchFedReg()
+    : tab==="events" ? searchEvents() : tab==="labels" ? searchLabels()
+    : tab==="fedreg" ? searchFedReg()
     : searchSec(reset);
 }
 
@@ -1301,6 +1371,7 @@ $("r_search").onclick=()=>{ searchRecalls(true); syncUrl(); };
 $("a_search").onclick=()=>{ searchApprovals(true); syncUrl(); };
 $("h_search").onclick=()=>{ searchShortages(true); syncUrl(); };
 $("e_search").onclick=()=>{ searchEvents(); syncUrl(); };
+$("l_search").onclick=()=>{ searchLabels(); syncUrl(); };
 $("g_search").onclick=()=>{ searchFedReg(); syncUrl(); };
 $("s_search").onclick=()=>{ searchSec(true); syncUrl(); };
 $("moreBtn").onclick=()=> (watchActive ? runWatch(false) : runSearch(false));
@@ -1309,6 +1380,7 @@ $("r_clear").onclick=()=>{ ["r_firm","r_drug","r_reason"].forEach(id=>$(id).valu
 $("a_clear").onclick=()=>{ ["a_spons","a_drug"].forEach(id=>$(id).value=""); $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("h_clear").onclick=()=>{ ["h_drug","h_company"].forEach(id=>$(id).value=""); $("h_status").value="Current"; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 $("e_clear").onclick=()=>{ $("e_drug").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Enter a drug, or add one to your watchlist, then Summarize reactions."; syncUrl(); };
+$("l_clear").onclick=()=>{ $("l_drug").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Enter a drug, or add one to your watchlist, then Look up label."; syncUrl(); };
 $("g_clear").onclick=()=>{ $("g_q").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Enter a term, or add to your watchlist, then Search."; syncUrl(); };
 $("s_clear").onclick=()=>{ $("s_q").value=""; $("s_form").value=""; $("s_recent").value=""; $("results").innerHTML=""; $("moreBtn").hidden=true; $("status").textContent="Cleared."; syncUrl(); };
 
@@ -1317,6 +1389,7 @@ $("s_clear").onclick=()=>{ $("s_q").value=""; $("s_form").value=""; $("s_recent"
 ["a_spons","a_drug"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchApprovals(true); syncUrl(); }}));
 ["h_drug","h_company"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchShortages(true); syncUrl(); }}));
 $("e_drug").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchEvents(); syncUrl(); }});
+$("l_drug").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchLabels(); syncUrl(); }});
 $("g_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchFedReg(); syncUrl(); }});
 $("s_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ searchSec(true); syncUrl(); }});
 document.querySelectorAll('.chips[data-for="shortages"] .chip').forEach(c=>c.onclick=()=>{

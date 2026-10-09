@@ -166,6 +166,16 @@ def test_fda_adverse_events_tab():
     assert "not incidence rates" in SRC, "FAERS no-causation caveat removed"
 
 
+def test_fda_labeling_tab():
+    # The FDA labels tab looks up the current SPL label per drug and surfaces its
+    # approved indications and any boxed warning, cited to openFDA.
+    js = _script()
+    assert 'id="tab-labels"' in SRC and 'id="panel-labels"' in SRC, "FDA labels tab markup removed"
+    assert "function searchLabels" in js, "FDA labels search handler removed"
+    assert "api.fda.gov/drug/label" in js, "openFDA label endpoint removed"
+    assert "Boxed warning" in js, "boxed-warning flag removed from the label card"
+
+
 def test_federal_register_tab():
     # The Federal Register tab queries the FR documents API scoped to the FDA and
     # renders cited document cards (guidances, adcomm notices, rules).

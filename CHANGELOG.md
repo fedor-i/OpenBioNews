@@ -7,6 +7,10 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **FDA drug labeling — new source**. A new connector and a hosted-page tab surface
+  the current FDA structured product label (SPL) for a drug — its approved
+  indications and any boxed warning. Added across the CLI connector registry, the
+  MCP server (`search_fda_labeling` + the cross-agency digest) and the web app.
 - **Federal Register — new source**. A new connector and a hosted-page tab surface
   FDA regulatory documents — guidances, advisory-committee (adcomm) meeting
   notices, and proposed / final rules — the primary records behind a regulatory
