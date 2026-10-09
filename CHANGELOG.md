@@ -6,6 +6,8 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-09
+
 ### Changed
 - **Preset chips now feed the watchlist (hosted page)**. The per-tab topic /
   area / company example chips used to fill one tab's fields; they duplicated the

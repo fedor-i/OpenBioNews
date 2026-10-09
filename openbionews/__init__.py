@@ -7,5 +7,5 @@ no LLM at all, a local model via Ollama, or any OpenAI-compatible API. Pure
 standard library — no third-party packages required for the core pipeline.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __all__ = ["__version__"]
