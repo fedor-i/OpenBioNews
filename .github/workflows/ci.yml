@@ -39,23 +39,33 @@ jobs:
           openbionews run --demo --quiet --stdout
 
   distros:
-    name: distro (${{ matrix.image }})
+    name: distro (${{ matrix.name }})
     runs-on: ubuntu-latest
     container: ${{ matrix.image }}
+    # Secondary robustness coverage; the authoritative cross-platform gate is the
+    # `test` job above. Don't let a container-registry hiccup fail the whole run.
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         # Prove the pure-stdlib core runs across Linux distributions and libc
-        # flavours: Debian (glibc), Alpine (musl) and Fedora.
-        image:
-          - "python:3.12-slim-bookworm"   # Debian 12, glibc
-          - "python:3.11-slim-bullseye"   # Debian 11, glibc
-          - "python:3.12-alpine"           # Alpine, musl libc
-          - "fedora:40"                    # Fedora (installs python3)
+        # flavours: Debian (glibc), Alpine (musl) and Fedora. Images are pulled
+        # from the AWS ECR Public mirror of Docker's official images, which allows
+        # anonymous pulls without Docker Hub's unauthenticated rate limit (the
+        # cause of past "toomanyrequests" / pull-timeout CI failures).
+        include:
+          - name: "python:3.12-slim-bookworm"   # Debian 12, glibc
+            image: "public.ecr.aws/docker/library/python:3.12-slim-bookworm"
+          - name: "python:3.11-slim-bullseye"   # Debian 11, glibc
+            image: "public.ecr.aws/docker/library/python:3.11-slim-bullseye"
+          - name: "python:3.12-alpine"           # Alpine, musl libc
+            image: "public.ecr.aws/docker/library/python:3.12-alpine"
+          - name: "fedora:40"                    # Fedora (installs python3)
+            image: "public.ecr.aws/docker/library/fedora:40"
     steps:
       - uses: actions/checkout@v4
       - name: Install Python on Fedora
-        if: startsWith(matrix.image, 'fedora')
+        if: startsWith(matrix.name, 'fedora')
         run: dnf install -y python3 python3-pip
       - name: Show interpreter
         run: python3 --version
