@@ -106,6 +106,13 @@ def test_insights_gathers_all_sources():
     assert "function fetchPubMedInsights" in js, "PubMed not pulled into Insights"
     assert "fedreg:" in js and "pubmed:" in js, "new sources missing from the Insights agency map"
     assert "const I_AGENCIES" in js, "Insights agency list (superset of TABS) removed"
+    # FAERS + FDA labels are "also tracked": counted in By-source but excluded from
+    # the analytics corpus (their tokens are zeroed so they don't skew word cloud/themes).
+    assert "function fetchFaersInsights" in js and "function fetchLabelsInsights" in js, \
+        "FAERS / FDA labels not tracked in Insights"
+    assert "if(r.aux) docTokens[i]=[]" in js, "aux records not excluded from the analytics corpus"
+    assert 'events:"FDA adverse events"' in js and 'labels:"FDA labels"' in js, \
+        "aux sources missing from the Insights agency map"
 
 
 def test_cross_agency_company_canonicalisation():

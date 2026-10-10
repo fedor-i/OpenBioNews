@@ -12,9 +12,11 @@ to follow [Semantic Versioning](https://semver.org/).
   approvals / shortages and SEC EDGAR. It now also pulls Federal Register documents
   and PubMed literature for the same window, so both feed the cross-agency record
   list, the "By source" breakdown, the word cloud, clustering and rising terms — and
-  the coverage banner reflects the wider scope. (FAERS and FDA labels stay out of the
-  time-windowed record digest — they're aggregate / undated reference data — and
-  remain available via their own tabs and the record focus view.)
+  the coverage banner reflects the wider scope. FAERS adverse events and FDA labels
+  are now **also tracked** in the digest too: counted in the "By source" breakdown and
+  shown as cited cards tagged "also tracked", but kept out of the word cloud /
+  clustering / rising terms (their aggregate counts and undated reference text would
+  distort the analytics).
 - **Custom historic date range (hosted page)**. Every time control — the Insights
   period selector and each data tab's recency dropdown (trials, recalls, approvals,
   SEC) — keeps its "last N days" presets and adds a **"Specific range…"** option that

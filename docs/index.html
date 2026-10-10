@@ -2289,6 +2289,40 @@ async function fetchPubMedInsights(terms, fromISO, toISO){
     return order.map(id=>{ const r=res[id]; return r?normPubMed(r,id):null; }).filter(Boolean);
   }catch(err){ iErrors.push("PubMed ("+err.message+")"); return []; }
 }
+// "Also tracked" reference sources: FAERS adverse-event summaries and FDA labels,
+// per watched drug. Marked aux:true and given no analytics text — they're counted in
+// "By source" and shown as cited cards, but kept out of the word cloud / clustering /
+// rising terms (aggregate counts and undated reference data would distort those).
+async function fetchFaersInsights(terms){
+  const out=[];
+  await Promise.all(terms.slice(0,8).map(async term=>{
+    try{
+      const d=await getJson(eventsCountUrl(term), true);
+      const rows=((d&&d.results)||[]).slice(0,6); if(!rows.length) return;
+      const txt=rows.map(r=>titleCase(r.term)+" ("+Number(r.count).toLocaleString()+")").join(", ");
+      out.push({agency:"events", aux:true, id:"ev:"+term.toLowerCase(), url:eventsCountUrl(term),
+        date:"", company:"", areas:[], title:term+" — top adverse reactions (FAERS)",
+        text:"Most-reported FAERS reactions: "+txt+". Counts are spontaneous reports, not incidence rates."});
+    }catch(err){ iErrors.push("FAERS ("+err.message+")"); }
+  }));
+  return out;
+}
+async function fetchLabelsInsights(terms){
+  const out=[];
+  await Promise.all(terms.slice(0,8).map(async term=>{
+    try{
+      const d=await getJson(labelUrl(term), true);
+      const rec=(d&&d.results&&d.results[0]); if(!rec) return;
+      const of=rec.openfda||{}; const brand=(of.brand_name&&of.brand_name[0])||term;
+      const ind=(Array.isArray(rec.indications_and_usage)?rec.indications_and_usage.join(" "):(rec.indications_and_usage||"")).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+      const boxed=rec.boxed_warning&&rec.boxed_warning.length;
+      out.push({agency:"labels", aux:true, id:"lb:"+term.toLowerCase(), url:labelUrl(term),
+        date:"", company:"", areas:[], title:brand+" — FDA label",
+        text:(boxed?"⚠ Boxed warning. ":"")+(ind?("Indications: "+ind.slice(0,400)):"FDA label on file.")});
+    }catch(err){ iErrors.push("FDA labels ("+err.message+")"); }
+  }));
+  return out;
+}
 
 // ---- windowed, fully-paginated gather ----
 // Pull *every* record in the chosen time window — not a fixed first page — so
@@ -2358,6 +2392,8 @@ async function fetchInsights(terms, range){
     pageSec("SEC EDGAR", SEC_API+"?"+secp.toString(), d=>(dig(d,"hits","hits")||[]).map(normFiling).filter(Boolean), 8),
     fetchFedRegInsights(terms, fromISO, toISO),     // Federal Register — FDA docs in window
     fetchPubMedInsights(terms, fromISO, toISO),     // PubMed — literature in window
+    fetchFaersInsights(terms),                      // FAERS adverse events — also tracked
+    fetchLabelsInsights(terms),                     // FDA labels — also tracked
   ]);
   const seen=new Set(), recs=[];
   for(const g of groups) for(const r of g){ if(r && r.id && !seen.has(r.id)){ seen.add(r.id); recs.push(r); } }
@@ -2815,9 +2851,9 @@ function iCard(r, isNew, simIds){
   const el=document.createElement("article");
   if(isNew) el.classList.add("iperiod");
   el.dataset.id=r.id;
-  const srcName={trials:"ClinicalTrials.gov",recalls:"FDA recall",approvals:"Drugs@FDA",shortages:"FDA Drug Shortages",sec:"SEC EDGAR",fedreg:"Federal Register",pubmed:"PubMed"}[r.agency]||"Source";
-  const kind={trials:"Trial",recalls:"Recall",approvals:"Approval",shortages:"Shortage",sec:"Filing",fedreg:"Fed. Register",pubmed:"Publication"}[r.agency];
-  const tags=[kind, r.company].filter(Boolean);
+  const srcName={trials:"ClinicalTrials.gov",recalls:"FDA recall",approvals:"Drugs@FDA",shortages:"FDA Drug Shortages",sec:"SEC EDGAR",fedreg:"Federal Register",pubmed:"PubMed",events:"openFDA (FAERS)",labels:"openFDA (Drug Labeling)"}[r.agency]||"Source";
+  const kind={trials:"Trial",recalls:"Recall",approvals:"Approval",shortages:"Shortage",sec:"Filing",fedreg:"Fed. Register",pubmed:"Publication",events:"Adverse events",labels:"Label"}[r.agency];
+  const tags=[kind, r.company, r.aux?"also tracked":null].filter(Boolean);
   // "find similar": filter the Sources list to this record + its nearest neighbours.
   // Reuses the .ifacet machinery; the set leads with the anchor so it stays in view.
   const simSet=[r.id, ...(simIds||[])].filter((v,ix,arr)=>arr.indexOf(v)===ix);   // anchor first, no repeats
@@ -2849,7 +2885,7 @@ function iSparkline(series){
   return `<svg class="ispark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Records per month">`+
     `<polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${pts}"/>${dots}</svg>`;
 }
-const I_AG={trials:"ClinicalTrials.gov",recalls:"FDA recalls",approvals:"FDA approvals",shortages:"FDA shortages",sec:"SEC filings",fedreg:"Federal Register",pubmed:"PubMed"};
+const I_AG={trials:"ClinicalTrials.gov",recalls:"FDA recalls",approvals:"FDA approvals",shortages:"FDA shortages",sec:"SEC filings",fedreg:"Federal Register",pubmed:"PubMed",events:"FDA adverse events",labels:"FDA labels"};
 const I_AGENCIES=Object.keys(I_AG);   // every source the Insights digest gathers (superset of the data-tab TABS)
 function renderInsights(){
   const box=$("insights"); box.innerHTML="";
@@ -2861,6 +2897,10 @@ function renderInsights(){
   }
   const stop=iSubjectStop();
   let docTokens=iDocTokens(recs, stop);
+  // "Also tracked" aux records (FAERS / FDA labels) are counted in By-source and
+  // shown as cards, but contribute no tokens — keep them out of the word cloud,
+  // clustering, rising terms and similarity (they'd distort aggregate/reference data).
+  recs.forEach((r,i)=>{ if(r.aux) docTokens[i]=[]; });
   // Dynamic max-document-frequency filter: drop terms that appear in more than 55%
   // of records — corpus-ubiquitous, non-discriminative boilerplate (e.g. "study",
   // generic trial language) that otherwise dominates the cloud and glues every
@@ -2903,7 +2943,7 @@ function renderInsights(){
   if(spark) html+=`<div class="ispark-row"><span class="isl" title="Partial months (the window's first month and the current month) are prorated to a full-month rate.">records/month*</span>${spark}`+
     `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
-  html+=`<div class="icov"><b>Coverage:</b> ClinicalTrials.gov · FDA recalls / approvals / shortages · Federal Register · SEC EDGAR · PubMed — <b>US regulators plus PubMed literature</b>. No EMA / ex-US regulators, no press releases. Nothing here ≠ nothing happened.</div>`+
+  html+=`<div class="icov"><b>Coverage:</b> ClinicalTrials.gov · FDA recalls / approvals / shortages · Federal Register · SEC EDGAR · PubMed, plus FDA adverse events (FAERS) &amp; labels <i>(also tracked)</i> — <b>US regulators plus PubMed literature</b>. No EMA / ex-US regulators, no press releases. Nothing here ≠ nothing happened.</div>`+
     `<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>k-means</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
     `</div>`;
 
