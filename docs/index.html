@@ -183,8 +183,11 @@
   .fitem{margin:.35rem 0;font-size:.88rem;line-height:1.35}
   .fitem.flinked{border-left:2px solid var(--accent);padding-left:.5rem}
   .fitem.flinked a{font-weight:600}
+  .fitem.flinked-soft{border-left-color:var(--muted)}
+  .fitem.flinked-soft a{font-weight:500}
   .fbadge{display:inline-block;border:1px solid var(--accent);color:var(--accent);border-radius:999px;
     font-size:.72rem;font-weight:600;padding:0 .4rem;vertical-align:middle}
+  .fbadge.fbadge-soft{border-color:var(--muted);color:var(--muted);font-weight:500}
   .fitem a{color:var(--accent);text-decoration:none}
   .fitem a:hover{text-decoration:underline}
   .fmeta{color:var(--muted);font-size:.8rem}
@@ -1447,11 +1450,15 @@ async function fGroupPubs(ctx){
       const st=await getJson(`${CT_API}/${ctx.nct}`, true);
       const refs=dig(st,"protocolSection","referencesModule","references")||[];
       const rank=t=>t==="RESULT"?0:t==="DERIVED"?1:2;
+      // ClinicalTrials.gov reference types: RESULT = a paper reporting this trial's
+      // results; DERIVED = auto-matched from PubMed; BACKGROUND = general reference.
+      const badgeFor=t=> t==="RESULT" ? "results publication"
+                       : t==="DERIVED" ? "derived publication"
+                       : "background reference";
       refs.filter(r=>r&&r.pmid).sort((a,b)=>rank(a.type)-rank(b.type)).forEach(r=>{
         const pmid=String(r.pmid); if(seenPmid.has(pmid)) return; seenPmid.add(pmid);
-        const kind=(r.type==="RESULT"||r.type==="DERIVED")?"results publication":"linked reference";
         out.push({title:r.citation||("PMID "+pmid), url:`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
-                  meta:(r.type||"").toLowerCase(), badge:kind});
+                  badge:badgeFor(r.type), result:r.type==="RESULT"});
       });
     }catch(e){/* no linked refs → fall through to keyword search */}
   }
@@ -1564,10 +1571,13 @@ function fillFocusGroup(i, items){
   if(items===null){ cnt.textContent=""; if(note) note.textContent="Couldn’t load (source unavailable in-browser)."; return; }
   if(!items.length){ cnt.textContent="0"; if(note) note.textContent="No related records found."; return; }
   cnt.textContent=items.length;
-  const html=items.map(it=>`<div class="fitem${it.badge?" flinked":""}">`+
-    (it.badge?`<span class="fbadge">🔗 ${esc(it.badge)}</span> `:"")+
-    `<a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a>`+
-    `${it.meta?` <span class="fmeta">— ${esc(it.meta)}</span>`:""}</div>`).join("");
+  const html=items.map(it=>{
+    const soft=it.badge && !it.result;                 // derived/background = lighter than RESULT
+    return `<div class="fitem${it.badge?(soft?" flinked flinked-soft":" flinked"):""}">`+
+      (it.badge?`<span class="fbadge${soft?" fbadge-soft":""}">🔗 ${esc(it.badge)}</span> `:"")+
+      `<a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a>`+
+      `${it.meta?` <span class="fmeta">— ${esc(it.meta)}</span>`:""}</div>`;
+  }).join("");
   if(note) note.outerHTML=html;
 }
 // Append a "🔍 related" affordance to every rendered record (idempotent).
