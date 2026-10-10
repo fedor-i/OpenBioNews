@@ -7,6 +7,15 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **"Notable right now" is now organised into category drawers (hosted page)**. The
+  flat severity-ranked list is replaced by collapsible `<details>` drawers, one per
+  signal type — **trials halted** (terminated / withdrawn / suspended), **recalls**,
+  **shortages**, **adverse events (FAERS)**, **approvals & label expansions**,
+  **Federal Register**, and **publications (PubMed)** — each with a tone dot and a
+  count. The alerting categories open by default, the informational ones start
+  collapsed, each item stays cited to its source, and drawers cap at 10 with a
+  "+N more in Sources" note. Terminated/withdrawn trials now get their own prominent
+  category (previously mixed in); routine Phase-3 listings were dropped from Notable.
 - **Insights digest now spans Federal Register + PubMed (hosted page)**. The beta
   summary (Insights) tab previously gathered only ClinicalTrials.gov, FDA recalls /
   approvals / shortages and SEC EDGAR. It now also pulls Federal Register documents

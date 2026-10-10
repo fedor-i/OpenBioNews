@@ -259,6 +259,21 @@
   .nsev.n2{background:var(--warnbg);color:var(--warn)}
   .nsev.n3{background:var(--tag);color:var(--tagink)}
   .nsev.n4{background:var(--chip);color:var(--ink)}
+  /* Notable category drawers */
+  .ndrawer{border-top:1px solid var(--line)}
+  .ndrawer:first-of-type{border-top:none}
+  .ndrawer>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:.5rem;padding:.5rem 0;font-weight:600;font-size:.9rem}
+  .ndrawer>summary::-webkit-details-marker{display:none}
+  .ndrawer>summary::before{content:"▸";color:var(--muted);font-size:.8rem;flex:0 0 auto;transition:transform .15s}
+  .ndrawer[open]>summary::before{transform:rotate(90deg)}
+  .ndot{width:.6rem;height:.6rem;border-radius:50%;flex:0 0 auto;background:var(--muted)}
+  .tone-crit .ndot{background:var(--crit)}
+  .tone-warn .ndot{background:var(--warn)}
+  .tone-ok .ndot{background:var(--accent)}
+  .tone-info .ndot{background:var(--muted)}
+  .ncount{margin-left:auto;color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums;font-size:.82rem}
+  .ndbody{padding:0 0 .45rem 1.1rem}
+  .nmore{color:var(--muted);font-size:.8rem;padding:.3rem 0}
   .ithemes{margin:.5rem 0}
   .themerow{display:flex;flex-wrap:wrap;gap:.45rem}
   .theme{display:inline-flex;align-items:center;gap:.4rem;background:var(--chip);border:1px solid var(--line);
@@ -2714,28 +2729,54 @@ function notableEvents(records){
   for(const r of records){
     if(r.agency==="recalls"){
       const c=(r.cls||"").toLowerCase();
-      if(/class i\b/.test(c)) out.push({rec:r, sev:0, kind:r.cls||"Class I", note:"Most serious recall class"});
-      else if(/class ii\b/.test(c)) out.push({rec:r, sev:2, kind:r.cls||"Class II", note:"Recall in progress"});
+      if(/class i\b/.test(c)) out.push({rec:r, sev:0, cat:"recalls", kind:r.cls||"Class I", note:"Most serious recall class"});
+      else if(/class ii\b/.test(c)) out.push({rec:r, sev:2, cat:"recalls", kind:r.cls||"Class II", note:"Recall in progress"});
+      else out.push({rec:r, sev:3, cat:"recalls", kind:r.cls||"Recall", note:"Recall"});
     } else if(r.agency==="trials"){
-      const st=(r.status||"").toUpperCase(), ph=(r.phase||[]).join(",");
-      if(/TERMINAT|WITHDRAWN|SUSPENDED/.test(st)) out.push({rec:r, sev:1, kind:prettyStatus(r.status), note:"Trial halted"});
-      else if(/PHASE3/.test(ph)) out.push({rec:r, sev:3, kind:"Phase 3", note:"Pivotal-stage trial"});
+      const st=(r.status||"").toUpperCase();
+      // Terminated / withdrawn / suspended trials are the negative signal analysts
+      // scan for first — their own category.
+      if(/TERMINAT|WITHDRAWN|SUSPENDED/.test(st)) out.push({rec:r, sev:1, cat:"halted", kind:prettyStatus(r.status), note:"Trial halted"});
     } else if(r.agency==="approvals"){
-      if(/:o:/.test(r.id)) out.push({rec:r, sev:1, kind:"New approval", note:"Original FDA approval"});
+      if(/:o:/.test(r.id)) out.push({rec:r, sev:1, cat:"approvals", kind:"New approval", note:"Original FDA approval"});
       // Only a label/efficacy expansion is notable, and only the most recent one per
       // drug — a blockbuster's many routine supplements must not flood the card or
       // crowd out a real Class II recall (sev 2), so supplements sit at sev 3.
       else if(/:s:/.test(r.id) && SUBSTANTIVE.test(r.scls||"")){
         const key=r.appno||r.id, cur=suppl.get(key);
-        if(!cur || (r.date||"")>(cur.rec.date||"")) suppl.set(key, {rec:r, sev:3, kind:"Supplement", note:"Supplemental approval / label expansion"});
+        if(!cur || (r.date||"")>(cur.rec.date||"")) suppl.set(key, {rec:r, sev:3, cat:"approvals", kind:"Supplement", note:"Supplemental approval / label expansion"});
       }
     } else if(r.agency==="shortages"){
-      if(/\(current\)/i.test(r.title)) out.push({rec:r, sev:4, kind:"Shortage", note:"Active drug shortage"});
+      if(/\(current\)/i.test(r.title)) out.push({rec:r, sev:4, cat:"shortages", kind:"Shortage", note:"Active drug shortage"});
+    } else if(r.agency==="events"){
+      out.push({rec:r, sev:2, cat:"events", kind:"FAERS", note:"Adverse-event summary"});
+    } else if(r.agency==="fedreg"){
+      out.push({rec:r, sev:4, cat:"regulatory", kind:"Fed. Register", note:(r.title.split(" — ").pop()||"Document")});
+    } else if(r.agency==="pubmed"){
+      out.push({rec:r, sev:5, cat:"papers", kind:"Publication", note:(r.areas&&r.areas[0])||"PubMed"});
     }
   }
   for(const e of suppl.values()) out.push(e);
   out.sort((a,b)=>a.sev-b.sev||(b.rec.date||"").localeCompare(a.rec.date||"")||a.rec.id.localeCompare(b.rec.id));
   return out;
+}
+// Group the notable events into ordered, tone-coded categories for collapsible
+// drawers. The alerting categories (halted trials, recalls, shortages, adverse
+// events) open by default; the informational ones start collapsed.
+function notableCategories(records){
+  const ev=notableEvents(records);
+  const DEFS=[
+    {key:"halted",     label:"Trials halted",               tone:"crit", open:true},
+    {key:"recalls",    label:"Recalls",                      tone:"crit", open:true},
+    {key:"shortages",  label:"Shortages",                    tone:"warn", open:true},
+    {key:"events",     label:"Adverse events (FAERS)",       tone:"warn", open:true},
+    {key:"approvals",  label:"Approvals & label expansions", tone:"ok",   open:false},
+    {key:"regulatory", label:"Federal Register",             tone:"info", open:false},
+    {key:"papers",     label:"Publications (PubMed)",        tone:"info", open:false},
+  ];
+  const byCat=new Map();
+  for(const e of ev){ const c=e.cat||"other"; if(!byCat.has(c)) byCat.set(c,[]); byCat.get(c).push(e); }
+  return DEFS.map(d=>({...d, items:byCat.get(d.key)||[]})).filter(d=>d.items.length);
 }
 // ---- monthly volume, for a pure-SVG sparkline (time signal) ----
 // Records per calendar month. Partial edge months — the window's first month (if
@@ -2947,16 +2988,21 @@ function renderInsights(){
     `<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>k-means</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
     `</div>`;
 
-  // ---- Notable right now (cited event scan) ----
-  const notable=notableEvents(recs);
-  if(notable.length){
-    const sevCls=s=>s===0?"n0":s===1?"n1":s===2?"n2":s===3?"n3":"n4";
-    html+=`<div class="icard inotable"><h3>Notable right now</h3>`+
-      notable.slice(0,8).map(e=>`<div class="ievent"><div class="ehead"><span class="nsev ${sevCls(e.sev)}">${esc(e.kind)}</span>`+
-        `<a href="${esc(e.rec.url)}" target="_blank" rel="noopener noreferrer">${esc(clip(e.rec.title,110))}</a>`+
-        `<span class="nmeta">${e.rec.company?esc(e.rec.company)+" · ":""}${esc(e.note)}${e.rec.date?" · "+esc(e.rec.date):""}</span></div>`+
-        (e.rec.text?`<div class="ntext">${citeSentences(clip(e.rec.text,300),e.rec.url,I_AG[e.rec.agency]||"Source")}</div>`:"")+
-        `</div>`).join("")+
+  // ---- Notable right now — one collapsible drawer per category (cited) ----
+  const noteCats=notableCategories(recs);
+  if(noteCats.length){
+    const CAP=10;
+    html+=`<div class="icard inotable"><h3>Notable right now <span class="ihint">by category — click a drawer to expand</span></h3>`+
+      noteCats.map(c=>`<details class="ndrawer tone-${c.tone}"${c.open?" open":""}>`+
+        `<summary><span class="ndot"></span>${esc(c.label)}<span class="ncount">${c.items.length}</span></summary>`+
+        `<div class="ndbody">`+
+        c.items.slice(0,CAP).map(e=>`<div class="ievent"><div class="ehead">`+
+          `<a href="${esc(e.rec.url)}" target="_blank" rel="noopener noreferrer">${esc(clip(e.rec.title,110))}</a>`+
+          `<span class="nmeta">${e.rec.company?esc(e.rec.company)+" · ":""}${esc(e.note)}${e.rec.date?" · "+esc(e.rec.date):""}</span></div>`+
+          (e.rec.text?`<div class="ntext">${citeSentences(clip(e.rec.text,240),e.rec.url,I_AG[e.rec.agency]||"Source")}</div>`:"")+
+          `</div>`).join("")+
+        (c.items.length>CAP?`<div class="nmore">+${c.items.length-CAP} more — see Sources below</div>`:"")+
+        `</div></details>`).join("")+
       `</div>`;
   }
 
@@ -3158,7 +3204,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,singular,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
-  clusterTerms,buildThemes,risingTerms,riseWindow,notableEvents,monthlyVolume,wordleLayout,canonCompany,companyGroups,similarRecords,
+  clusterTerms,buildThemes,risingTerms,riseWindow,notableEvents,notableCategories,monthlyVolume,wordleLayout,canonCompany,companyGroups,similarRecords,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----

@@ -89,6 +89,17 @@ def test_supplemental_approvals_surface_but_filtered():
     assert "const out=[], suppl=new Map();" in js, "per-application supplement dedup removed"
 
 
+def test_notable_split_into_category_drawers():
+    # "Notable right now" is divided into collapsible category drawers (halted trials,
+    # recalls, shortages, adverse events, approvals, Federal Register, publications).
+    js = _script()
+    assert "function notableCategories" in js, "Notable category grouping removed"
+    assert 'cat:"halted"' in js, "halted-trials category removed from Notable"
+    assert '<details class="ndrawer' in js, "Notable collapsible drawers removed"
+    for key in ('cat:"recalls"', 'cat:"shortages"', 'cat:"events"', 'cat:"papers"', 'cat:"regulatory"'):
+        assert key in js, f"Notable category {key} removed"
+
+
 def test_coverage_boundary_banner():
     # The scope disclaimer must stay honest: US regulators (+ PubMed literature),
     # no EMA/ex-US regulators, no press releases.
