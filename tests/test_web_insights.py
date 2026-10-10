@@ -90,10 +90,22 @@ def test_supplemental_approvals_surface_but_filtered():
 
 
 def test_coverage_boundary_banner():
-    # The scope disclaimer must stay honest: US regulators only, no EMA/ex-US.
+    # The scope disclaimer must stay honest: US regulators (+ PubMed literature),
+    # no EMA/ex-US regulators, no press releases.
     assert 'class="icov"' in SRC, "coverage-boundary banner removed"
-    assert "US regulators only" in SRC
+    assert "US regulators" in SRC
     assert "EMA" in SRC and "no press releases" in SRC
+
+
+def test_insights_gathers_all_sources():
+    # The Insights (beta summary) digest pulls from every source, not just the
+    # original five — Federal Register and PubMed are included in the fetch and the
+    # by-source agency map.
+    js = _script()
+    assert "function fetchFedRegInsights" in js, "Federal Register not pulled into Insights"
+    assert "function fetchPubMedInsights" in js, "PubMed not pulled into Insights"
+    assert "fedreg:" in js and "pubmed:" in js, "new sources missing from the Insights agency map"
+    assert "const I_AGENCIES" in js, "Insights agency list (superset of TABS) removed"
 
 
 def test_cross_agency_company_canonicalisation():

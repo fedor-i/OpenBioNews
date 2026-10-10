@@ -2245,6 +2245,51 @@ function normFiling(h){
     text:s.file_description||"", company:names.length?names[0]:"", areas:[], form};
 }
 
+// Federal Register + PubMed records for the cross-agency digest (both dated,
+// text-bearing developments, so they feed every part of the analytics).
+function normFedReg(d){
+  const url=(d.html_url||"").trim(), title=(d.title||"").trim();
+  if(!url || !title) return null;
+  const ag=(d.agencies||[]).map(a=>a&&a.name).filter(Boolean)[0]||"";
+  const type=d.type||"";
+  return {agency:"fedreg", id:"g:"+(d.document_number||url), url,
+    date:(d.publication_date||"").slice(0,10), title:title+(type?" — "+type:""),
+    text:d.abstract||"", company:"", areas:ag?[ag]:[]};
+}
+function pubmedDateISO(s){
+  const m=/^(\d{4})\s*([A-Za-z]{3})?\s*(\d{1,2})?/.exec(String(s||"").trim());
+  if(!m) return "";
+  const mon={jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12"}[(m[2]||"").toLowerCase()]||"01";
+  return `${m[1]}-${mon}-${m[3]?String(m[3]).padStart(2,"0"):"01"}`;
+}
+function normPubMed(r, pmid){
+  const title=String(r.title||"").replace(/<[^>]+>/g,"").trim(); if(!title) return null;
+  return {agency:"pubmed", id:"p:"+pmid, url:`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
+    date:pubmedDateISO(r.pubdate||r.epubdate||""), title, text:title,
+    company:"", areas:(r.fulljournalname||r.source)?[r.fulljournalname||r.source]:[]};
+}
+async function fetchFedRegInsights(terms, fromISO, toISO){
+  const p=new URLSearchParams();
+  p.set("per_page","40"); p.set("order","newest");
+  p.append("conditions[agencies][]","food-and-drug-administration");
+  const term=terms.map(t=>/\s/.test(t)?`"${t}"`:t).join(" OR "); if(term) p.set("conditions[term]",term);
+  p.set("conditions[publication_date][gte]",fromISO); p.set("conditions[publication_date][lte]",toISO);
+  for(const f of FEDREG_FIELDS) p.append("fields[]",f);
+  try{ const d=await getJson(`${FEDREG_API}?${p.toString()}`, true); return ((d&&d.results)||[]).map(normFedReg).filter(Boolean); }
+  catch(err){ iErrors.push("Federal Register ("+err.message+")"); return []; }
+}
+async function fetchPubMedInsights(terms, fromISO, toISO){
+  const term=terms.map(t=>/\s/.test(t)?`"${t}"`:t).join(" OR "); if(!term) return [];
+  const mind=fromISO.replace(/-/g,"/"), maxd=toISO.replace(/-/g,"/");
+  try{
+    const s=await getJson(`${PM_ESEARCH}?db=pubmed&term=${encodeURIComponent(term)}&retmax=40&retmode=json&sort=date&datetype=pdat&mindate=${mind}&maxdate=${maxd}`, true);
+    const ids=((s.esearchresult||{}).idlist)||[]; if(!ids.length) return [];
+    const d=await getJson(`${PM_ESUMMARY}?db=pubmed&id=${ids.join(",")}&retmode=json`, true);
+    const res=d.result||{}; const order=res.uids||ids;
+    return order.map(id=>{ const r=res[id]; return r?normPubMed(r,id):null; }).filter(Boolean);
+  }catch(err){ iErrors.push("PubMed ("+err.message+")"); return []; }
+}
+
 // ---- windowed, fully-paginated gather ----
 // Pull *every* record in the chosen time window — not a fixed first page — so
 // different topics over different periods each get their complete set. Each source
@@ -2311,6 +2356,8 @@ async function fetchInsights(terms, range){
     pageSkip("Drugs@FDA", aprBase, d=>(d.results||[]).map(normApproval).flat().filter(r=>r&&inWin(r)), 1000, 6, true),
     pageSkip("openFDA shortages", shrBase, d=>(d.results||[]).map(normShortage).filter(r=>r&&inWin(r)), 1000, 4, true),
     pageSec("SEC EDGAR", SEC_API+"?"+secp.toString(), d=>(dig(d,"hits","hits")||[]).map(normFiling).filter(Boolean), 8),
+    fetchFedRegInsights(terms, fromISO, toISO),     // Federal Register — FDA docs in window
+    fetchPubMedInsights(terms, fromISO, toISO),     // PubMed — literature in window
   ]);
   const seen=new Set(), recs=[];
   for(const g of groups) for(const r of g){ if(r && r.id && !seen.has(r.id)){ seen.add(r.id); recs.push(r); } }
@@ -2768,8 +2815,8 @@ function iCard(r, isNew, simIds){
   const el=document.createElement("article");
   if(isNew) el.classList.add("iperiod");
   el.dataset.id=r.id;
-  const srcName={trials:"ClinicalTrials.gov",recalls:"FDA recall",approvals:"Drugs@FDA",shortages:"FDA Drug Shortages",sec:"SEC EDGAR"}[r.agency]||"Source";
-  const kind={trials:"Trial",recalls:"Recall",approvals:"Approval",shortages:"Shortage",sec:"Filing"}[r.agency];
+  const srcName={trials:"ClinicalTrials.gov",recalls:"FDA recall",approvals:"Drugs@FDA",shortages:"FDA Drug Shortages",sec:"SEC EDGAR",fedreg:"Federal Register",pubmed:"PubMed"}[r.agency]||"Source";
+  const kind={trials:"Trial",recalls:"Recall",approvals:"Approval",shortages:"Shortage",sec:"Filing",fedreg:"Fed. Register",pubmed:"Publication"}[r.agency];
   const tags=[kind, r.company].filter(Boolean);
   // "find similar": filter the Sources list to this record + its nearest neighbours.
   // Reuses the .ifacet machinery; the set leads with the anchor so it stays in view.
@@ -2802,7 +2849,8 @@ function iSparkline(series){
   return `<svg class="ispark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Records per month">`+
     `<polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${pts}"/>${dots}</svg>`;
 }
-const I_AG={trials:"ClinicalTrials.gov",recalls:"FDA recalls",approvals:"FDA approvals",shortages:"FDA shortages",sec:"SEC filings"};
+const I_AG={trials:"ClinicalTrials.gov",recalls:"FDA recalls",approvals:"FDA approvals",shortages:"FDA shortages",sec:"SEC filings",fedreg:"Federal Register",pubmed:"PubMed"};
+const I_AGENCIES=Object.keys(I_AG);   // every source the Insights digest gathers (superset of the data-tab TABS)
 function renderInsights(){
   const box=$("insights"); box.innerHTML="";
   const recs=iRecords;
@@ -2833,13 +2881,13 @@ function renderInsights(){
   const midISO=new Date((Date.parse(R.fromISO)+Date.parse(R.toISO))/2).toISOString().slice(0,10);
   const unseen=r=> baseHas ? !baseSet.has(r.id) : false;       // new since Insights last showed this subject
   const perAgency={}; let newN=0, newest="", oldest="";
-  for(const t of TABS) perAgency[t]=0;
+  for(const t of I_AGENCIES) perAgency[t]=0;
   recs.forEach((r)=>{
     perAgency[r.agency]=(perAgency[r.agency]||0)+1;
     if(r.date){ if(!newest||r.date>newest) newest=r.date; if(!oldest||r.date<oldest) oldest=r.date; }
     if(unseen(r)) newN++;
   });
-  const active=TABS.filter(t=>perAgency[t]>0);
+  const active=I_AGENCIES.filter(t=>perAgency[t]>0);
   const periodTxt = baseHas ? `${winLabel} · <b>${newN} new since your last visit</b>` : `<b>${winLabel}</b>`;
   // records matching a facet value — the drill-in targets
   const idsWhere=pred=>recs.filter(pred).map(r=>r.id);
@@ -2855,7 +2903,7 @@ function renderInsights(){
   if(spark) html+=`<div class="ispark-row"><span class="isl" title="Partial months (the window's first month and the current month) are prorated to a full-month rate.">records/month*</span>${spark}`+
     `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
-  html+=`<div class="icov"><b>Coverage:</b> ClinicalTrials.gov · FDA recalls / approvals / shortages · SEC EDGAR — <b>US regulators only</b>. No EMA / ex-US, no press releases, no literature. Nothing here ≠ nothing happened.</div>`+
+  html+=`<div class="icov"><b>Coverage:</b> ClinicalTrials.gov · FDA recalls / approvals / shortages · Federal Register · SEC EDGAR · PubMed — <b>US regulators plus PubMed literature</b>. No EMA / ex-US regulators, no press releases. Nothing here ≠ nothing happened.</div>`+
     `<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>k-means</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
     `</div>`;
 
@@ -3053,7 +3101,7 @@ async function runInsights(){
   if(!terms.length){ $("insights").innerHTML=`<div class="iempty">Add something to your watchlist above, or type a subject (e.g. <b>CRISPR</b>), then hit Summarize.</div>`; return; }
   if(iBusy) return; iBusy=true;
   iSubjectLabel=insightLabel();
-  $("insights").innerHTML=`<div class="iempty">Gathering every record in the ${windowRange().label} from ClinicalTrials.gov, openFDA and SEC EDGAR… (a wider window takes a little longer)</div>`;
+  $("insights").innerHTML=`<div class="iempty">Gathering every record in the ${windowRange().label} from ClinicalTrials.gov, openFDA, the Federal Register, SEC EDGAR and PubMed… (a wider window takes a little longer)</div>`;
   try{ iRecords=await fetchInsights(terms, windowRange()); renderInsights(); }
   catch(err){ $("insights").innerHTML=`<div class="ierr">Could not build insights: ${esc(err.message)}</div>`; }
   finally{ iBusy=false; }

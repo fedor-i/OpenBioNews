@@ -7,6 +7,14 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Insights digest now spans Federal Register + PubMed (hosted page)**. The beta
+  summary (Insights) tab previously gathered only ClinicalTrials.gov, FDA recalls /
+  approvals / shortages and SEC EDGAR. It now also pulls Federal Register documents
+  and PubMed literature for the same window, so both feed the cross-agency record
+  list, the "By source" breakdown, the word cloud, clustering and rising terms — and
+  the coverage banner reflects the wider scope. (FAERS and FDA labels stay out of the
+  time-windowed record digest — they're aggregate / undated reference data — and
+  remain available via their own tabs and the record focus view.)
 - **Custom historic date range (hosted page)**. Every time control — the Insights
   period selector and each data tab's recency dropdown (trials, recalls, approvals,
   SEC) — keeps its "last N days" presets and adds a **"Specific range…"** option that
