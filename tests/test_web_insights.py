@@ -381,6 +381,33 @@ def test_nsev_dead_css_removed():
     assert ".nsev{" not in SRC and ".nsev.n" not in SRC, "dead .nsev severity-badge CSS still present"
 
 
+def test_volume_chart_does_not_run_into_the_future():
+    # The records/month trend is capped at the present so estimated / ahead-of-print
+    # dates don't stretch the x-axis out to the end of the year.
+    js = _script()
+    assert "hi=(to && to<today)?to:today" in js, "monthlyVolume no longer caps the chart at the present"
+    assert "if(mStart>hi) continue;" in js, "future months are no longer dropped from the volume chart"
+
+
+def test_rising_terms_drop_redundant_new_badge():
+    # Entirely-new rising terms are shown by their (green) highlight alone; the word
+    # "new" on every chip was noise, so fresh terms carry no badge now.
+    js = _script()
+    assert 't.fresh?"new"' not in js, 'rising-term chips still print the redundant "new" badge'
+    assert 't.fresh?"":` <b>×${t.lift.toFixed(1)}</b>`' in js, \
+        "rising-term lift badge no longer gated on non-fresh terms"
+
+
+def test_sources_jump_to_type_chips():
+    # A run of publications at the top of the BM25 ranking shouldn't hide the trials:
+    # the Sources header offers one-click record-type filter chips (reusing .ifacet).
+    js = _script()
+    assert "I_CAT=" in js, "source-type category labels (I_CAT) missing"
+    assert 'class="istype ifacet"' in js, "Sources jump-to-type chips missing"
+    assert 'data-facet="source:${escA(I_CAT[t]||t)}"' in js, "type chips don't filter by source"
+    assert "Jump to type:" in js, "Sources type-chip label missing"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

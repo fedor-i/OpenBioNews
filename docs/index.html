@@ -242,6 +242,14 @@
   .isrcview button{background:none;border:0;color:var(--muted);font:inherit;font-size:.78rem;padding:.2rem .6rem;cursor:pointer}
   .isrcview button+button{border-left:1px solid var(--line)}
   .isrcview button.on{background:var(--accent);color:var(--on-accent)}
+  .isrctypes{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin:.1rem 0 .5rem}
+  .isrctypes .istlabel{color:var(--muted);font-size:.78rem;margin-right:.15rem}
+  .istype{background:var(--tag);color:var(--tagink);border:1px solid transparent;border-radius:999px;
+    padding:.18rem .6rem;font:inherit;font-size:.8rem;cursor:pointer}
+  .istype:hover{border-color:var(--accent)}
+  .istype b{font-weight:700;opacity:.6;margin-left:.2rem;font-variant-numeric:tabular-nums}
+  .istype.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+  .istype.on b{opacity:.85}
   .isrc-grp{display:flex;align-items:baseline;gap:.5rem;margin:1rem 0 .3rem;padding-bottom:.2rem;border-bottom:1px solid var(--line)}
   .isrc-grp .glabel{font-weight:700;font-size:.9rem}
   .isrc-grp .gcount{color:var(--muted);font-size:.78rem}
@@ -2828,6 +2836,10 @@ function notableCategories(records){
 function monthlyVolume(records, opts){
   opts=opts||{};
   const to=opts.to||daysAgoISO(0), from=opts.from||"";
+  // A records/month trend can't run into the future: cap the chart at the present
+  // (or at `to`, whichever is earlier) so estimated/ahead-of-print dates don't
+  // stretch the x-axis out to the end of the year.
+  const today=daysAgoISO(0), hi=(to && to<today)?to:today;
   const m=new Map();
   for(const r of records){ const ym=(r.date||"").slice(0,7); if(/^\d{4}-\d{2}$/.test(ym)) m.set(ym,(m.get(ym)||0)+1); }
   const dnum=iso=>Math.floor(Date.parse(iso+"T00:00:00Z")/864e5);
@@ -2835,9 +2847,10 @@ function monthlyVolume(records, opts){
   const out=[];
   for(const [ym,raw] of m){
     const md=dim(ym), mStart=ym+"-01", mEnd=ym+"-"+String(md).padStart(2,"0");
+    if(mStart>hi) continue;                     // month lies entirely in the future → not a real data point
     let cs=mStart, ce=mEnd;
     if(from && from>cs) cs=from;
-    if(to && to<ce) ce=to;
+    if(hi<ce) ce=hi;                            // clamp the trailing (current) month to the present
     const covered=dnum(ce)-dnum(cs)+1;
     // Scale partial edge months up to a full-month rate — but cap the multiplier at 3×
     // so a 2-day sliver with one record doesn't read as a 15/month spike.
@@ -2983,6 +2996,9 @@ function iSparkline(series){
     `<polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${pts}"/>${dots}</svg>`;
 }
 const I_AG={trials:"ClinicalTrials.gov",recalls:"FDA recalls",approvals:"FDA approvals",shortages:"FDA shortages",sec:"SEC filings",fedreg:"Federal Register",pubmed:"PubMed",events:"FDA adverse events",labels:"FDA labels"};
+// Short category labels for the Sources "jump to type" chips (BM25 can bury trials
+// under a run of publications, so let the reader pick a record type up front).
+const I_CAT={trials:"Trials",recalls:"Recalls",approvals:"Approvals",shortages:"Shortages",sec:"SEC filings",fedreg:"Fed. Register",pubmed:"Publications",events:"Adverse events",labels:"Labels"};
 const I_AGENCIES=Object.keys(I_AG);   // every source the Insights digest gathers (superset of the data-tab TABS)
 function renderInsights(){
   const box=$("insights"); box.innerHTML="";
@@ -3122,7 +3138,7 @@ function renderInsights(){
   if(rising.length){
     html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating in the newer half of the ${esc(winLabel)} vs. the earlier half</span></h3><div class="riserow">`+
       rising.map(t=>`<span class="riseterm ifacet${t.fresh?" fresh":""}" data-facet="term:${escA(t.term)}" data-ids="${escA(JSON.stringify(idsForTerm(t.term)))}" title="${t.recent}× recently vs ${t.base}× before">`+
-        `${esc(t.term)} <b>${t.fresh?"new":"×"+t.lift.toFixed(1)}</b></span>`).join("")+
+        `${esc(t.term)}${t.fresh?"":` <b>×${t.lift.toFixed(1)}</b>`}</span>`).join("")+
       `</div>`+
       ((rising.total||rising.length)>rising.length?`<div class="ihint" style="margin-top:.4rem">Showing the top ${rising.length} of ${rising.total} accelerating terms.</div>`:"")+
       `</div>`;
@@ -3166,7 +3182,13 @@ function renderInsights(){
 
   const SRC_CAP=150;   // analyse all records; render at most this many cards to keep the DOM light
   const srcNote = recs.length>SRC_CAP ? ` (showing the top ${SRC_CAP})` : "";
+  // Jump-to-type chips: filter the ranked list to one record type in a click, so a
+  // run of publications at the top of the BM25 ranking never hides the trials below.
+  const typeChips=active.map(t=>
+    `<button class="istype ifacet" aria-pressed="false" data-facet="source:${escA(I_CAT[t]||t)}" data-ids="${escA(JSON.stringify(idsWhere(r=>r.agency===t)))}">`+
+    `${esc(I_CAT[t]||t)} <b>${perAgency[t]}</b></button>`).join("");
   html+=`<h3 class="isrc-h">Sources — ${coreN} development${coreN!==1?"s":""}${auxN?` + ${auxN} reference card${auxN!==1?"s":""}`:""}, ranked by BM25 relevance${srcNote}</h3>`+
+    (active.length>1?`<div class="isrctypes" id="isrctypes"><span class="istlabel">Jump to type:</span>${typeChips}</div>`:"")+
     `<div class="isrcview" id="isrcview"><button data-view="ranked">Ranked</button><button data-view="grouped">Grouped by cluster</button></div>`+
     `<div id="ifilter" hidden></div><div id="isrc"></div></div>`;
   box.innerHTML=html;
