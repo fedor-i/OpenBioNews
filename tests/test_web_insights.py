@@ -306,6 +306,59 @@ def test_group_sources_by_cluster():
     assert "arr.indexOf(v)===ix" in js, "id-set dedup removed from the find-similar chip"
 
 
+def test_on_accent_ink_token():
+    # Text on an accent/warn/crit fill uses a theme-aware ink token (white in light
+    # mode, near-black in dark mode) instead of a hardcoded white that goes ~1.9:1 on
+    # the bright dark-mode teal. No raw `color:#fff` should remain in the stylesheet.
+    assert "--on-accent:#ffffff" in SRC, "light-mode on-accent ink token removed"
+    assert "--on-accent:#06211e" in SRC, "dark-mode on-accent ink token removed"
+    assert "color:#fff" not in SRC and "color:white" not in SRC, \
+        "hardcoded white-on-accent re-introduced (fails contrast in dark mode)"
+
+
+def test_facets_keyboard_operable():
+    # Non-<button> facets (word-cloud SVG text, stat bars, chips) must be focusable
+    # buttons that activate on Enter/Space and expose an aria-pressed state.
+    js = _script()
+    assert 'el.setAttribute("role","button")' in js, "facets not given a button role"
+    assert 'el.setAttribute("tabindex","0")' in js, "facets not made focusable"
+    assert 'aria-pressed' in js, "facets missing aria-pressed state"
+    assert 'e.key==="Enter"||e.key===" "' in js, "facets not activated by keyboard"
+
+
+def test_filter_scrolls_sources_into_view():
+    # Applying a filter from a facet high on the page scrolls the Sources list into
+    # view, honouring prefers-reduced-motion.
+    js = _script()
+    assert "scrollToSources" in js, "scroll-into-view on filter removed"
+    assert "prefers-reduced-motion:reduce" in js, "reduced-motion guard missing"
+
+
+def test_focus_modal_dialog_semantics():
+    # The record focus overlay is a labelled modal dialog with a focus trap and
+    # focus return to the trigger.
+    js = _script()
+    assert 'role="dialog" aria-modal="true" aria-labelledby="ftitle"' in js, \
+        "focus modal missing dialog semantics"
+    assert "function trapFocus" in js, "focus trap removed from the modal"
+    assert "focusReturnEl" in js, "focus-return-to-trigger removed from the modal"
+
+
+def test_reduced_motion_global_guard():
+    assert "@media (prefers-reduced-motion:reduce)" in SRC, "global reduced-motion guard removed"
+
+
+def test_summarize_disabled_during_fetch():
+    js = _script()
+    assert 'runBtn.disabled=true' in js, "Summarize not disabled during fetch"
+    assert 'runBtn.disabled=false' in js, "Summarize not re-enabled after fetch"
+
+
+def test_nsev_dead_css_removed():
+    # The old per-item severity badge was replaced by category drawers; its CSS is dead.
+    assert ".nsev{" not in SRC and ".nsev.n" not in SRC, "dead .nsev severity-badge CSS still present"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

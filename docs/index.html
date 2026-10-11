@@ -12,6 +12,7 @@
   :root{
     --bg:#eef6f4; --panel:#ffffff; --ink:#132321; --muted:#5b726e; --line:#d6e6e2;
     --accent:#0d9488; --accent2:#7c3aed; --chip:#e3efec; --tag:#f1ecfe; --tagink:#6d28d9;
+    --on-accent:#ffffff;  /* text on an accent/warn/crit fill — dark accents here, so white */
     --viz1:#2a78d6; --viz2:#eb6834; --viz3:#1baf7a;  /* muted categorical (validated, all-pairs) */
     --warn:#c2410c; --warnbg:#fff2e6; --crit:#b42318; --critbg:#fde8e6;
     --shadow:0 1px 2px rgba(6,60,55,.06),0 1px 3px rgba(6,60,55,.05);
@@ -21,6 +22,7 @@
     :root:not([data-theme="light"]){
       --bg:#0b1a18; --panel:#122320; --ink:#e6efec; --muted:#8aa39e; --line:#22403b;
       --accent:#2dd4bf; --accent2:#a78bfa; --chip:#183330; --tag:#241b3a; --tagink:#c4b5fd;
+      --on-accent:#06211e;  /* bright accents in dark mode need dark ink for contrast */
       --viz1:#3987e5; --viz2:#d95926; --viz3:#199e70;  /* dark steps, validated all-pairs */
       --warn:#fdba74; --warnbg:#3a2412; --crit:#ff9d94; --critbg:#3a1e1c;
       --shadow:0 1px 2px rgba(0,0,0,.35); color-scheme:dark;
@@ -29,10 +31,14 @@
   :root[data-theme="dark"]{
     --bg:#0b1a18; --panel:#122320; --ink:#e6efec; --muted:#8aa39e; --line:#22403b;
     --accent:#2dd4bf; --accent2:#a78bfa; --chip:#183330; --tag:#241b3a; --tagink:#c4b5fd;
+    --on-accent:#06211e;
     --viz1:#3987e5; --viz2:#d95926; --viz3:#199e70;
     --warn:#fdba74; --warnbg:#3a2412; --crit:#ff9d94; --critbg:#3a1e1c; color-scheme:dark;
   }
   *{box-sizing:border-box}
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}
+  }
   body{margin:0;background:var(--bg);color:var(--ink);
     font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
   header{max-width:60rem;margin:0 auto;padding:1.6rem 1rem .2rem}
@@ -52,24 +58,24 @@
     background:var(--bg);color:var(--ink);font-size:.95rem;min-width:0}
   .row{display:flex;gap:.6rem;align-items:end;flex-wrap:wrap;margin-top:.8rem}
   button{cursor:pointer;border:none;border-radius:9px;padding:.6rem 1.1rem;font-size:.95rem;font-weight:600}
-  .go{background:var(--accent);color:#fff}
+  .go{background:var(--accent);color:var(--on-accent)}
   .ghost{background:var(--chip);color:var(--ink)}
   .chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.2rem 0 .1rem}
   .chip{background:var(--chip);border:1px solid var(--line);border-radius:999px;
     padding:.28rem .7rem;font-size:.82rem;cursor:pointer;color:var(--ink)}
   .chip:hover{border-color:var(--accent)}
-  .chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .chip.active{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
   .watchbar{background:var(--panel);border-bottom:1px solid var(--line)}
   .watchrow{max-width:60rem;margin:0 auto;padding:.6rem 1rem .2rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
   .watchlabel{font-weight:700;color:var(--ink);font-size:.9rem;white-space:nowrap}
   .watchchips{display:flex;flex-wrap:wrap;gap:.35rem}
-  .wchip{display:inline-flex;align-items:center;gap:.35rem;background:var(--accent);color:#fff;
+  .wchip{display:inline-flex;align-items:center;gap:.35rem;background:var(--accent);color:var(--on-accent);
     border-radius:999px;padding:.2rem .6rem;font-size:.84rem;font-weight:600}
   .wchip b{cursor:pointer;opacity:.85;font-weight:700}.wchip b:hover{opacity:1}
   .wchip.topicchip{background:var(--accent2)}  /* topics (AI, GLP-1…) vs teal company/drug chips */
   .watchbar input{flex:1;min-width:150px;max-width:280px;padding:.4rem .6rem;border:1px solid var(--line);
     border-radius:999px;background:var(--bg);color:var(--ink);font-size:.88rem}
-  .wadd{background:var(--accent);color:#fff;border:none;border-radius:999px;padding:.4rem .9rem;font-weight:600;cursor:pointer;font-size:.85rem}
+  .wadd{background:var(--accent);color:var(--on-accent);border:none;border-radius:999px;padding:.4rem .9rem;font-weight:600;cursor:pointer;font-size:.85rem}
   .wclear{border-radius:999px;padding:.4rem .8rem;font-size:.85rem}
   .watchhint{max-width:60rem;margin:0 auto;padding:0 1rem .55rem;color:var(--muted);font-size:.8rem}
   .watchseeds{max-width:60rem;margin:0 auto;padding:0 1rem .6rem;display:flex;flex-wrap:wrap;align-items:center;gap:.35rem}
@@ -93,7 +99,7 @@
   .te-terms{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;border:1px solid var(--line);border-radius:8px;padding:.35rem;background:var(--bg)}
   .te-term{flex:1;min-width:160px;border:none;padding:.2rem .4rem}
   .te-chips{display:flex;flex-wrap:wrap;gap:.3rem}
-  .te-chip{display:inline-flex;align-items:center;gap:.3rem;background:var(--accent2);color:#fff;border-radius:999px;padding:.12rem .5rem;font-size:.78rem}
+  .te-chip{display:inline-flex;align-items:center;gap:.3rem;background:var(--accent2);color:var(--on-accent);border-radius:999px;padding:.12rem .5rem;font-size:.78rem}
   .te-chip b{cursor:pointer;opacity:.85}.te-chip b:hover{opacity:1}
   .te-hint{color:var(--muted);font-size:.78rem}
   .te-warn{color:var(--warn);font-size:.78rem;font-weight:600}
@@ -101,8 +107,8 @@
   .te-del{margin-left:auto;color:var(--warn)}
   .watchnew{color:var(--accent);font-weight:700;font-size:.82rem;white-space:nowrap}
   .tbadge{display:inline-block;margin-left:.3rem;min-width:1.1em;padding:0 .35em;border-radius:999px;
-    background:var(--warn);color:#fff;font-size:.68rem;font-weight:700;line-height:1.5;text-align:center;vertical-align:middle}
-  .newflag{display:inline-block;background:var(--warn);color:#fff;border-radius:6px;padding:.05rem .4rem;
+    background:var(--warn);color:var(--on-accent);font-size:.68rem;font-weight:700;line-height:1.5;text-align:center;vertical-align:middle}
+  .newflag{display:inline-block;background:var(--warn);color:var(--on-accent);border-radius:6px;padding:.05rem .4rem;
     font-size:.68rem;font-weight:700;letter-spacing:.02em;margin-right:.35rem;vertical-align:middle}
   article.isnew{border-left:3px solid var(--warn);padding-left:.9rem}
   .bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:1rem 0 .3rem}
@@ -235,7 +241,7 @@
   .isrcview{display:inline-flex;gap:0;margin:.1rem 0 .5rem;border:1px solid var(--line);border-radius:7px;overflow:hidden}
   .isrcview button{background:none;border:0;color:var(--muted);font:inherit;font-size:.78rem;padding:.2rem .6rem;cursor:pointer}
   .isrcview button+button{border-left:1px solid var(--line)}
-  .isrcview button.on{background:var(--accent);color:#fff}
+  .isrcview button.on{background:var(--accent);color:var(--on-accent)}
   .isrc-grp{display:flex;align-items:baseline;gap:.5rem;margin:1rem 0 .3rem;padding-bottom:.2rem;border-bottom:1px solid var(--line)}
   .isrc-grp .glabel{font-weight:700;font-size:.9rem}
   .isrc-grp .gcount{color:var(--muted);font-size:.78rem}
@@ -243,7 +249,7 @@
   .iempty{color:var(--muted);padding:1rem 0}
   .ierr{color:var(--warn);font-size:.84rem;margin:.4rem 0 0}
   article.iperiod{border-left:3px solid var(--accent);padding-left:.9rem}
-  .perflag{display:inline-block;background:var(--accent);color:#fff;border-radius:6px;padding:.05rem .4rem;
+  .perflag{display:inline-block;background:var(--accent);color:var(--on-accent);border-radius:6px;padding:.05rem .4rem;
     font-size:.68rem;font-weight:700;letter-spacing:.02em;margin-right:.35rem;vertical-align:middle}
   .ihint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:.72rem;margin-left:.4rem}
   .ispark-row{display:flex;align-items:center;gap:.5rem;margin:.1rem 0 .5rem;color:var(--accent)}
@@ -257,12 +263,6 @@
   .ievent a:hover{text-decoration:underline}
   .ievent .nmeta{color:var(--muted);font-size:.8rem}
   .ntext{color:var(--ink);font-size:.88rem;margin:.25rem 0 0}
-  .nsev{flex:0 0 auto;border-radius:6px;padding:.1rem .45rem;font-size:.7rem;font-weight:700;white-space:nowrap}
-  .nsev.n0{background:var(--critbg);color:var(--crit)}
-  .nsev.n1{background:var(--accent);color:#fff}
-  .nsev.n2{background:var(--warnbg);color:var(--warn)}
-  .nsev.n3{background:var(--tag);color:var(--tagink)}
-  .nsev.n4{background:var(--chip);color:var(--ink)}
   /* Notable category drawers */
   .ndrawer{border-top:1px solid var(--line)}
   .ndrawer:first-of-type{border-top:none}
@@ -286,7 +286,7 @@
   .theme .tdot{width:.62rem;height:.62rem;border-radius:50%;flex:0 0 auto;background:var(--muted)}
   .theme.tc0 .tdot{background:var(--viz1)} .theme.tc1 .tdot{background:var(--viz2)} .theme.tc2 .tdot{background:var(--viz3)}
   .theme.tcx .tdot{background:var(--muted)}
-  .theme .tcount{background:var(--accent);color:#fff;border-radius:999px;min-width:1.4em;text-align:center;
+  .theme .tcount{background:var(--accent);color:var(--on-accent);border-radius:999px;min-width:1.4em;text-align:center;
     font-size:.72rem;padding:.05rem .35rem}
   .irise{margin:.5rem 0}
   .riserow{display:flex;flex-wrap:wrap;gap:.4rem}
@@ -294,7 +294,7 @@
     font-size:.85rem;cursor:pointer;border:1px solid transparent}
   .riseterm:hover{border-color:var(--accent)}
   .riseterm b{font-weight:700;opacity:.7;margin-left:.1rem}
-  .riseterm.fresh{background:var(--accent);color:#fff}
+  .riseterm.fresh{background:var(--accent);color:var(--on-accent)}
   .riseterm.fresh b{opacity:.85}
   .ifacet{cursor:pointer}
   .cw.ifacet:hover{text-decoration:underline}
@@ -304,7 +304,7 @@
   .ifacet.on{outline:2px solid var(--accent);outline-offset:1px;border-radius:6px}
   #ifilter{background:var(--chip);border:1px solid var(--accent);border-radius:9px;padding:.45rem .7rem;
     margin:.4rem 0;font-size:.88rem}
-  .ichip{background:var(--accent);color:#fff;border-radius:6px;padding:.1rem .5rem;font-size:.78rem;margin-left:.3rem}
+  .ichip{background:var(--accent);color:var(--on-accent);border-radius:6px;padding:.1rem .5rem;font-size:.78rem;margin-left:.3rem}
   .isim{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;
     padding:.05rem .4rem;font:inherit;font-size:.76rem;cursor:pointer}
   .isim:hover{border-color:var(--accent);color:var(--accent)}
@@ -1550,17 +1550,37 @@ const FOCUS_GROUPS=[
   ["Adverse events (FAERS)", fGroupFaers],
   ["Federal Register", fGroupFedReg],
 ];
-let focusModalEl=null;
+let focusModalEl=null, focusReturnEl=null;
 function ensureFocusModal(){
   if(focusModalEl) return focusModalEl;
   const m=document.createElement("div"); m.className="fmodal"; m.id="focusModal"; m.hidden=true;
-  m.innerHTML=`<div class="fpanel"><div class="fhead"><h2 id="ftitle"></h2><button class="fclose" id="fclose" aria-label="Close">×</button></div><div class="fsub" id="fsub"></div><div id="fbody"></div></div>`;
+  // Dialog semantics: a labelled, modal dialog so assistive tech announces it and
+  // traps correctly. The panel is the dialog; the heading labels it.
+  m.innerHTML=`<div class="fpanel" role="dialog" aria-modal="true" aria-labelledby="ftitle" tabindex="-1"><div class="fhead"><h2 id="ftitle"></h2><button class="fclose" id="fclose" aria-label="Close">×</button></div><div class="fsub" id="fsub"></div><div id="fbody"></div></div>`;
   document.body.appendChild(m);
   m.addEventListener("click",e=>{ if(e.target===m || e.target.id==="fclose") closeFocus(); });
-  document.addEventListener("keydown",e=>{ if(e.key==="Escape" && focusModalEl && !focusModalEl.hidden) closeFocus(); });
+  document.addEventListener("keydown",e=>{
+    if(focusModalEl && !focusModalEl.hidden){
+      if(e.key==="Escape"){ closeFocus(); return; }
+      if(e.key==="Tab") trapFocus(e);                    // keep Tab inside the dialog
+    }
+  });
   focusModalEl=m; return m;
 }
-function closeFocus(){ if(focusModalEl) focusModalEl.hidden=true; }
+// Cycle Tab/Shift+Tab within the dialog's focusable controls (focus trap).
+function trapFocus(e){
+  const panel=focusModalEl&&focusModalEl.querySelector(".fpanel"); if(!panel) return;
+  const items=[...panel.querySelectorAll('a[href],button,[tabindex]:not([tabindex="-1"])')].filter(el=>el.offsetParent!==null);
+  if(!items.length){ e.preventDefault(); panel.focus(); return; }
+  const first=items[0], last=items[items.length-1], a=document.activeElement;
+  if(e.shiftKey && (a===first||a===panel)){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && a===last){ e.preventDefault(); first.focus(); }
+}
+function closeFocus(){ if(focusModalEl) focusModalEl.hidden=true;
+  // Return focus to whatever opened the dialog (the "related" trigger).
+  if(focusReturnEl && typeof focusReturnEl.focus==="function"){ try{ focusReturnEl.focus(); }catch(_){ } }
+  focusReturnEl=null;
+}
 function openFocus(title, anchorUrl){
   const {tokens, term}=focusTokens(title);
   const drugs=tokens.filter(t=>DRUG_SUFFIX.test(t));
@@ -1569,7 +1589,11 @@ function openFocus(title, anchorUrl){
   // Don't offer the record back to itself: drop a related item that is the anchor.
   const anchor=(anchorUrl||"").trim(), aTitle=String(title||"").trim().toLowerCase();
   const notAnchor=it=> (it.url||"")!==anchor && String(it.title||"").trim().toLowerCase()!==aTitle;
-  const m=ensureFocusModal(); m.hidden=false;
+  const m=ensureFocusModal();
+  focusReturnEl=document.activeElement;        // remember the trigger, to restore focus on close
+  m.hidden=false;
+  // Move focus into the dialog so keyboard users land inside it.
+  const closeBtn=m.querySelector("#fclose"); if(closeBtn) try{ closeBtn.focus(); }catch(_){ }
   // Keep a link back to the original record at the top.
   $("ftitle").innerHTML = anchor
     ? `<a href="${esc(anchor)}" target="_blank" rel="noopener noreferrer">${esc(title)}</a>`
@@ -3195,8 +3219,8 @@ function wireSourceGrouping(box, srcBox, recCluster){
 }
 // ---- click-to-filter: facets narrow the Sources list to the matching records ----
 let iFilter=null, iMakeCard=null;
-function clearActiveFacet(box){ box.querySelectorAll(".ifacet.on").forEach(el=>el.classList.remove("on")); }
-function applyIFilter(box){
+function clearActiveFacet(box){ box.querySelectorAll(".ifacet.on").forEach(el=>{ el.classList.remove("on"); if(el.hasAttribute("aria-pressed")) el.setAttribute("aria-pressed","false"); }); }
+function applyIFilter(box, scrollToSources){
   const srcBox=box.querySelector("#isrc"), banner=box.querySelector("#ifilter");
   if(!srcBox||!banner) return;
   srcBox.querySelectorAll(".iinjected").forEach(el=>el.remove());   // drop cards a previous filter pulled in
@@ -3214,20 +3238,39 @@ function applyIFilter(box){
   banner.innerHTML=`Showing <b>${shown}</b> record${shown===1?"":"s"} matching <b>${esc(iFilter.label)}</b> `+
     `<button class="ichip" id="iclear">clear ✕</button>`;
   banner.querySelector("#iclear").onclick=()=>{ iFilter=null; clearActiveFacet(box); applyIFilter(box); };
+  // Many facets (word cloud, stat bars, themes) sit well above the Sources list, so
+  // bring the filtered results into view when a filter is newly applied.
+  if(scrollToSources){ const h=box.querySelector(".isrc-h")||banner;
+    const reduce=matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
+    try{ h.scrollIntoView({behavior:reduce?"auto":"smooth", block:"start"}); }catch(_){ h.scrollIntoView(); } }
 }
 function wireFacets(box){
   iFilter=null;                               // a fresh render clears any active filter
   box.querySelectorAll(".ifacet").forEach(el=>{
-    el.onclick=()=>{
+    const activate=()=>{
       let ids; try{ ids=JSON.parse(el.getAttribute("data-ids")||"[]"); }catch(_){ ids=[]; }
       const fv=el.getAttribute("data-facet")||"";
       const label=fv.startsWith("similar:")
         ? "similar to “"+(el.getAttribute("data-simlabel")||"this record")+"”"
         : fv.replace(/^(theme|company|area|source|term|phrase):/,"");
+      let turnedOn=false;
       if(iFilter && iFilter.key===fv){ iFilter=null; clearActiveFacet(box); }
-      else { iFilter={key:fv, label, ids}; clearActiveFacet(box); el.classList.add("on"); }
-      applyIFilter(box);
+      else { iFilter={key:fv, label, ids}; clearActiveFacet(box); el.classList.add("on");
+        if(el.hasAttribute("aria-pressed")) el.setAttribute("aria-pressed","true"); turnedOn=true; }
+      applyIFilter(box, turnedOn);
     };
+    el.onclick=activate;
+    // Keyboard operability: a non-<button> facet (word-cloud SVG text, stat bars,
+    // chips) becomes a focusable button that activates on Enter/Space, with an
+    // aria-pressed state so the active filter is announced.
+    if(el.tagName!=="BUTTON"){
+      if(!el.hasAttribute("role")) el.setAttribute("role","button");
+      if(!el.hasAttribute("tabindex")) el.setAttribute("tabindex","0");
+      el.setAttribute("aria-pressed", el.classList.contains("on")?"true":"false");
+      el.addEventListener("keydown",e=>{
+        if(e.key==="Enter"||e.key===" "||e.key==="Spacebar"){ e.preventDefault(); activate(); }
+      });
+    }
   });
 }
 
@@ -3235,11 +3278,12 @@ async function runInsights(){
   const terms=insightTerms();
   if(!terms.length){ $("insights").innerHTML=`<div class="iempty">Add something to your watchlist above, or type a subject (e.g. <b>CRISPR</b>), then hit Summarize.</div>`; return; }
   if(iBusy) return; iBusy=true;
+  const runBtn=$("i_run"); if(runBtn){ runBtn.disabled=true; runBtn.setAttribute("aria-busy","true"); }
   iSubjectLabel=insightLabel();
   $("insights").innerHTML=`<div class="iempty">Gathering every record in the ${windowRange().label} from ClinicalTrials.gov, openFDA, the Federal Register, SEC EDGAR and PubMed… (a wider window takes a little longer)</div>`;
   try{ iRecords=await fetchInsights(terms, windowRange()); renderInsights(); }
   catch(err){ $("insights").innerHTML=`<div class="ierr">Could not build insights: ${esc(err.message)}</div>`; }
-  finally{ iBusy=false; }
+  finally{ iBusy=false; if(runBtn){ runBtn.disabled=false; runBtn.removeAttribute("aria-busy"); } }
 }
 // Entering the tab: re-render a cached result, or auto-run when there's a subject.
 function maybeAutoInsights(){
@@ -3248,7 +3292,18 @@ function maybeAutoInsights(){
 }
 $("i_run").onclick=()=>{ iRecords=[]; runInsights(); };
 $("i_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ iRecords=[]; runInsights(); }});
-$("i_period").onchange=()=>{ iRecords=[]; runInsights(); };   // window changed → re-pull
+// Window changed → re-pull, EXCEPT when "Specific range…" was just picked with no
+// dates yet: reveal the inputs and wait, rather than firing a wasted default-window
+// fetch. The date inputs themselves re-run once the user sets an end.
+$("i_period").onchange=()=>{
+  if($("i_period").value==="custom" && !$("i_from").value && !$("i_to").value) return;
+  iRecords=[]; runInsights();
+};
+["i_from","i_to"].forEach(id=>{ const el=$(id); if(el) el.addEventListener("change",()=>{
+  if($("i_period").value!=="custom") return;
+  if(!$("i_from").value && !$("i_to").value) return;
+  iRecords=[]; runInsights();
+}); });
 $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
