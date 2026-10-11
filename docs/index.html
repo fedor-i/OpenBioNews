@@ -155,6 +155,10 @@
   .isum h2{margin:.1rem 0 .3rem;font-size:1.2rem;line-height:1.25}
   .imeta{color:var(--muted);font-size:.86rem;margin:0 0 .4rem}
   .imeta b{color:var(--accent)}
+  .irollup{font-size:.95rem;line-height:1.45;margin:.1rem 0 .6rem;padding:.5rem .7rem;background:var(--chip);border-left:3px solid var(--accent);border-radius:6px;color:var(--ink)}
+  .irollup b{color:var(--accent)}
+  .idelta{color:var(--muted);font-size:.78rem;margin:-.2rem 0 .5rem}
+  .idelta b{color:var(--ink)}
   .icov{color:var(--muted);font-size:.76rem;margin-top:.5rem;background:var(--chip);border-radius:8px;padding:.4rem .6rem}
   .icov b{color:var(--ink)}
   .imethods{color:var(--muted);font-size:.73rem;margin-top:.6rem;border-top:1px dashed var(--line);padding-top:.5rem}
@@ -2334,9 +2338,9 @@ async function fetchLabelsInsights(terms){
       const rec=(d&&d.results&&d.results[0]); if(!rec) return;
       const of=rec.openfda||{}; const brand=(of.brand_name&&of.brand_name[0])||term;
       const ind=(Array.isArray(rec.indications_and_usage)?rec.indications_and_usage.join(" "):(rec.indications_and_usage||"")).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
-      const boxed=rec.boxed_warning&&rec.boxed_warning.length;
-      out.push({agency:"labels", aux:true, id:"lb:"+term.toLowerCase(), url:labelUrl(term),
-        date:"", company:"", areas:[], title:brand+" — FDA label",
+      const boxed=!!(rec.boxed_warning&&rec.boxed_warning.length);
+      out.push({agency:"labels", aux:true, boxed, company:brand, id:"lb:"+term.toLowerCase(), url:labelUrl(term),
+        date:"", areas:[], title:brand+" — FDA label",
         text:(boxed?"⚠ Boxed warning. ":"")+(ind?("Indications: "+ind.slice(0,400)):"FDA label on file.")});
     }catch(err){ iErrors.push("FDA labels ("+err.message+")"); }
   }));
@@ -2753,7 +2757,13 @@ function notableEvents(records){
     } else if(r.agency==="shortages"){
       if(/\(current\)/i.test(r.title)) out.push({rec:r, sev:4, cat:"shortages", kind:"Shortage", note:"Active drug shortage"});
     } else if(r.agency==="events"){
-      out.push({rec:r, sev:2, cat:"events", kind:"FAERS", note:"Adverse-event summary"});
+      // FAERS is "also tracked" reference: a standing signal of what's being reported,
+      // not a new dated event and not an incidence rate. Frame it that way.
+      out.push({rec:r, sev:2, cat:"events", kind:"FAERS", note:"Reported reactions (signal, not incidence)"});
+    } else if(r.agency==="labels"){
+      // A boxed warning is the FDA's strongest label caution — surface it even though
+      // the label itself is "also tracked" reference data (no event date).
+      if(r.boxed) out.push({rec:r, sev:1, cat:"boxed", kind:"Boxed warning", note:"Strongest FDA label caution (standing)"});
     } else if(r.agency==="fedreg"){
       out.push({rec:r, sev:4, cat:"regulatory", kind:"Fed. Register", note:(r.title.split(" — ").pop()||"Document")});
     } else if(r.agency==="pubmed"){
@@ -2773,6 +2783,7 @@ function notableCategories(records){
     {key:"halted",     label:"Trials halted",               tone:"crit", open:true},
     {key:"recalls",    label:"Recalls",                      tone:"crit", open:true},
     {key:"shortages",  label:"Shortages",                    tone:"warn", open:true},
+    {key:"boxed",      label:"Boxed warnings (FDA labels)",  tone:"crit", open:true},
     {key:"events",     label:"Adverse events (FAERS)",       tone:"warn", open:true},
     {key:"approvals",  label:"Approvals & label expansions", tone:"ok",   open:false},
     {key:"regulatory", label:"Federal Register",             tone:"info", open:false},
@@ -2977,26 +2988,59 @@ function renderInsights(){
   });
   const active=I_AGENCIES.filter(t=>perAgency[t]>0);
   const periodTxt = baseHas ? `${winLabel} · <b>${newN} new since your last visit</b>` : `<b>${winLabel}</b>`;
+  // Split the headline count: dated "developments" (the 7 analytic sources) vs
+  // "reference cards" (FAERS + labels, aux/also-tracked, which have no event date).
+  const coreN=recs.reduce((n,r)=>n+(r.aux?0:1),0), auxN=recs.length-coreN;
   // records matching a facet value — the drill-in targets
   const idsWhere=pred=>recs.filter(pred).map(r=>r.id);
   const idsForTerm=w=>recs.filter((r,i)=>docTokens[i].includes(w)).map(r=>r.id);
   const idsForPhrase=p=>{ const lp=p.toLowerCase(); return recs.filter(r=>(r.title+" "+(r.text||"")).toLowerCase().includes(lp)).map(r=>r.id); };
 
+  // Compute the decision inputs up front so an executive rollup can lead the fold.
+  const noteCats=notableCategories(recs);
+  const nCount=k=>{ const c=noteCats.find(x=>x.key===k); return c?c.items.length:0; };
+  const riseW=riseWindow(recs, docTokens, midISO);
+  const rising=risingTerms(riseW.tokens, riseW.flags, 10);
+  // Deterministic, cited-downstream counts — the one line an analyst reads first.
+  const rollupBits=[
+    [nCount("recalls"),  "recall"],
+    [nCount("halted"),   "trial halt"],
+    [nCount("shortages"),"active shortage"],
+    [nCount("boxed"),    "boxed-warning label"],
+    [nCount("approvals"),"approval / label expansion"],
+  ].filter(([n])=>n>0).map(([n,w])=>`<b>${n}</b> ${esc(w)}${n!==1?"s":""}`);
+  const riseLead=rising.slice(0,3).map(t=>esc(t.term)).join(", ");
+  const rollup = rollupBits.length
+    ? `High-signal in ${winLabel}: ${rollupBits.join(" · ")}.`+(riseLead?` Rising: ${riseLead}.`:"")
+    : `No high-signal events flagged in ${winLabel}.`+(riseLead?` Rising terms: ${riseLead}.`:"");
+
+  // Half-window volume momentum (deterministic, no second fetch): dated developments
+  // in the newer half of the window vs the earlier half.
+  let recentN=0, earlierN=0;
+  for(const r of recs){ if(r.aux||!r.date) continue; (r.date>=midISO?recentN++:earlierN++); }
+  const deltaPct = earlierN>0 ? Math.round((recentN-earlierN)/earlierN*100) : null;
+  const deltaTxt = (recentN+earlierN)>0
+    ? `recent half <b>${recentN}</b> vs earlier half <b>${earlierN}</b>`+(deltaPct!=null?` (${deltaPct>=0?"+":""}${deltaPct}%)`:"")
+    : "";
+
   let html=`<div class="iwrap"><div class="isum">`+
     `<h2>${esc(iSubjectLabel||"Your watchlist")}</h2>`+
-    `<p class="imeta">${recs.length} records across ${active.length} source${active.length!==1?"s":""}`+
+    `<p class="imeta"><b>${coreN}</b> development${coreN!==1?"s":""}`+
+    (auxN?` + <b>${auxN}</b> reference card${auxN!==1?"s":""}`:"")+
+    ` across ${active.length} source${active.length!==1?"s":""}`+
     (newest?` · newest ${esc(newest)}`:"")+(oldest&&oldest!==newest?` · back to ${esc(oldest)}`:"")+
-    ` · ${periodTxt}</p>`;
+    ` · ${periodTxt}</p>`+
+    `<p class="irollup">${rollup}</p>`;
   const vol=monthlyVolume(recs, {from:daysAgoISO(days)}), spark=iSparkline(vol);
   if(spark) html+=`<div class="ispark-row"><span class="isl" title="Partial months (the window's first month and the current month) are prorated to a full-month rate.">records/month*</span>${spark}`+
     `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`;
+  if(deltaTxt) html+=`<div class="idelta" title="Dated developments in the newer half of the window vs the earlier half.">Momentum: ${deltaTxt}</div>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
   html+=`<div class="icov"><b>Coverage:</b> ClinicalTrials.gov · FDA recalls / approvals / shortages · Federal Register · SEC EDGAR · PubMed, plus FDA adverse events (FAERS) &amp; labels <i>(also tracked)</i> — <b>US regulators plus PubMed literature</b>. No EMA / ex-US regulators, no press releases. Nothing here ≠ nothing happened.</div>`+
     `<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>k-means</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
     `</div>`;
 
   // ---- Notable right now — one collapsible drawer per category (cited) ----
-  const noteCats=notableCategories(recs);
   if(noteCats.length){
     const CAP=10;
     html+=`<div class="icard inotable"><h3>Notable right now <span class="ihint">by category — click a drawer to expand</span></h3>`+
@@ -3033,9 +3077,7 @@ function renderInsights(){
   if(phases.length)    html+=`<div class="icard"><h3>Trial phases</h3>${iBars(phases,phases[0][1])}</div>`;
   html+=`</div>`;
 
-  // ---- Rising terms (momentum) ----
-  const riseW=riseWindow(recs, docTokens, midISO);
-  const rising=risingTerms(riseW.tokens, riseW.flags, 10);
+  // ---- Rising terms (momentum) ---- (riseW/rising computed up top for the rollup)
   if(rising.length){
     html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating in the newer half of the ${esc(winLabel)} vs. the earlier half</span></h3><div class="riserow">`+
       rising.map(t=>`<span class="riseterm ifacet${t.fresh?" fresh":""}" data-facet="term:${escA(t.term)}" data-ids="${escA(JSON.stringify(idsForTerm(t.term)))}" title="${t.recent}× recently vs ${t.base}× before">`+
@@ -3081,7 +3123,7 @@ function renderInsights(){
 
   const SRC_CAP=150;   // analyse all records; render at most this many cards to keep the DOM light
   const srcNote = recs.length>SRC_CAP ? ` (showing the top ${SRC_CAP})` : "";
-  html+=`<h3 class="isrc-h">Sources — every figure above is counted from all ${recs.length} records, ranked by BM25 relevance${srcNote}</h3>`+
+  html+=`<h3 class="isrc-h">Sources — ${coreN} development${coreN!==1?"s":""}${auxN?` + ${auxN} reference card${auxN!==1?"s":""}`:""}, ranked by BM25 relevance${srcNote}</h3>`+
     `<div class="isrcview" id="isrcview"><button data-view="ranked">Ranked</button><button data-view="grouped">Grouped by cluster</button></div>`+
     `<div id="ifilter" hidden></div><div id="isrc"></div></div>`;
   box.innerHTML=html;

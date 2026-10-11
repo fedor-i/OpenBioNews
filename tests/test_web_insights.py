@@ -126,6 +126,56 @@ def test_insights_gathers_all_sources():
         "aux sources missing from the Insights agency map"
 
 
+def test_aux_excluded_from_all_term_analytics():
+    # Zeroing aux tokens isn't enough: YAKE! and BM25 re-tokenise raw text, and the
+    # max-doc-frequency filter counts documents — all three must exclude aux too, or
+    # FAERS/label reference text leaks back into key phrases, ranking, and the MDF cut.
+    js = _script()
+    assert "yakeKeyphrases(recs.filter(r=>!r.aux)" in js, "YAKE! key phrases still include aux reference text"
+    assert "recs.reduce((n,r)=>n+(r.aux?0:1),0)" in js, "max-doc-frequency denominator still counts aux"
+    assert "if(r.aux) bmScore.set(i,-Infinity)" in js, "aux records not pushed to the bottom of BM25 ranking"
+
+
+def test_journal_and_agency_not_therapeutic_areas():
+    # A PubMed journal name and a Federal Register issuing agency are NOT therapeutic
+    # areas — they must stay out of `areas` (which feeds "Top therapeutic areas") and
+    # live in their own fields instead. Regression guard for journals/agencies showing
+    # up as therapeutic areas.
+    js = _script()
+    assert "areas:[], journal:(r.fulljournalname" in js, "PubMed journal leaking back into therapeutic areas"
+    assert "areas:[], gov:ag" in js, "Federal Register agency leaking back into therapeutic areas"
+    assert 'note:r.journal||"PubMed"' in js, "Notable publication note no longer reads the journal field"
+
+
+def test_executive_rollup_and_headline_split():
+    # The fold leads with a deterministic one-line executive rollup (cited counts), and
+    # the headline count distinguishes dated developments from aux reference cards.
+    js = _script()
+    assert 'class="irollup"' in js, "executive rollup line removed"
+    assert "High-signal in" in js and "No high-signal events flagged" in js, "rollup copy removed"
+    assert "const coreN=recs.reduce((n,r)=>n+(r.aux?0:1),0)" in js, "developments/reference headline split removed"
+    assert "reference card" in js, "aux reference-card framing removed from the headline"
+
+
+def test_momentum_delta_half_window():
+    # A half-window momentum line compares dated developments in the newer half of the
+    # window against the earlier half — deterministic, no second network fetch.
+    js = _script()
+    assert 'class="idelta"' in js, "half-window momentum line removed"
+    assert "recent half" in js and "earlier half" in js, "momentum half-window framing removed"
+
+
+def test_boxed_warnings_promoted_to_notable():
+    # A boxed warning is the strongest FDA label caution and must surface in Notable
+    # even though the label record is aux/also-tracked. FAERS must be framed as a
+    # reported-reactions signal, not an incidence rate.
+    js = _script()
+    assert 'cat:"boxed"' in js, "boxed-warning Notable category removed"
+    assert "Boxed warnings (FDA labels)" in js, "boxed-warning drawer label removed"
+    assert "boxed:boxed" in js or "boxed," in js, "label records no longer flag a boxed warning"
+    assert "signal, not incidence" in js, "FAERS no-incidence framing removed from Notable"
+
+
 def test_cross_agency_company_canonicalisation():
     # One firm counted once across agencies (strip ticker/suffix before counting).
     js = _script()
