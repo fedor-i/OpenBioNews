@@ -2267,9 +2267,11 @@ function normFedReg(d){
   if(!url || !title) return null;
   const ag=(d.agencies||[]).map(a=>a&&a.name).filter(Boolean)[0]||"";
   const type=d.type||"";
+  // NB: the issuing agency is NOT a therapeutic area — keep areas empty so it
+  // never pollutes the "Top therapeutic areas" bar; expose it as its own field.
   return {agency:"fedreg", id:"g:"+(d.document_number||url), url,
     date:(d.publication_date||"").slice(0,10), title:title+(type?" — "+type:""),
-    text:d.abstract||"", company:"", areas:ag?[ag]:[]};
+    text:d.abstract||"", company:"", areas:[], gov:ag||""};
 }
 function pubmedDateISO(s){
   const m=/^(\d{4})\s*([A-Za-z]{3})?\s*(\d{1,2})?/.exec(String(s||"").trim());
@@ -2279,9 +2281,11 @@ function pubmedDateISO(s){
 }
 function normPubMed(r, pmid){
   const title=String(r.title||"").replace(/<[^>]+>/g,"").trim(); if(!title) return null;
+  // NB: the journal is NOT a therapeutic area — keep areas empty so it never
+  // pollutes the "Top therapeutic areas" bar; expose it as its own field.
   return {agency:"pubmed", id:"p:"+pmid, url:`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
     date:pubmedDateISO(r.pubdate||r.epubdate||""), title, text:title,
-    company:"", areas:(r.fulljournalname||r.source)?[r.fulljournalname||r.source]:[]};
+    company:"", areas:[], journal:(r.fulljournalname||r.source||"")};
 }
 async function fetchFedRegInsights(terms, fromISO, toISO){
   const p=new URLSearchParams();
@@ -2753,7 +2757,7 @@ function notableEvents(records){
     } else if(r.agency==="fedreg"){
       out.push({rec:r, sev:4, cat:"regulatory", kind:"Fed. Register", note:(r.title.split(" — ").pop()||"Document")});
     } else if(r.agency==="pubmed"){
-      out.push({rec:r, sev:5, cat:"papers", kind:"Publication", note:(r.areas&&r.areas[0])||"PubMed"});
+      out.push({rec:r, sev:5, cat:"papers", kind:"Publication", note:r.journal||"PubMed"});
     }
   }
   for(const e of suppl.values()) out.push(e);
@@ -2946,12 +2950,15 @@ function renderInsights(){
   // of records — corpus-ubiquitous, non-discriminative boilerplate (e.g. "study",
   // generic trial language) that otherwise dominates the cloud and glues every
   // record into one theme. Only applied once there are enough records to be sure.
-  { const N=docTokens.length, dfm=new Map();
+  { const N=recs.reduce((n,r)=>n+(r.aux?0:1),0), dfm=new Map();   // count only non-aux docs (aux tokens are already zeroed)
     for(const toks of docTokens) for(const w of new Set(toks)) dfm.set(w,(dfm.get(w)||0)+1);
     if(N>=8){ const hi=new Set([...dfm].filter(([,c])=>c/N>0.55).map(([w])=>w));
       if(hi.size) docTokens=docTokens.map(t=>t.filter(w=>!hi.has(w))); } }
   const freq=iFreq(docTokens);
   const bm=bm25Rank(recs, insightTerms()); const bmScore=new Map(bm.map(o=>[o.i,o.score]));
+  // "Also tracked" aux records are standing reference lookups, not window developments
+  // ranked by relevance — sort them to the bottom of the Sources list, not the top.
+  recs.forEach((r,i)=>{ if(r.aux) bmScore.set(i,-Infinity); });
   // Cluster the salient terms once (spherical k-means), then share it between the
   // word cloud (colour) and the Emergent-themes card (record grouping) so they agree.
   const cloud=textRankTerms(docTokens,40);
@@ -3068,7 +3075,7 @@ function renderInsights(){
         `<div class="maplegend" style="margin-top:.4rem">${legend}</div></div>`;
     }
   }
-  const phrases=yakeKeyphrases(recs, stop, 12);
+  const phrases=yakeKeyphrases(recs.filter(r=>!r.aux), stop, 12);   // aux reference text excluded from key phrases
   if(phrases.length)
     html+=`<div class="icard"><h3>Key phrases — YAKE! <span class="ihint">click to filter</span></h3>`+phrases.map(([p])=>`<span class="kphrase ifacet" data-facet="phrase:${escA(p)}" data-ids="${escA(JSON.stringify(idsForPhrase(p)))}">${esc(p)}</span>`).join("")+`</div>`;
 
