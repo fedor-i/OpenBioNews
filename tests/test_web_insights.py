@@ -181,6 +181,28 @@ def test_cross_agency_company_canonicalisation():
     js = _script()
     assert "function canonCompany" in js, "company canonicalisation removed"
     assert "function companyGroups" in js, "company grouping removed"
+    # & normalised to "and", industry descriptors stripped, suffix strip iterates —
+    # so "Eli Lilly & Co" == "Eli Lilly and Company" and "Novartis Pharmaceuticals"
+    # == "Novartis Pharma" collapse to one row.
+    assert 'replace(/&/g," and ")' in js, "'&' not normalised to 'and' in canonCompany"
+    assert "COMPANY_DESC" in js, "industry-descriptor stripping removed from canonCompany"
+    assert "while(s && s!==prev)" in js, "iterative suffix stripping removed from canonCompany"
+
+
+def test_monthly_volume_proration_capped_and_ranged():
+    # Partial edge-month proration is capped (a 2-day sliver can't read as a 15/month
+    # spike), and the sparkline uses the actual window range, not a days-ago guess.
+    js = _script()
+    assert "Math.min(md/covered, 3)" in js, "partial-month proration multiplier no longer capped"
+    assert "monthlyVolume(recs, {from:R.fromISO, to:R.toISO})" in js, \
+        "sparkline no longer uses the actual window range (breaks custom ranges)"
+
+
+def test_rising_terms_truncation_honest():
+    # The rising-terms card reports when it's showing only the top N of a longer list.
+    js = _script()
+    assert "top.total=out.length" in js, "rising-terms total count not exposed"
+    assert "accelerating terms." in js, "rising-terms truncation hint removed"
 
 
 def test_find_similar_on_references():

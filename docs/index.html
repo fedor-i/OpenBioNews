@@ -2743,7 +2743,9 @@ function risingTerms(docTokens, recentFlags, topn){
       out.push({term:w, recent:rc, base:bc, lift, fresh:bc===0});
   }
   out.sort((a,b)=>b.lift-a.lift||b.recent-a.recent||a.term.localeCompare(b.term));
-  return out.slice(0,topn);
+  const top=out.slice(0,topn);
+  top.total=out.length;            // full count, so the card can be honest about truncation
+  return top;
 }
 // Split records into the recent/older halves for rising-term momentum, over only the
 // records we can actually date. Undated records are neither "recent" nor "old", so
@@ -2837,7 +2839,10 @@ function monthlyVolume(records, opts){
     if(from && from>cs) cs=from;
     if(to && to<ce) ce=to;
     const covered=dnum(ce)-dnum(cs)+1;
-    const prorated=(covered>0 && covered<md) ? Math.round(raw*md/covered*10)/10 : raw;  // scale partial months only
+    // Scale partial edge months up to a full-month rate — but cap the multiplier at 3×
+    // so a 2-day sliver with one record doesn't read as a 15/month spike.
+    const factor=(covered>0 && covered<md) ? Math.min(md/covered, 3) : 1;
+    const prorated=factor!==1 ? Math.round(raw*factor*10)/10 : raw;
     out.push([ym, prorated, raw]);
   }
   return out.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
@@ -2908,8 +2913,20 @@ function iSaveSeen(sig, ids){
 // Canonicalise before counting: drop a trailing ticker in parens, lowercase, strip
 // the corporate suffix and punctuation.
 function stripTicker(s){ return String(s||"").replace(/\s*\([A-Za-z0-9.\- ]{1,12}\)\s*$/,"").trim(); }
+// Industry descriptors that different agencies append inconsistently to the same
+// firm ("Novartis Pharmaceuticals" vs "Novartis Pharma", "Acme Therapeutics").
+const COMPANY_DESC = /[\s]+(pharmaceuticals?|pharma|therapeutics?|biopharmaceuticals?|biopharma|biosciences?|biotherapeutics?)$/i;
 function canonCompany(name){
-  return stripTicker(name).toLowerCase().replace(/[.,]/g,"").replace(/[\-\/]/g," ").replace(CORP_SUFFIX,"").replace(/\s+/g," ").trim();
+  let s=stripTicker(name).toLowerCase()
+    .replace(/&/g," and ")            // "Eli Lilly & Co" == "Eli Lilly and Company"
+    .replace(/[.,]/g,"")
+    .replace(/[\-\/]/g," ")
+    .replace(/\s+/g," ").trim();
+  // Iteratively strip trailing corporate suffixes AND industry descriptors, so e.g.
+  // "Acme Pharmaceuticals Inc" collapses the same as "Acme" (one firm, one row).
+  let prev=null;
+  while(s && s!==prev){ prev=s; s=s.replace(CORP_SUFFIX,"").replace(COMPANY_DESC,"").replace(/\s+/g," ").trim(); }
+  return s.replace(/\s+and$/,"").trim();   // drop a dangling connective ("eli lilly and" -> "eli lilly")
 }
 function companyGroups(records, topn){
   const g=new Map();
@@ -3055,7 +3072,7 @@ function renderInsights(){
     (newest?` · newest ${esc(newest)}`:"")+(oldest&&oldest!==newest?` · back to ${esc(oldest)}`:"")+
     ` · ${periodTxt}</p>`+
     `<p class="irollup">${rollup}</p>`;
-  const vol=monthlyVolume(recs, {from:daysAgoISO(days)}), spark=iSparkline(vol);
+  const vol=monthlyVolume(recs, {from:R.fromISO, to:R.toISO}), spark=iSparkline(vol);
   if(spark) html+=`<div class="ispark-row"><span class="isl" title="Partial months (the window's first month and the current month) are prorated to a full-month rate.">records/month*</span>${spark}`+
     `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`;
   if(deltaTxt) html+=`<div class="idelta" title="Dated developments in the newer half of the window vs the earlier half.">Momentum: ${deltaTxt}</div>`;
@@ -3106,7 +3123,9 @@ function renderInsights(){
     html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating in the newer half of the ${esc(winLabel)} vs. the earlier half</span></h3><div class="riserow">`+
       rising.map(t=>`<span class="riseterm ifacet${t.fresh?" fresh":""}" data-facet="term:${escA(t.term)}" data-ids="${escA(JSON.stringify(idsForTerm(t.term)))}" title="${t.recent}× recently vs ${t.base}× before">`+
         `${esc(t.term)} <b>${t.fresh?"new":"×"+t.lift.toFixed(1)}</b></span>`).join("")+
-      `</div></div>`;
+      `</div>`+
+      ((rising.total||rising.length)>rising.length?`<div class="ihint" style="margin-top:.4rem">Showing the top ${rising.length} of ${rising.total} accelerating terms.</div>`:"")+
+      `</div>`;
   } else if(riseW.n){
     // Guard rails suppressed the list — say so, so "no momentum" reads differently
     // from "not enough dated history to compute it" (an empty card looks like a bug).
