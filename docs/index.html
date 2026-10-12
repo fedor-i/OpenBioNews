@@ -210,6 +210,18 @@
   .fnote{color:var(--muted);font-size:.84rem;font-style:italic}
   .istats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.7rem;margin:.6rem 0}
   .icard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:.85rem 1rem;box-shadow:var(--shadow)}
+  /* Records-first: the analytic cards fold into one collapsed drawer so the records
+     read first. Inner cards go borderless inside it to avoid a card-in-a-card look. */
+  .ianalysis{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);margin:.6rem 0}
+  .ianalysis>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:.4rem;padding:.75rem 1rem;font-weight:700;font-size:.95rem}
+  .ianalysis>summary::-webkit-details-marker{display:none}
+  .ianalysis>summary::before{content:"▸";color:var(--muted);font-size:.8rem;transition:transform .15s;flex:0 0 auto}
+  .ianalysis[open]>summary{border-bottom:1px solid var(--line)}
+  .ianalysis[open]>summary::before{transform:rotate(90deg)}
+  .iabody{padding:.6rem 1rem 1rem}
+  .iabody>.icard,.iabody .istats .icard{border:none;box-shadow:none;background:none;padding:.4rem 0}
+  .iabody>.icard,.iabody>.istats{margin-top:.5rem}
+  .iabody>.icard:first-child{margin-top:0}
   .icard h3{margin:0 0 .55rem;font-size:.92rem}
   .istat{display:flex;align-items:center;gap:.5rem;margin:.3rem 0;font-size:.87rem;position:relative}
   .istat .lbl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -3133,6 +3145,12 @@ function renderInsights(){
       `</div>`;
   }
 
+  // Records-first: the analytic cards below (themes, stat bars, rising terms, word
+  // cloud, key phrases) are captured into one collapsed "Patterns & analysis" drawer
+  // so the primary-source records land right under the summary, not below seven
+  // widgets. The facets inside still filter the Sources list; collapsed by default,
+  // they sit *above* that list when opened — the conventional filter direction.
+  const analysisStart=html.length;
   // ---- Emergent themes (spherical k-means; colours match the word cloud) ----
   const clusters=buildThemes(recs, docTokens, termCluster, termGroups);
   if(clusters.length){
@@ -3203,6 +3221,17 @@ function renderInsights(){
   if(phrases.length)
     html+=`<div class="icard"><h3>Key phrases — YAKE! <span class="ihint">click to filter</span></h3>`+phrases.map(([p])=>`<span class="kphrase ifacet" data-facet="phrase:${escA(p)}" data-ids="${escA(JSON.stringify(idsForPhrase(p)))}">${esc(p)}</span>`).join("")+`</div>`;
 
+  // Pull the analytic cards out of the main flow and fold them into one collapsed
+  // drawer, so what follows (the Sources list) is the first substantial thing read.
+  const analysisHtml=html.slice(analysisStart);
+  html=html.slice(0, analysisStart);
+  if(analysisHtml.trim()){
+    const nThemes=clusters.length;
+    html+=`<details class="ianalysis"><summary>Patterns &amp; analysis `+
+      `<span class="ihint">themes${nThemes?` (${nThemes})`:""}, companies, word cloud, key phrases — click to filter</span></summary>`+
+      `<div class="iabody">${analysisHtml}</div></details>`;
+  }
+
   const SRC_CAP=150;   // analyse all records; render at most this many cards to keep the DOM light
   const srcNote = recs.length>SRC_CAP ? ` (showing the top ${SRC_CAP})` : "";
   // Jump-to-type chips: filter the ranked list to one record type in a click, so a
@@ -3222,6 +3251,10 @@ function renderInsights(){
   if(jump) jump.onclick=()=>{ const h=box.querySelector(".isrc-h"); if(!h) return;
     const reduce=matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
     try{ h.scrollIntoView({behavior:reduce?"auto":"smooth", block:"start"}); }catch(_){ h.scrollIntoView(); } };
+  // Stat-bar labels can't be measured while the analysis drawer is collapsed, so
+  // re-run the clipped-label check the first time it opens.
+  const ana=box.querySelector(".ianalysis");
+  if(ana) ana.addEventListener("toggle",()=>{ if(ana.open) markClippedBars(box); }, {once:true});
 
   const srcBox=$("isrc");
   // Precompute nearest neighbours for the rendered cards (TF-IDF cosine over the same

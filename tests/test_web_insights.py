@@ -482,6 +482,21 @@ def test_rerun_dims_instead_of_blanking():
     assert 'hasDigest=!!panel.querySelector(".iwrap")' in js, "re-run doesn't detect an existing digest"
 
 
+def test_records_first_folds_analytics_into_drawer():
+    # Records-first: the analytic cards (themes, stat bars, rising terms, word cloud,
+    # key phrases) are captured as one slice and folded into a single collapsed
+    # "Patterns & analysis" <details>, so the Sources records read first.
+    js = _script()
+    assert "const analysisStart=html.length;" in js, "analytics-slice start marker missing"
+    assert "const analysisHtml=html.slice(analysisStart);" in js, "analytics slice not captured"
+    assert "html=html.slice(0, analysisStart);" in js, "analytics not removed from the main flow"
+    assert '<details class="ianalysis">' in js, "collapsed analysis drawer missing"
+    assert "Patterns &amp; analysis" in js, "analysis drawer label missing"
+    # The drawer is built before the Sources header, so records follow it.
+    assert js.index('<details class="ianalysis">') < js.index('class="isrc-h"'), \
+        "analysis drawer is not placed before the Sources list"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):
