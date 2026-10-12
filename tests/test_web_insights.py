@@ -408,6 +408,80 @@ def test_sources_jump_to_type_chips():
     assert "Jump to type:" in js, "Sources type-chip label missing"
 
 
+def test_momentum_delta_has_small_sample_floor():
+    # The momentum % must not shout "+100%" over a handful of records; it mirrors the
+    # rising-terms guard and only quotes a percentage when each half has >= 3 records.
+    js = _script()
+    assert "deltaStable = recentN>=3 && earlierN>=3" in js, "momentum % lacks a small-sample floor"
+    assert "deltaStable ? Math.round" in js, "momentum % no longer gated on the stability floor"
+
+
+def test_headline_newest_capped_at_today():
+    # An estimated / ahead-of-print future date must not headline as the newest activity.
+    js = _script()
+    assert "r.date<=todayStr" in js, "headline 'newest' no longer excludes future-dated records"
+
+
+def test_hover_only_caveats_made_visible():
+    # Mobile has no hover: the sparkline proration note and momentum explanation render
+    # as visible text, and the dangling 'records/month*' asterisk is gone.
+    js = _script()
+    assert "records/month*" not in js, "sparkline still prints the hover-only asterisk"
+    assert "Partial first / current months are prorated" in js, "proration caveat not shown as visible text"
+    assert "newer half of the window vs the earlier half" in js, "momentum explanation not shown as visible text"
+
+
+def test_jump_to_sources_anchor():
+    # A visible control jumps past the analytics cards to the primary-source records.
+    js = _script()
+    assert 'id="ijump"' in js, "jump-to-sources control missing"
+    assert "Jump to the" in js, "jump-to-sources label missing"
+
+
+def test_by_source_marks_aux_and_hides_when_single():
+    # "By source" bars flag the aux 'also tracked' lookups, and the card is suppressed
+    # when there is only one source (a lone 100% bar says nothing).
+    js = _script()
+    assert 'AUX_AG=new Set(["events","labels"])' in js, "aux agencies not identified for By-source bars"
+    assert '(also tracked)' in js, "aux By-source bars not labelled"
+    assert "if(active.length>1) html+=`<div class=\"icard\"><h3>By source</h3>" in js, \
+        "By-source card not hidden for a single source"
+
+
+def test_meta_line_split_primary_secondary():
+    # The dense run-on headline meta is split into a lead line + a muted secondary line,
+    # and 'reference cards' is defined inline on first use.
+    js = _script()
+    assert 'class="imeta2"' in js, "secondary meta line missing"
+    assert "standing references, no event date" in js, "'reference cards' not defined inline"
+
+
+def test_summarize_renamed_build_digest():
+    # The no-LLM promise shouldn't be undercut by a 'Summarize' button; the Insights
+    # action reads 'Build digest'. (The separate FAERS 'Summarize reactions' stays.)
+    assert '<button class="go" id="i_run">Build digest</button>' in SRC, "Insights action not renamed"
+    assert '<button class="go" id="i_run">Summarize</button>' not in SRC, "stale 'Summarize' label remains"
+
+
+def test_themes_heading_drops_method_jargon():
+    # The method name lives in the Methods line; the card heading is plain language.
+    js = _script()
+    assert "Emergent themes — k-means clustering" not in js, "themes heading still carries method jargon"
+
+
+def test_page_has_h1():
+    # The page needs a top-level heading for document structure / screen readers.
+    assert '<h1 class="brand">' in SRC, "page has no <h1> landmark heading"
+
+
+def test_rerun_dims_instead_of_blanking():
+    # A re-run dims the existing digest (aria-busy) instead of blanking it and jumping
+    # the reader to the top.
+    js = _script()
+    assert 'panel.classList.add("ibusy")' in js, "re-run no longer dims the existing digest"
+    assert 'hasDigest=!!panel.querySelector(".iwrap")' in js, "re-run doesn't detect an existing digest"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

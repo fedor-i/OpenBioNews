@@ -42,7 +42,7 @@
   body{margin:0;background:var(--bg);color:var(--ink);
     font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
   header{max-width:60rem;margin:0 auto;padding:1.6rem 1rem .2rem}
-  .brand{font:700 1.5rem/1.1 Georgia,"Times New Roman",serif;letter-spacing:-.01em}
+  .brand{font:700 1.5rem/1.1 Georgia,"Times New Roman",serif;letter-spacing:-.01em;margin:0}
   .brand small{font:400 .82rem/1.3 -apple-system,sans-serif;color:var(--muted);display:block;margin-top:.35rem}
   main{max-width:60rem;margin:0 auto;padding:0 1rem 3rem}
   .tabs{display:flex;flex-wrap:wrap;gap:.2rem .4rem;margin:1rem 0 .2rem;border-bottom:1px solid var(--line)}
@@ -159,12 +159,18 @@
   .iwrap{margin:.4rem 0}
   .isum{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1rem 1.1rem;box-shadow:var(--shadow);margin:.4rem 0 .6rem}
   .isum h2{margin:.1rem 0 .3rem;font-size:1.2rem;line-height:1.25}
-  .imeta{color:var(--muted);font-size:.86rem;margin:0 0 .4rem}
+  .imeta{color:var(--ink);font-size:.95rem;margin:0 0 .15rem}
   .imeta b{color:var(--accent)}
+  .imeta2{color:var(--muted);font-size:.8rem;margin:0 0 .5rem}
+  .imeta2 b{color:var(--muted)}
   .irollup{font-size:.95rem;line-height:1.45;margin:.1rem 0 .6rem;padding:.5rem .7rem;background:var(--chip);border-left:3px solid var(--accent);border-radius:6px;color:var(--ink)}
   .irollup b{color:var(--accent)}
   .idelta{color:var(--muted);font-size:.78rem;margin:-.2rem 0 .5rem}
   .idelta b{color:var(--ink)}
+  .ijump{display:inline-block;background:none;border:1px solid var(--line);color:var(--accent);
+    border-radius:999px;padding:.2rem .7rem;font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;margin:.1rem 0 .5rem}
+  .ijump:hover{border-color:var(--accent);background:var(--chip)}
+  .ibusy{opacity:.5;pointer-events:none;transition:opacity .15s}
   .icov{color:var(--muted);font-size:.76rem;margin-top:.5rem;background:var(--chip);border-radius:8px;padding:.4rem .6rem}
   .icov b{color:var(--ink)}
   .imethods{color:var(--muted);font-size:.73rem;margin-top:.6rem;border-top:1px dashed var(--line);padding-top:.5rem}
@@ -217,6 +223,10 @@
   .istat .bar2{height:.5rem;border-radius:999px;background:var(--accent)}
   .istat .bar2.a2{background:var(--accent2)}
   .istat .cnt{color:var(--muted);font-variant-numeric:tabular-nums;min-width:2.2em;text-align:right}
+  /* On phones there is no hover, so let long labels wrap and read in full instead
+     of ellipsizing into a reveal the reader can never trigger. */
+  @media (max-width:480px){ .istat{align-items:flex-start}
+    .istat .lbl{white-space:normal;overflow:visible;text-overflow:clip} }
   .icloud{line-height:2.1}
   .cw{display:inline-block;margin:.12rem .32rem;color:var(--muted);font-weight:700}
   .cw.a2{color:var(--accent2)}
@@ -323,9 +333,9 @@
 <body>
 <header>
   <button class="toggle" id="themeBtn" title="Toggle light/dark">◐ theme</button>
-  <div class="brand">OpenBioNews
+  <h1 class="brand">OpenBioNews
     <small>Filter clinical trials, FDA recalls · approvals · shortages, and SEC filings — live, free, and traced to the source record.</small>
-  </div>
+  </h1>
 </header>
 
 <div class="watchbar">
@@ -665,12 +675,12 @@
         </div>
       </div>
       <div class="row">
-        <button class="go" id="i_run">Summarize</button>
+        <button class="go" id="i_run">Build digest</button>
         <button class="ghost" id="i_clear">Clear</button>
         <span class="te-hint">Deterministic analysis — term frequency + TF-IDF over the primary-source records, no LLM. Every figure is counted from the sources listed beneath it.</span>
       </div>
     </div>
-    <div id="insights"><div class="iempty">Add companies, drugs or topics to your watchlist above (or type a subject), then hit <b>Summarize</b> for a cross-agency digest, key stats and a word cloud — built live from ClinicalTrials.gov, openFDA and SEC EDGAR, with every item cited to its source record.</div></div>
+    <div id="insights"><div class="iempty">Add companies, drugs or topics to your watchlist above (or type a subject), then hit <b>Build digest</b> for a cross-agency digest, key stats and a word cloud — built live from ClinicalTrials.gov, openFDA and SEC EDGAR, with every item cited to its source record.</div></div>
   </section>
 
   <div class="bar" id="resultsBar">
@@ -3038,9 +3048,12 @@ function renderInsights(){
   const unseen=r=> baseHas ? !baseSet.has(r.id) : false;       // new since Insights last showed this subject
   const perAgency={}; let newN=0, newest="", oldest="";
   for(const t of I_AGENCIES) perAgency[t]=0;
+  const todayStr=daysAgoISO(0);
   recs.forEach((r)=>{
     perAgency[r.agency]=(perAgency[r.agency]||0)+1;
-    if(r.date){ if(!newest||r.date>newest) newest=r.date; if(!oldest||r.date<oldest) oldest=r.date; }
+    // "newest" is the newest *actual* record: an estimated / ahead-of-print date in
+    // the future isn't news, so it must not headline as the latest activity.
+    if(r.date){ if(r.date<=todayStr && (!newest||r.date>newest)) newest=r.date; if(!oldest||r.date<oldest) oldest=r.date; }
     if(unseen(r)) newN++;
   });
   const active=I_AGENCIES.filter(t=>perAgency[t]>0);
@@ -3075,23 +3088,29 @@ function renderInsights(){
   // in the newer half of the window vs the earlier half.
   let recentN=0, earlierN=0;
   for(const r of recs){ if(r.aux||!r.date) continue; (r.date>=midISO?recentN++:earlierN++); }
-  const deltaPct = earlierN>0 ? Math.round((recentN-earlierN)/earlierN*100) : null;
+  // Only quote a % when each half has enough dated records to mean something — mirrors
+  // the rising-terms guard, so a "2 vs 1" sliver doesn't render a confident "+100%".
+  const deltaStable = recentN>=3 && earlierN>=3;
+  const deltaPct = deltaStable ? Math.round((recentN-earlierN)/earlierN*100) : null;
   const deltaTxt = (recentN+earlierN)>0
     ? `recent half <b>${recentN}</b> vs earlier half <b>${earlierN}</b>`+(deltaPct!=null?` (${deltaPct>=0?"+":""}${deltaPct}%)`:"")
     : "";
 
   let html=`<div class="iwrap"><div class="isum">`+
     `<h2>${esc(iSubjectLabel||"Your watchlist")}</h2>`+
-    `<p class="imeta"><b>${coreN}</b> development${coreN!==1?"s":""}`+
-    (auxN?` + <b>${auxN}</b> reference card${auxN!==1?"s":""}`:"")+
-    ` across ${active.length} source${active.length!==1?"s":""}`+
-    (newest?` · newest ${esc(newest)}`:"")+(oldest&&oldest!==newest?` · back to ${esc(oldest)}`:"")+
-    ` · ${periodTxt}</p>`+
+    `<p class="imeta"><b>${coreN}</b> development${coreN!==1?"s":""} · ${periodTxt}</p>`+
+    `<p class="imeta2">`+
+      (auxN?`+ <b>${auxN}</b> reference card${auxN!==1?"s":""} <span class="ihint">(FAERS + labels — standing references, no event date)</span> · `:"")+
+      `across ${active.length} source${active.length!==1?"s":""}`+
+      (newest?` · newest ${esc(newest)}`:"")+(oldest&&oldest!==newest?` · back to ${esc(oldest)}`:"")+
+    `</p>`+
     `<p class="irollup">${rollup}</p>`;
   const vol=monthlyVolume(recs, {from:R.fromISO, to:R.toISO}), spark=iSparkline(vol);
-  if(spark) html+=`<div class="ispark-row"><span class="isl" title="Partial months (the window's first month and the current month) are prorated to a full-month rate.">records/month*</span>${spark}`+
-    `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`;
-  if(deltaTxt) html+=`<div class="idelta" title="Dated developments in the newer half of the window vs the earlier half.">Momentum: ${deltaTxt}</div>`;
+  if(spark) html+=`<div class="ispark-row"><span class="isl">records/month</span>${spark}`+
+    `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`+
+    `<div class="mapcap">Partial first / current months are prorated to a full-month rate.</div>`;
+  if(deltaTxt) html+=`<div class="idelta">Momentum: ${deltaTxt} <span class="ihint">· newer half of the window vs the earlier half</span></div>`;
+  html+=`<button class="ijump" id="ijump">Jump to the ${coreN} source record${coreN!==1?"s":""} ↓</button>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
   html+=`<div class="icov"><b>Coverage:</b> ClinicalTrials.gov · FDA recalls / approvals / shortages · Federal Register · SEC EDGAR · PubMed, plus FDA adverse events (FAERS) &amp; labels <i>(also tracked)</i> — <b>US regulators plus PubMed literature</b>. No EMA / ex-US regulators, no press releases. Nothing here ≠ nothing happened.</div>`+
     `<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>k-means</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
@@ -3117,7 +3136,7 @@ function renderInsights(){
   // ---- Emergent themes (spherical k-means; colours match the word cloud) ----
   const clusters=buildThemes(recs, docTokens, termCluster, termGroups);
   if(clusters.length){
-    html+=`<div class="icard ithemes"><h3>Emergent themes — k-means clustering <span class="ihint">click to filter</span></h3><div class="themerow">`+
+    html+=`<div class="icard ithemes"><h3>Emergent themes <span class="ihint">click to filter</span></h3><div class="themerow">`+
       clusters.map(c=>{ const ids=c.recIdxs.map(i=>recs[i].id); const cc=c.cidx<3?("tc"+c.cidx):"tcx";
         return `<button class="theme ifacet ${cc}" data-facet="theme:${escA(c.label)}" data-ids="${escA(JSON.stringify(ids))}">`+
           `<span class="tdot"></span><span class="tlabel">${esc(c.label)}</span><span class="tcount">${c.count}</span></button>`; }).join("")+
@@ -3128,7 +3147,11 @@ function renderInsights(){
   const areas=topN(countField(recs,r=>r.areas),8).map(([k,v])=>[k,v,idsWhere(r=>(r.areas||[]).includes(k))]);
   const phases=topN(countField(recs.filter(r=>r.agency==="trials"),r=>(r.phase||[]).map(prettyPhase1)),6);
   html+=`<div class="istats">`;
-  html+=`<div class="icard"><h3>By source</h3>${iBars(active.map(t=>[I_AG[t],perAgency[t],idsWhere(r=>r.agency===t)]),Math.max(1,...active.map(t=>perAgency[t])),"a2","source")}</div>`;
+  // "By source" conflates dated developments with the aux "also tracked" reference
+  // lookups (FAERS, labels) unless we say so; and a single 100%-wide bar conveys
+  // nothing, so only show the card once there's more than one source.
+  const AUX_AG=new Set(["events","labels"]);
+  if(active.length>1) html+=`<div class="icard"><h3>By source</h3>${iBars(active.map(t=>[I_AG[t]+(AUX_AG.has(t)?" (also tracked)":""),perAgency[t],idsWhere(r=>r.agency===t)]),Math.max(1,...active.map(t=>perAgency[t])),"a2","source")}</div>`;
   if(companies.length) html+=`<div class="icard"><h3>Top companies <span class="ihint">click to filter</span></h3>${iBars(companies,companies[0][1],null,"company")}</div>`;
   if(areas.length)     html+=`<div class="icard"><h3>Top therapeutic areas <span class="ihint">click to filter</span></h3>${iBars(areas,areas[0][1],null,"area")}</div>`;
   if(phases.length)    html+=`<div class="icard"><h3>Trial phases</h3>${iBars(phases,phases[0][1])}</div>`;
@@ -3192,6 +3215,13 @@ function renderInsights(){
     `<div class="isrcview" id="isrcview"><button data-view="ranked">Ranked</button><button data-view="grouped">Grouped by cluster</button></div>`+
     `<div id="ifilter" hidden></div><div id="isrc"></div></div>`;
   box.innerHTML=html;
+
+  // "Jump to sources" — scroll the records into view past the analytics cards (honours
+  // reduced-motion, same as the facet-filter scroll).
+  const jump=box.querySelector("#ijump");
+  if(jump) jump.onclick=()=>{ const h=box.querySelector(".isrc-h"); if(!h) return;
+    const reduce=matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
+    try{ h.scrollIntoView({behavior:reduce?"auto":"smooth", block:"start"}); }catch(_){ h.scrollIntoView(); } };
 
   const srcBox=$("isrc");
   // Precompute nearest neighbours for the rendered cards (TF-IDF cosine over the same
@@ -3317,14 +3347,20 @@ function wireFacets(box){
 
 async function runInsights(){
   const terms=insightTerms();
-  if(!terms.length){ $("insights").innerHTML=`<div class="iempty">Add something to your watchlist above, or type a subject (e.g. <b>CRISPR</b>), then hit Summarize.</div>`; return; }
+  if(!terms.length){ $("insights").innerHTML=`<div class="iempty">Add something to your watchlist above, or type a subject (e.g. <b>CRISPR</b>), then hit Build digest.</div>`; return; }
   if(iBusy) return; iBusy=true;
   const runBtn=$("i_run"); if(runBtn){ runBtn.disabled=true; runBtn.setAttribute("aria-busy","true"); }
   iSubjectLabel=insightLabel();
-  $("insights").innerHTML=`<div class="iempty">Gathering every record in the ${windowRange().label} from ClinicalTrials.gov, openFDA, the Federal Register, SEC EDGAR and PubMed… (a wider window takes a little longer)</div>`;
+  // Re-running (a window/subject change) should NOT blank a digest already on screen
+  // and throw the reader back to the top: dim the existing panel while fetching, and
+  // only show the full "Gathering…" placeholder on the first run.
+  const panel=$("insights"); const hasDigest=!!panel.querySelector(".iwrap");
+  if(hasDigest){ panel.classList.add("ibusy"); panel.setAttribute("aria-busy","true"); }
+  else panel.innerHTML=`<div class="iempty">Gathering every record in the ${windowRange().label} from ClinicalTrials.gov, openFDA, the Federal Register, SEC EDGAR and PubMed… (a wider window takes a little longer)</div>`;
   try{ iRecords=await fetchInsights(terms, windowRange()); renderInsights(); }
-  catch(err){ $("insights").innerHTML=`<div class="ierr">Could not build insights: ${esc(err.message)}</div>`; }
-  finally{ iBusy=false; if(runBtn){ runBtn.disabled=false; runBtn.removeAttribute("aria-busy"); } }
+  catch(err){ panel.innerHTML=`<div class="ierr">Could not build insights: ${esc(err.message)}</div>`; }
+  finally{ iBusy=false; panel.classList.remove("ibusy"); panel.removeAttribute("aria-busy");
+    if(runBtn){ runBtn.disabled=false; runBtn.removeAttribute("aria-busy"); } }
 }
 // Entering the tab: re-render a cached result, or auto-run when there's a subject.
 function maybeAutoInsights(){
@@ -3346,7 +3382,7 @@ $("i_period").onchange=()=>{
   iRecords=[]; runInsights();
 }); });
 $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
-  $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Summarize.</div>`; };
+  $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Build digest.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,singular,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
   clusterTerms,buildThemes,risingTerms,riseWindow,notableEvents,notableCategories,monthlyVolume,wordleLayout,canonCompany,companyGroups,similarRecords,
