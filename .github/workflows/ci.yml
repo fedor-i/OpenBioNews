@@ -38,6 +38,23 @@ jobs:
           openbionews --version
           openbionews run --demo --quiet --stdout
 
+  mcp:
+    name: mcp server (py3.12 + mcp extra)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Install the optional 'mcp' extra so the server wiring (build_server →
+      # tool registration → round-trip) is actually exercised — this is the guard
+      # that catches an mcp SDK API change the stdlib-only jobs can't see.
+      - name: Install with the MCP extra
+        run: pip install ".[mcp]"
+      - name: Build the MCP server and round-trip a tool call
+        run: python tests/test_mcp_server.py
+
   distros:
     name: distro (${{ matrix.name }})
     runs-on: ubuntu-latest

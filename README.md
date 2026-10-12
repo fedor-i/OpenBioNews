@@ -259,10 +259,11 @@ pip install "openbionews[mcp]"   # the 'mcp' extra; the core stays dependency-fr
 openbionews mcp                  # speaks MCP over stdio
 ```
 
-Tools exposed: `search_clinical_trials`, `search_fda_recalls`,
-`search_fda_approvals`, `search_fda_shortages`, `search_sec_filings`, and
-`watchlist_digest` (all five agencies at once). Each returns JSON records with a
-`citation_url`.
+Ten tools exposed: `search_clinical_trials`, `search_fda_recalls`,
+`search_fda_approvals`, `search_fda_shortages`, `search_fda_adverse_events`,
+`search_fda_labeling`, `search_federal_register`, `search_pubmed`,
+`search_sec_filings`, and `watchlist_digest` (every source at once). Each returns
+JSON records with a `citation_url`.
 
 Register it with Claude Desktop (or Claude Code) — add to your MCP config
 (`claude_desktop_config.json`):
