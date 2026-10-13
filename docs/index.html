@@ -172,7 +172,7 @@
   .ijump:hover{border-color:var(--accent);background:var(--chip)}
   .ibusy{opacity:.5;pointer-events:none;transition:opacity .15s}
   .inote{color:var(--muted);font-size:.78rem;margin:.1rem 0 .5rem;font-style:italic}
-  .icov{color:var(--muted);font-size:.76rem;margin-top:.5rem;background:var(--chip);border-radius:8px;padding:.4rem .6rem}
+  .icov{color:var(--muted);font-size:.76rem;margin-top:.5rem;border:1px solid var(--line);border-radius:8px;padding:.4rem .6rem}
   .icov b{color:var(--ink)}
   .imethods{color:var(--muted);font-size:.73rem;margin-top:.6rem;border-top:1px dashed var(--line);padding-top:.5rem}
   .ehint{color:var(--muted);font-size:.85rem;margin-top:.5rem;max-width:60rem;line-height:1.4}
@@ -283,7 +283,7 @@
   .perflag{display:inline-block;background:var(--accent);color:var(--on-accent);border-radius:6px;padding:.05rem .4rem;
     font-size:.68rem;font-weight:700;letter-spacing:.02em;margin-right:.35rem;vertical-align:middle}
   .ihint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:.72rem;margin-left:.4rem}
-  .ispark-row{display:flex;align-items:center;gap:.5rem;margin:.1rem 0 .5rem;color:var(--accent)}
+  .ispark-row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.1rem 0 .5rem;color:var(--accent)}
   .ispark-row .isl{color:var(--muted);font-size:.72rem}
   .ispark{display:block;flex:0 0 auto}
   .inotable{margin:.5rem 0}
@@ -803,7 +803,7 @@ function citeSentences(text, url, label){
 function renumberCites(container, itemSel){
   if(!container) return;
   let n=0;
-  container.querySelectorAll(itemSel||":scope > article").forEach(item=>{ n++;
+  container.querySelectorAll(itemSel||":scope > article").forEach(item=>{ if(item.hidden) return; n++;
     item.querySelectorAll("sup.cite").forEach(sup=>{ const a=sup.querySelector("a"); if(a) a.textContent=n; else sup.textContent=String(n); });
   });
 }
@@ -3028,7 +3028,7 @@ function iSparkline(series){
   const W=150,H=30,pad=3,n=series.length,max=Math.max(...series.map(s=>s[1]))||1;
   const x=i=>pad+(W-2*pad)*(i/(n-1)), y=v=>H-pad-(H-2*pad)*(v/max);
   const pts=series.map((s,i)=>`${x(i).toFixed(1)},${y(s[1]).toFixed(1)}`).join(" ");
-  const dots=series.map((s,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(s[1]).toFixed(1)}" r="1.5"/>`).join("");
+  const dots=series.map((s,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(s[1]).toFixed(1)}" r="1.5" fill="currentColor"/>`).join("");
   return `<svg class="ispark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Records over time, in equal periods ending today">`+
     `<polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${pts}"/>${dots}</svg>`;
 }
@@ -3060,23 +3060,29 @@ function renderInsights(){
     if(N>=8){ const hi=new Set([...dfm].filter(([,c])=>c/N>0.55).map(([w])=>w));
       if(hi.size) docTokens=docTokens.map(t=>t.filter(w=>!hi.has(w))); } }
   const freq=iFreq(docTokens);
-  const bm=bm25Rank(recs, insightTerms()); const bmScore=new Map(bm.map(o=>[o.i,o.score]));
-  // "Also tracked" aux records are standing reference lookups, not window developments
-  // ranked by relevance — sort them to the bottom of the Sources list, not the top.
-  recs.forEach((r,i)=>{ if(r.aux) bmScore.set(i,-Infinity); });
+  // BM25 over NON-aux records only, so aux "also tracked" cards (FAERS, labels) don't
+  // contaminate the corpus statistics (N, document frequency, average length) that
+  // rank the real developments. Map the subset scores back to recs indices; aux cards
+  // are standing reference lookups, not window developments, so they sort to the bottom.
+  const nonAux=recs.filter(r=>!r.aux);
+  const bmL=bm25Rank(nonAux, insightTerms());
+  const bmScore=new Map(); let _bk=0;
+  recs.forEach((r,i)=>{ bmScore.set(i, r.aux?-Infinity:(bmL[_bk++].score)); });
   // Cluster the salient terms once (spherical k-means), then share it between the
   // word cloud (colour) and the Emergent-themes card (record grouping) so they agree.
   const cloud=textRankTerms(docTokens,40);
   const {assign:termCluster, groups:termGroups}=clusterTerms(cloud.map(c=>c[0]), docTokens);  // adaptive K (silhouette)
   const R=windowRange(); const days=R.days, winLabel=R.label;
   const iSig=iSubjectSig(), prevSeen=iSeen[iSig], baseHas=!!prevSeen, baseSet=new Set(prevSeen||[]);
-  // newer half of the window = "recent" for rising-term momentum (midpoint of the span)
-  const midISO=new Date((Date.parse(R.fromISO)+Date.parse(R.toISO))/2).toISOString().slice(0,10);
   // The window's upper bound, never past today — the time-series (momentum, rising
   // terms, sparkline) is scoped to [fromISO, winHi] so out-of-window records (e.g. a
   // PubMed hit with an older print date) can't distort the trend or the period.
   const winHi=(R.toISO && R.toISO<todayISO())?R.toISO:todayISO();
   const inWindow=d=>!!d && d>=R.fromISO && d<=winHi;
+  // newer half of the window = "recent" for momentum — split at the midpoint of the
+  // SCOPED span [fromISO, winHi], so a custom window ending in the future doesn't push
+  // the split past the real data (which the chart also caps at today).
+  const midISO=new Date((Date.parse(R.fromISO)+Date.parse(winHi))/2).toISOString().slice(0,10);
   const unseen=r=> baseHas ? !baseSet.has(r.id) : false;       // new since Insights last showed this subject
   const perAgency={}; let newN=0, newest="", oldest="";
   for(const t of I_AGENCIES) perAgency[t]=0;
@@ -3140,9 +3146,9 @@ function renderInsights(){
   const vol=volumeSeries(recs, {from:R.fromISO, to:R.toISO}), spark=iSparkline(vol);
   if(spark) html+=`<div class="ispark-row"><span class="isl">records over time</span>${spark}`+
     `<span class="isl">${esc(R.fromISO)} → ${esc(winHi)}</span></div>`+
-    `<div class="mapcap">Equal whole-day periods anchored to today (not calendar months), so the last point is a full period.</div>`;
-  if(deltaTxt) html+=`<div class="idelta">Momentum: ${deltaTxt} <span class="ihint">· newer half of the window vs the earlier half</span></div>`;
-  html+=`<button class="ijump" id="ijump">Jump to the ${coreN} source record${coreN!==1?"s":""} ↓</button>`;
+    `<div class="mapcap">Equal whole-day periods (not calendar months), the last ending today; recent days may be under-counted while sources finish indexing.</div>`;
+  if(deltaTxt) html+=`<div class="idelta">Momentum: ${deltaTxt} <span class="ihint">· newer vs earlier records in this window</span></div>`;
+  if(coreN>0) html+=`<button class="ijump" id="ijump">Jump to the ${coreN} source record${coreN!==1?"s":""} ↓</button>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
   if(iNotes.length) html+=`<div class="inote">${iNotes.map(n=>esc(n)).join(" · ")}. Narrow the subject or shorten the window for the full set.</div>`;
   html+=`<div class="icov"><b>Coverage:</b> ClinicalTrials.gov · FDA recalls / approvals / shortages · Federal Register · SEC EDGAR · PubMed, plus FDA adverse events (FAERS) &amp; labels <i>(also tracked)</i> — <b>US regulators plus PubMed literature</b>. No EMA / ex-US regulators, no press releases. Nothing here ≠ nothing happened.</div>`+
@@ -3198,7 +3204,8 @@ function renderInsights(){
 
   // ---- Rising terms (momentum) ---- (riseW/rising computed up top for the rollup)
   if(rising.length){
-    html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating in the newer half of the ${esc(winLabel)} vs. the earlier half</span></h3><div class="riserow">`+
+    const anyFresh=rising.some(t=>t.fresh);   // explain the highlight so colour isn't the only cue
+    html+=`<div class="icard irise"><h3>Rising terms <span class="ihint">accelerating in the newer half of the ${esc(winLabel)} vs. the earlier half${anyFresh?"; highlighted = newly appearing":""}</span></h3><div class="riserow">`+
       rising.map(t=>`<span class="riseterm ifacet${t.fresh?" fresh":""}" data-facet="term:${escA(t.term)}" data-ids="${escA(JSON.stringify(idsForTerm(t.term)))}" title="${t.recent}× recently vs ${t.base}× before">`+
         `${esc(t.term)}${t.fresh?"":` <b>×${t.lift.toFixed(1)}</b>`}</span>`).join("")+
       `</div>`+

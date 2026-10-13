@@ -133,7 +133,7 @@ def test_aux_excluded_from_all_term_analytics():
     js = _script()
     assert "yakeKeyphrases(recs.filter(r=>!r.aux)" in js, "YAKE! key phrases still include aux reference text"
     assert "recs.reduce((n,r)=>n+(r.aux?0:1),0)" in js, "max-doc-frequency denominator still counts aux"
-    assert "if(r.aux) bmScore.set(i,-Infinity)" in js, "aux records not pushed to the bottom of BM25 ranking"
+    assert "r.aux?-Infinity:(bmL[_bk++].score)" in js, "aux records not pushed to the bottom of BM25 ranking"
 
 
 def test_journal_and_agency_not_therapeutic_areas():
@@ -404,6 +404,25 @@ def test_momentum_and_rising_scoped_to_window():
     assert "const inWindow=d=>!!d && d>=R.fromISO && d<=winHi;" in js, "window predicate missing"
     assert "if(r.aux||!inWindow(r.date)) continue;" in js, "momentum not scoped to the window"
     assert "riseWindow(recs, docTokens, midISO, inWindow)" in js, "rising terms not scoped to the window"
+    # The recent/earlier split point is the midpoint of the SCOPED span (capped at
+    # today), not R.toISO — so a custom future-end window can't push it past the data.
+    assert "(Date.parse(R.fromISO)+Date.parse(winHi))/2" in js, "momentum split point not scoped to winHi"
+
+
+def test_bm25_excludes_aux_from_corpus():
+    # BM25 ranks real developments over a NON-aux corpus, so aux 'also tracked' cards
+    # don't contaminate N / document-frequency / average-length statistics.
+    js = _script()
+    assert "const nonAux=recs.filter(r=>!r.aux);" in js, "BM25 still ranks over the aux-contaminated corpus"
+    assert "const bmL=bm25Rank(nonAux, insightTerms());" in js, "BM25 not computed over non-aux records"
+    assert "r.aux?-Infinity:(bmL[_bk++].score)" in js, "aux scores not mapped back / sorted to the bottom"
+
+
+def test_filtered_citations_skip_hidden():
+    # Citation numbers stay sequential (1..N) in a filtered Sources view: renumbering
+    # skips cards the active facet filter has hidden.
+    js = _script()
+    assert "forEach(item=>{ if(item.hidden) return; n++;" in js, "renumberCites still counts hidden cards"
 
 
 def test_pubmed_dated_by_sortpubdate():
@@ -466,8 +485,9 @@ def test_hover_only_caveats_made_visible():
     # as visible text, and the dangling 'records/month*' asterisk is gone.
     js = _script()
     assert "records/month*" not in js, "sparkline still prints the hover-only asterisk"
-    assert "Equal whole-day periods anchored to today" in js, "sparkline binning caveat not shown as visible text"
-    assert "newer half of the window vs the earlier half" in js, "momentum explanation not shown as visible text"
+    assert "Equal whole-day periods (not calendar months)" in js, "sparkline binning caveat not shown as visible text"
+    assert "recent days may be under-counted while sources finish indexing" in js, "indexing-lag caveat missing"
+    assert "newer vs earlier records in this window" in js, "momentum explanation not shown as visible text"
 
 
 def test_jump_to_sources_anchor():
