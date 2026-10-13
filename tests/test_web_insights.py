@@ -189,21 +189,19 @@ def test_cross_agency_company_canonicalisation():
     assert "while(s && s!==prev)" in js, "iterative suffix stripping removed from canonCompany"
 
 
-def test_monthly_volume_proration_capped_and_ranged():
-    # Partial edge-month proration is capped (a 2-day sliver can't read as a 15/month
-    # spike), and the sparkline uses the actual window range, not a days-ago guess.
+def test_volume_series_equal_width_today_anchored():
+    # The sparkline bins into EQUAL-width periods anchored so the last bucket ends at
+    # today — not calendar months. This removes the partial-edge artifact entirely
+    # (no proration), so the last tick neither spikes nor dips, and it reads the
+    # actual window range.
     js = _script()
-    assert "Math.min(md/covered, 3)" in js, "partial-month proration multiplier no longer capped"
-    assert "monthlyVolume(recs, {from:R.fromISO, to:R.toISO})" in js, \
+    assert "function volumeSeries(records, opts)" in js, "volumeSeries binning function missing"
+    assert "const w = span/nB;" in js, "buckets are not equal width"
+    assert "ends.push(dstr(Math.round(lo+(k+1)*w)-1))" in js, "buckets not anchored to end at today"
+    assert "if(d<lo||d>hi) continue;" in js, "volumeSeries not scoped to the window"
+    assert "volumeSeries(recs, {from:R.fromISO, to:R.toISO})" in js, \
         "sparkline no longer uses the actual window range (breaks custom ranges)"
-
-
-def test_current_month_not_prorated():
-    # The still-running month is left raw ("to date"); only the leading partial month
-    # is prorated, so the last tick never spikes from projecting the month forward.
-    js = _script()
-    assert "const curMonth = hi<mEnd;" in js, "current-month detection missing"
-    assert "(covered<md && !curMonth)" in js, "current month is still being prorated (spikes the last tick)"
+    assert "Math.min(md/covered" not in js, "stale calendar-month proration still present"
 
 
 def test_rising_terms_truncation_honest():
@@ -390,12 +388,11 @@ def test_nsev_dead_css_removed():
 
 
 def test_volume_chart_scoped_to_window():
-    # The records/month trend is capped at the present AND dropped for months outside
-    # the window, so neither future dates nor out-of-window records (e.g. an older
-    # PubMed print date) stretch the x-axis beyond the selected period.
+    # The trend never charts past the present, and records outside the window (e.g. an
+    # older PubMed print date, or a future estimated date) don't widen the x-axis.
     js = _script()
-    assert "hi=(to && to<today)?to:today" in js, "monthlyVolume no longer caps the chart at the present"
-    assert "if(covered<=0) continue;" in js, "months outside the window are no longer dropped from the chart"
+    assert "(opts.to && opts.to<today)?opts.to:today" in js, "volumeSeries no longer caps the chart at the present"
+    assert "if(d<lo||d>hi) continue;" in js, "out-of-window records are no longer dropped from the chart"
 
 
 def test_momentum_and_rising_scoped_to_window():
@@ -467,7 +464,7 @@ def test_hover_only_caveats_made_visible():
     # as visible text, and the dangling 'records/month*' asterisk is gone.
     js = _script()
     assert "records/month*" not in js, "sparkline still prints the hover-only asterisk"
-    assert "First partial month prorated to a full-month rate" in js, "proration caveat not shown as visible text"
+    assert "Equal time periods anchored to today" in js, "sparkline binning caveat not shown as visible text"
     assert "newer half of the window vs the earlier half" in js, "momentum explanation not shown as visible text"
 
 

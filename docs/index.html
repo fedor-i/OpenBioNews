@@ -2865,41 +2865,35 @@ function notableCategories(records){
   for(const e of ev){ const c=e.cat||"other"; if(!byCat.has(c)) byCat.set(c,[]); byCat.get(c).push(e); }
   return DEFS.map(d=>({...d, items:byCat.get(d.key)||[]})).filter(d=>d.items.length);
 }
-// ---- monthly volume, for a pure-SVG sparkline (time signal) ----
-// Records per calendar month. The window's FIRST month (a past month we only sampled
-// part of, because the window starts mid-month) is prorated up to a full-month rate
-// so the line isn't dragged down at the start. The CURRENT month is left raw — it
-// isn't over, so projecting its rate up to a full month would invent a sharp upward
-// spike at the last tick for data that doesn't exist yet. Interior full months and
-// anything outside [from,to] are raw. Returns [ym, plottedValue, rawCount].
-function monthlyVolume(records, opts){
+// ---- volume over time, for a pure-SVG sparkline (time signal) ----
+// Equal-width time buckets across [from, to], ANCHORED so the last bucket ends at the
+// present (today). Calendar-month binning leaves the current month partial, which
+// spikes if scaled up to a full-month rate and dips if left raw; equal, today-anchored
+// periods have no partial edge at either end, so every point is directly comparable
+// and no proration is ever needed. Returns [bucketEndISO, count] oldest-first, or []
+// for a degenerate window. Records outside [from, to] (or in the future) are ignored.
+function volumeSeries(records, opts){
   opts=opts||{};
-  const to=opts.to||daysAgoISO(0), from=opts.from||"";
-  // A records/month trend can't run into the future: cap the chart at the present
-  // (or at `to`, whichever is earlier) so estimated/ahead-of-print dates don't
-  // stretch the x-axis out to the end of the year.
-  const today=daysAgoISO(0), hi=(to && to<today)?to:today;
-  const m=new Map();
-  for(const r of records){ const ym=(r.date||"").slice(0,7); if(/^\d{4}-\d{2}$/.test(ym)) m.set(ym,(m.get(ym)||0)+1); }
+  const today=daysAgoISO(0);
+  const toISO=(opts.to && opts.to<today)?opts.to:today;    // never chart past the present
+  const fromISO=opts.from||daysAgoISO(90);
   const dnum=iso=>Math.floor(Date.parse(iso+"T00:00:00Z")/864e5);
-  const dim=ym=>{ const [y,mo]=ym.split("-").map(Number); return new Date(Date.UTC(y,mo,0)).getUTCDate(); };
-  const out=[];
-  for(const [ym,raw] of m){
-    const md=dim(ym), mStart=ym+"-01", mEnd=ym+"-"+String(md).padStart(2,"0");
-    let cs=mStart, ce=mEnd;
-    if(from && from>cs) cs=from;
-    if(hi<ce) ce=hi;                            // clamp the trailing (current) month to the present
-    const covered=dnum(ce)-dnum(cs)+1;
-    if(covered<=0) continue;                    // month lies outside [from, present] → not in the window
-    const curMonth = hi<mEnd;                   // the still-running month: its end is clamped to today
-    // Scale the leading partial month up to a full-month rate (cap 3× so a 2-day
-    // sliver can't read as a huge bar) — but never the current month, whose raw
-    // (lower) count honestly shows "records so far" instead of a projected spike.
-    const factor=(covered<md && !curMonth) ? Math.min(md/covered, 3) : 1;
-    const prorated=factor!==1 ? Math.round(raw*factor*10)/10 : raw;
-    out.push([ym, prorated, raw]);
+  const dstr=n=>new Date(n*864e5).toISOString().slice(0,10);
+  const lo=dnum(fromISO), hi=dnum(toISO), span=hi-lo+1;
+  if(span<2) return [];
+  // A bucket count that reads well as a sparkline (never more than one bucket per day).
+  let nB = span<=14 ? span : span<=90 ? 9 : 12;
+  nB = Math.max(2, Math.min(nB, span));
+  const w = span/nB;                                       // equal (fractional) days per bucket
+  const counts=new Array(nB).fill(0), ends=[];
+  for(let k=0;k<nB;k++) ends.push(dstr(Math.round(lo+(k+1)*w)-1));   // k=nB-1 ends exactly at today
+  for(const r of records){
+    let ds=(r.date||""); if(/^\d{4}-\d{2}$/.test(ds)) ds+="-01";
+    if(!/^\d{4}-\d{2}-\d{2}/.test(ds)) continue;
+    const d=dnum(ds.slice(0,10)); if(d<lo||d>hi) continue;            // window only
+    counts[Math.min(nB-1, Math.floor((d-lo)/w))]++;
   }
-  return out.sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
+  return counts.map((c,k)=>[ends[k], c]);
 }
 // ---- packed word cloud (Wordle-style spiral layout) ----
 // Place the salient terms largest-first along an Archimedean spiral from the
@@ -3033,7 +3027,7 @@ function iSparkline(series){
   const x=i=>pad+(W-2*pad)*(i/(n-1)), y=v=>H-pad-(H-2*pad)*(v/max);
   const pts=series.map((s,i)=>`${x(i).toFixed(1)},${y(s[1]).toFixed(1)}`).join(" ");
   const dots=series.map((s,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(s[1]).toFixed(1)}" r="1.5"/>`).join("");
-  return `<svg class="ispark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Records per month">`+
+  return `<svg class="ispark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Records over time, in equal periods ending today">`+
     `<polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${pts}"/>${dots}</svg>`;
 }
 const I_AG={trials:"ClinicalTrials.gov",recalls:"FDA recalls",approvals:"FDA approvals",shortages:"FDA shortages",sec:"SEC filings",fedreg:"Federal Register",pubmed:"PubMed",events:"FDA adverse events",labels:"FDA labels"};
@@ -3141,10 +3135,10 @@ function renderInsights(){
       (newest?` · newest ${esc(newest)}`:"")+(oldest&&oldest!==newest?` · back to ${esc(oldest)}`:"")+
     `</p>`+
     `<p class="irollup">${rollup}</p>`;
-  const vol=monthlyVolume(recs, {from:R.fromISO, to:R.toISO}), spark=iSparkline(vol);
-  if(spark) html+=`<div class="ispark-row"><span class="isl">records/month</span>${spark}`+
-    `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`+
-    `<div class="mapcap">First partial month prorated to a full-month rate; the current month is to date.</div>`;
+  const vol=volumeSeries(recs, {from:R.fromISO, to:R.toISO}), spark=iSparkline(vol);
+  if(spark) html+=`<div class="ispark-row"><span class="isl">records over time</span>${spark}`+
+    `<span class="isl">${esc(R.fromISO)} → ${esc(winHi)}</span></div>`+
+    `<div class="mapcap">Equal time periods anchored to today (not calendar months), so the last point is a full period.</div>`;
   if(deltaTxt) html+=`<div class="idelta">Momentum: ${deltaTxt} <span class="ihint">· newer half of the window vs the earlier half</span></div>`;
   html+=`<button class="ijump" id="ijump">Jump to the ${coreN} source record${coreN!==1?"s":""} ↓</button>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
@@ -3443,7 +3437,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
   $("insights").innerHTML=`<div class="iempty">Cleared. Add to your watchlist or type a subject, then Build digest.</div>`; };
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,singular,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
-  clusterTerms,buildThemes,risingTerms,riseWindow,notableEvents,notableCategories,monthlyVolume,wordleLayout,canonCompany,companyGroups,similarRecords,
+  clusterTerms,buildThemes,risingTerms,riseWindow,notableEvents,notableCategories,volumeSeries,wordleLayout,canonCompany,companyGroups,similarRecords,
   normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
 
 // ---- shareable URL state ----
