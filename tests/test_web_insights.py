@@ -416,11 +416,17 @@ def test_pubmed_dated_by_sortpubdate():
         "pubmedDateISO no longer parses numeric (sortpubdate) date formats"
 
 
-def test_pubmed_insights_not_capped_at_40():
-    # PubMed was hard-capped at 40 results; raise it so publications aren't truncated.
+def test_pubmed_insights_relevance_capped_and_disclosed():
+    # PubMed can match thousands; keep the most RELEVANT CAP (=200), not just newest,
+    # and disclose "showing N of M" when the match total exceeds what we kept.
     js = _script()
-    assert "retmax=200" in js, "PubMed Insights retmax not raised"
+    assert "const CAP=200;" in js, "PubMed Insights cap not set to 200"
+    assert "retmax=${CAP}" in js and "sort=relevance" in js, \
+        "PubMed Insights no longer fetches the most-relevant CAP"
     assert "retmax=40" not in js, "PubMed Insights still capped at 40"
+    assert "iNotes.push(" in js and "most relevant of" in js, "truncation not disclosed"
+    assert "iNotes=[]" in js, "notes channel not reset per fetch"
+    assert 'class="inote"' in js, "truncation note not rendered"
 
 
 def test_rising_terms_drop_redundant_new_badge():

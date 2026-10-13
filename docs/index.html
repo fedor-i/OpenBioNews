@@ -171,6 +171,7 @@
     border-radius:999px;padding:.2rem .7rem;font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;margin:.1rem 0 .5rem}
   .ijump:hover{border-color:var(--accent);background:var(--chip)}
   .ibusy{opacity:.5;pointer-events:none;transition:opacity .15s}
+  .inote{color:var(--muted);font-size:.78rem;margin:.1rem 0 .5rem;font-style:italic}
   .icov{color:var(--muted);font-size:.76rem;margin-top:.5rem;background:var(--chip);border-radius:8px;padding:.4rem .6rem}
   .icov b{color:var(--ink)}
   .imethods{color:var(--muted);font-size:.73rem;margin-top:.6rem;border-top:1px dashed var(--line);padding-top:.5rem}
@@ -2227,7 +2228,7 @@ const I_STOP = new Set(("a an and or the of to in for on at by from with without
   "broader wider narrower larger smaller higher lower greater fewer better worse stronger weaker "+
   "subject object item items part parts type types kind form forms way ways case cases point points area areas field fields").split(/\s+/).filter(Boolean));
 
-let iRecords = [], iErrors = [], iSubjectLabel = "", iBusy = false;
+let iRecords = [], iErrors = [], iNotes = [], iSubjectLabel = "", iBusy = false;
 
 function prettyPhase1(p){ return (p||"").replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase "); }
 function isoFromYmd(d){ d=String(d||"").replace(/[^0-9]/g,""); return d.length>=8 ? `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}` : ""; }
@@ -2366,9 +2367,15 @@ async function fetchFedRegInsights(terms, fromISO, toISO){
 async function fetchPubMedInsights(terms, fromISO, toISO){
   const term=terms.map(t=>/\s/.test(t)?`"${t}"`:t).join(" OR "); if(!term) return [];
   const mind=fromISO.replace(/-/g,"/"), maxd=toISO.replace(/-/g,"/");
+  const CAP=200;   // PubMed can match thousands; keep the most RELEVANT, and say so.
   try{
-    const s=await getJson(`${PM_ESEARCH}?db=pubmed&term=${encodeURIComponent(term)}&retmax=200&retmode=json&sort=date&datetype=pdat&mindate=${mind}&maxdate=${maxd}`, true);
-    const ids=((s.esearchresult||{}).idlist)||[]; if(!ids.length) return [];
+    // sort=relevance → the CAP we keep are PubMed's best matches in the window, not
+    // just the newest; esearchresult.count is the full match total, for honest disclosure.
+    const s=await getJson(`${PM_ESEARCH}?db=pubmed&term=${encodeURIComponent(term)}&retmax=${CAP}&retmode=json&sort=relevance&datetype=pdat&mindate=${mind}&maxdate=${maxd}`, true);
+    const er=s.esearchresult||{}; const ids=er.idlist||[]; if(!ids.length) return [];
+    const total=+er.count||ids.length;
+    if(total>ids.length)
+      iNotes.push(`PubMed: showing the ${ids.length} most relevant of ${total.toLocaleString()} matches in this window`);
     const d=await getJson(`${PM_ESUMMARY}?db=pubmed&id=${ids.join(",")}&retmode=json`, true);
     const res=d.result||{}; const order=res.uids||ids;
     return order.map(id=>{ const r=res[id]; return r?normPubMed(r,id):null; }).filter(Boolean);
@@ -2447,7 +2454,7 @@ async function pageSec(agency, base, parse, maxPages){
   return out;
 }
 async function fetchInsights(terms, range){
-  iErrors=[];
+  iErrors=[]; iNotes=[];
   range = range || {fromISO:daysAgoISO(90), toISO:todayISO(), custom:false};
   const fromISO=range.fromISO, toISO=range.toISO||todayISO();
   const fromYmd=fromISO.replace(/-/g,""), toYmd=toISO.replace(/-/g,"");
@@ -3141,6 +3148,7 @@ function renderInsights(){
   if(deltaTxt) html+=`<div class="idelta">Momentum: ${deltaTxt} <span class="ihint">· newer half of the window vs the earlier half</span></div>`;
   html+=`<button class="ijump" id="ijump">Jump to the ${coreN} source record${coreN!==1?"s":""} ↓</button>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
+  if(iNotes.length) html+=`<div class="inote">${iNotes.map(n=>esc(n)).join(" · ")}. Narrow the subject or shorten the window for the full set.</div>`;
   html+=`<div class="icov"><b>Coverage:</b> ClinicalTrials.gov · FDA recalls / approvals / shortages · Federal Register · SEC EDGAR · PubMed, plus FDA adverse events (FAERS) &amp; labels <i>(also tracked)</i> — <b>US regulators plus PubMed literature</b>. No EMA / ex-US regulators, no press releases. Nothing here ≠ nothing happened.</div>`+
     `<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>k-means</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
     `</div>`;
