@@ -2332,7 +2332,12 @@ function normFedReg(d){
     text:d.abstract||"", company:"", areas:[], gov:ag||""};
 }
 function pubmedDateISO(s){
-  const m=/^(\d{4})\s*([A-Za-z]{3})?\s*(\d{1,2})?/.exec(String(s||"").trim());
+  s=String(s||"").trim();
+  // Numeric form — "2026/09/15 00:00" (sortpubdate) or "2026-09-15" (epubdate).
+  let m=/^(\d{4})[\/-](\d{1,2})(?:[\/-](\d{1,2}))?/.exec(s);
+  if(m) return `${m[1]}-${m[2].padStart(2,"0")}-${(m[3]||"1").padStart(2,"0")}`;
+  // Textual form — "2026 Sep 15" / "2026 Sep" / "2026".
+  m=/^(\d{4})\s*([A-Za-z]{3})?\s*(\d{1,2})?/.exec(s);
   if(!m) return "";
   const mon={jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12"}[(m[2]||"").toLowerCase()]||"01";
   return `${m[1]}-${mon}-${m[3]?String(m[3]).padStart(2,"0"):"01"}`;
@@ -2341,8 +2346,11 @@ function normPubMed(r, pmid){
   const title=String(r.title||"").replace(/<[^>]+>/g,"").trim(); if(!title) return null;
   // NB: the journal is NOT a therapeutic area — keep areas empty so it never
   // pollutes the "Top therapeutic areas" bar; expose it as its own field.
+  // Date by sortpubdate — the date PubMed sorted the recency search on — so a paper
+  // that matched the window but carries an older *print* pubdate (often just a year,
+  // which would otherwise parse to Jan 1) is dated when it actually appeared.
   return {agency:"pubmed", id:"p:"+pmid, url:`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
-    date:pubmedDateISO(r.pubdate||r.epubdate||""), title, text:title,
+    date:pubmedDateISO(r.sortpubdate||r.epubdate||r.pubdate||""), title, text:title,
     company:"", areas:[], journal:(r.fulljournalname||r.source||"")};
 }
 async function fetchFedRegInsights(terms, fromISO, toISO){
@@ -2359,7 +2367,7 @@ async function fetchPubMedInsights(terms, fromISO, toISO){
   const term=terms.map(t=>/\s/.test(t)?`"${t}"`:t).join(" OR "); if(!term) return [];
   const mind=fromISO.replace(/-/g,"/"), maxd=toISO.replace(/-/g,"/");
   try{
-    const s=await getJson(`${PM_ESEARCH}?db=pubmed&term=${encodeURIComponent(term)}&retmax=40&retmode=json&sort=date&datetype=pdat&mindate=${mind}&maxdate=${maxd}`, true);
+    const s=await getJson(`${PM_ESEARCH}?db=pubmed&term=${encodeURIComponent(term)}&retmax=200&retmode=json&sort=date&datetype=pdat&mindate=${mind}&maxdate=${maxd}`, true);
     const ids=((s.esearchresult||{}).idlist)||[]; if(!ids.length) return [];
     const d=await getJson(`${PM_ESUMMARY}?db=pubmed&id=${ids.join(",")}&retmode=json`, true);
     const res=d.result||{}; const order=res.uids||ids;
@@ -2780,8 +2788,9 @@ function risingTerms(docTokens, recentFlags, topn){
 // Split records into the recent/older halves for rising-term momentum, over only the
 // records we can actually date. Undated records are neither "recent" nor "old", so
 // excluding them keeps them from inflating the baseline and masking real momentum.
-function riseWindow(recs, docTokens, midISO){
-  const idx=recs.map((r,i)=>i).filter(i=>recs[i].date);
+function riseWindow(recs, docTokens, midISO, inWindow){
+  const keep = inWindow || (d=>!!d);   // default: any dated record (back-compat)
+  const idx=recs.map((r,i)=>i).filter(i=>keep(recs[i].date));
   return {tokens:idx.map(i=>docTokens[i]), flags:idx.map(i=>recs[i].date>=midISO), n:idx.length};
 }
 // ---- deterministic "notable right now" ----
@@ -2869,14 +2878,14 @@ function monthlyVolume(records, opts){
   const out=[];
   for(const [ym,raw] of m){
     const md=dim(ym), mStart=ym+"-01", mEnd=ym+"-"+String(md).padStart(2,"0");
-    if(mStart>hi) continue;                     // month lies entirely in the future → not a real data point
     let cs=mStart, ce=mEnd;
     if(from && from>cs) cs=from;
     if(hi<ce) ce=hi;                            // clamp the trailing (current) month to the present
     const covered=dnum(ce)-dnum(cs)+1;
+    if(covered<=0) continue;                    // month lies outside [from, present] → not in the window
     // Scale partial edge months up to a full-month rate — but cap the multiplier at 3×
     // so a 2-day sliver with one record doesn't read as a 15/month spike.
-    const factor=(covered>0 && covered<md) ? Math.min(md/covered, 3) : 1;
+    const factor=(covered<md) ? Math.min(md/covered, 3) : 1;
     const prorated=factor!==1 ? Math.round(raw*factor*10)/10 : raw;
     out.push([ym, prorated, raw]);
   }
@@ -3057,6 +3066,11 @@ function renderInsights(){
   const iSig=iSubjectSig(), prevSeen=iSeen[iSig], baseHas=!!prevSeen, baseSet=new Set(prevSeen||[]);
   // newer half of the window = "recent" for rising-term momentum (midpoint of the span)
   const midISO=new Date((Date.parse(R.fromISO)+Date.parse(R.toISO))/2).toISOString().slice(0,10);
+  // The window's upper bound, never past today — the time-series (momentum, rising
+  // terms, sparkline) is scoped to [fromISO, winHi] so out-of-window records (e.g. a
+  // PubMed hit with an older print date) can't distort the trend or the period.
+  const winHi=(R.toISO && R.toISO<todayISO())?R.toISO:todayISO();
+  const inWindow=d=>!!d && d>=R.fromISO && d<=winHi;
   const unseen=r=> baseHas ? !baseSet.has(r.id) : false;       // new since Insights last showed this subject
   const perAgency={}; let newN=0, newest="", oldest="";
   for(const t of I_AGENCIES) perAgency[t]=0;
@@ -3081,7 +3095,7 @@ function renderInsights(){
   // Compute the decision inputs up front so an executive rollup can lead the fold.
   const noteCats=notableCategories(recs);
   const nCount=k=>{ const c=noteCats.find(x=>x.key===k); return c?c.items.length:0; };
-  const riseW=riseWindow(recs, docTokens, midISO);
+  const riseW=riseWindow(recs, docTokens, midISO, inWindow);
   const rising=risingTerms(riseW.tokens, riseW.flags, 10);
   // Deterministic, cited-downstream counts — the one line an analyst reads first.
   const rollupBits=[
@@ -3099,7 +3113,7 @@ function renderInsights(){
   // Half-window volume momentum (deterministic, no second fetch): dated developments
   // in the newer half of the window vs the earlier half.
   let recentN=0, earlierN=0;
-  for(const r of recs){ if(r.aux||!r.date) continue; (r.date>=midISO?recentN++:earlierN++); }
+  for(const r of recs){ if(r.aux||!inWindow(r.date)) continue; (r.date>=midISO?recentN++:earlierN++); }
   // Only quote a % when each half has enough dated records to mean something — mirrors
   // the rising-terms guard, so a "2 vs 1" sliver doesn't render a confident "+100%".
   const deltaStable = recentN>=3 && earlierN>=3;

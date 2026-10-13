@@ -381,12 +381,38 @@ def test_nsev_dead_css_removed():
     assert ".nsev{" not in SRC and ".nsev.n" not in SRC, "dead .nsev severity-badge CSS still present"
 
 
-def test_volume_chart_does_not_run_into_the_future():
-    # The records/month trend is capped at the present so estimated / ahead-of-print
-    # dates don't stretch the x-axis out to the end of the year.
+def test_volume_chart_scoped_to_window():
+    # The records/month trend is capped at the present AND dropped for months outside
+    # the window, so neither future dates nor out-of-window records (e.g. an older
+    # PubMed print date) stretch the x-axis beyond the selected period.
     js = _script()
     assert "hi=(to && to<today)?to:today" in js, "monthlyVolume no longer caps the chart at the present"
-    assert "if(mStart>hi) continue;" in js, "future months are no longer dropped from the volume chart"
+    assert "if(covered<=0) continue;" in js, "months outside the window are no longer dropped from the chart"
+
+
+def test_momentum_and_rising_scoped_to_window():
+    # Momentum and rising terms compare the newer vs earlier half of the *window*,
+    # not the full record span — so out-of-window records can't inflate the trend.
+    js = _script()
+    assert "const inWindow=d=>!!d && d>=R.fromISO && d<=winHi;" in js, "window predicate missing"
+    assert "if(r.aux||!inWindow(r.date)) continue;" in js, "momentum not scoped to the window"
+    assert "riseWindow(recs, docTokens, midISO, inWindow)" in js, "rising terms not scoped to the window"
+
+
+def test_pubmed_dated_by_sortpubdate():
+    # PubMed records are dated by sortpubdate (real recency) so a paper that matched
+    # the window but has an older/year-only print date isn't dumped on Jan 1.
+    js = _script()
+    assert "r.sortpubdate||r.epubdate||r.pubdate" in js, "PubMed no longer prefers sortpubdate"
+    assert r"/^(\d{4})[\/-](\d{1,2})(?:[\/-](\d{1,2}))?/" in js, \
+        "pubmedDateISO no longer parses numeric (sortpubdate) date formats"
+
+
+def test_pubmed_insights_not_capped_at_40():
+    # PubMed was hard-capped at 40 results; raise it so publications aren't truncated.
+    js = _script()
+    assert "retmax=200" in js, "PubMed Insights retmax not raised"
+    assert "retmax=40" not in js, "PubMed Insights still capped at 40"
 
 
 def test_rising_terms_drop_redundant_new_badge():
