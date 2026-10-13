@@ -2866,12 +2866,14 @@ function notableCategories(records){
   return DEFS.map(d=>({...d, items:byCat.get(d.key)||[]})).filter(d=>d.items.length);
 }
 // ---- volume over time, for a pure-SVG sparkline (time signal) ----
-// Equal-width time buckets across [from, to], ANCHORED so the last bucket ends at the
-// present (today). Calendar-month binning leaves the current month partial, which
-// spikes if scaled up to a full-month rate and dips if left raw; equal, today-anchored
-// periods have no partial edge at either end, so every point is directly comparable
-// and no proration is ever needed. Returns [bucketEndISO, count] oldest-first, or []
-// for a degenerate window. Records outside [from, to] (or in the future) are ignored.
+// Buckets of a WHOLE number of days (>= 7), aiming for 6 even buckets (4 or 2 for
+// short windows), ANCHORED so the last bucket ends at today. Every bucket is exactly
+// `step` days — nothing partial at either end — so counts are directly comparable and
+// there is nothing to prorate (calendar-month binning left the current month partial,
+// which spiked when scaled up and dipped when left raw). Windows under two weeks are
+// too short to bucket meaningfully, so they return [] (no chart). The oldest few days
+// beyond nB*step (always less than one bucket) are dropped so no bucket is partial.
+// Returns [bucketEndISO, count] oldest-first. Records outside the charted range are ignored.
 function volumeSeries(records, opts){
   opts=opts||{};
   const today=daysAgoISO(0);
@@ -2879,19 +2881,19 @@ function volumeSeries(records, opts){
   const fromISO=opts.from||daysAgoISO(90);
   const dnum=iso=>Math.floor(Date.parse(iso+"T00:00:00Z")/864e5);
   const dstr=n=>new Date(n*864e5).toISOString().slice(0,10);
-  const lo=dnum(fromISO), hi=dnum(toISO), span=hi-lo+1;
-  if(span<2) return [];
-  // A bucket count that reads well as a sparkline (never more than one bucket per day).
-  let nB = span<=14 ? span : span<=90 ? 9 : 12;
-  nB = Math.max(2, Math.min(nB, span));
-  const w = span/nB;                                       // equal (fractional) days per bucket
+  const hi=dnum(toISO), lo=dnum(fromISO), span=hi-lo+1;
+  if(span<14) return [];                                   // under 2 weeks → too short to chart
+  // Pick an even bucket count (6 → 4 → 2) whose whole-day width is at least 7.
+  let nB=2, step=Math.floor(span/2);
+  for(const cand of [6,4,2]){ const s=Math.floor(span/cand); if(s>=7){ nB=cand; step=s; break; } }
+  const startN=hi-nB*step+1;                               // chart the most recent nB*step days
   const counts=new Array(nB).fill(0), ends=[];
-  for(let k=0;k<nB;k++) ends.push(dstr(Math.round(lo+(k+1)*w)-1));   // k=nB-1 ends exactly at today
+  for(let k=0;k<nB;k++) ends.push(dstr(startN+(k+1)*step-1));   // k=nB-1 ends exactly at today
   for(const r of records){
     let ds=(r.date||""); if(/^\d{4}-\d{2}$/.test(ds)) ds+="-01";
     if(!/^\d{4}-\d{2}-\d{2}/.test(ds)) continue;
-    const d=dnum(ds.slice(0,10)); if(d<lo||d>hi) continue;            // window only
-    counts[Math.min(nB-1, Math.floor((d-lo)/w))]++;
+    const d=dnum(ds.slice(0,10)); if(d<startN||d>hi) continue;    // charted range only
+    counts[Math.min(nB-1, Math.floor((d-startN)/step))]++;
   }
   return counts.map((c,k)=>[ends[k], c]);
 }
@@ -3138,7 +3140,7 @@ function renderInsights(){
   const vol=volumeSeries(recs, {from:R.fromISO, to:R.toISO}), spark=iSparkline(vol);
   if(spark) html+=`<div class="ispark-row"><span class="isl">records over time</span>${spark}`+
     `<span class="isl">${esc(R.fromISO)} → ${esc(winHi)}</span></div>`+
-    `<div class="mapcap">Equal time periods anchored to today (not calendar months), so the last point is a full period.</div>`;
+    `<div class="mapcap">Equal whole-day periods anchored to today (not calendar months), so the last point is a full period.</div>`;
   if(deltaTxt) html+=`<div class="idelta">Momentum: ${deltaTxt} <span class="ihint">· newer half of the window vs the earlier half</span></div>`;
   html+=`<button class="ijump" id="ijump">Jump to the ${coreN} source record${coreN!==1?"s":""} ↓</button>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;

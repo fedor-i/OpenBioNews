@@ -190,15 +190,17 @@ def test_cross_agency_company_canonicalisation():
 
 
 def test_volume_series_equal_width_today_anchored():
-    # The sparkline bins into EQUAL-width periods anchored so the last bucket ends at
-    # today — not calendar months. This removes the partial-edge artifact entirely
-    # (no proration), so the last tick neither spikes nor dips, and it reads the
-    # actual window range.
+    # The sparkline bins into whole-day periods (>=7 days), aiming for 6 even buckets
+    # (4/2 for short windows), anchored so the last bucket ends at today. Every bucket
+    # is exactly `step` days — no partial edge, nothing to prorate — and windows under
+    # two weeks return [] (no chart).
     js = _script()
     assert "function volumeSeries(records, opts)" in js, "volumeSeries binning function missing"
-    assert "const w = span/nB;" in js, "buckets are not equal width"
-    assert "ends.push(dstr(Math.round(lo+(k+1)*w)-1))" in js, "buckets not anchored to end at today"
-    assert "if(d<lo||d>hi) continue;" in js, "volumeSeries not scoped to the window"
+    assert "if(span<14) return [];" in js, "sub-2-week windows no longer hidden"
+    assert "for(const cand of [6,4,2])" in js, "even bucket-count target (6/4/2) missing"
+    assert "const s=Math.floor(span/cand); if(s>=7)" in js, "whole-day, >=7-day bucket rule missing"
+    assert "ends.push(dstr(startN+(k+1)*step-1))" in js, "buckets not anchored to end at today"
+    assert "if(d<startN||d>hi) continue;" in js, "volumeSeries not scoped to the charted range"
     assert "volumeSeries(recs, {from:R.fromISO, to:R.toISO})" in js, \
         "sparkline no longer uses the actual window range (breaks custom ranges)"
     assert "Math.min(md/covered" not in js, "stale calendar-month proration still present"
@@ -392,7 +394,7 @@ def test_volume_chart_scoped_to_window():
     # older PubMed print date, or a future estimated date) don't widen the x-axis.
     js = _script()
     assert "(opts.to && opts.to<today)?opts.to:today" in js, "volumeSeries no longer caps the chart at the present"
-    assert "if(d<lo||d>hi) continue;" in js, "out-of-window records are no longer dropped from the chart"
+    assert "if(d<startN||d>hi) continue;" in js, "out-of-range records are no longer dropped from the chart"
 
 
 def test_momentum_and_rising_scoped_to_window():
@@ -464,7 +466,7 @@ def test_hover_only_caveats_made_visible():
     # as visible text, and the dangling 'records/month*' asterisk is gone.
     js = _script()
     assert "records/month*" not in js, "sparkline still prints the hover-only asterisk"
-    assert "Equal time periods anchored to today" in js, "sparkline binning caveat not shown as visible text"
+    assert "Equal whole-day periods anchored to today" in js, "sparkline binning caveat not shown as visible text"
     assert "newer half of the window vs the earlier half" in js, "momentum explanation not shown as visible text"
 
 
