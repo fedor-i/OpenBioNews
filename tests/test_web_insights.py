@@ -198,6 +198,14 @@ def test_monthly_volume_proration_capped_and_ranged():
         "sparkline no longer uses the actual window range (breaks custom ranges)"
 
 
+def test_current_month_not_prorated():
+    # The still-running month is left raw ("to date"); only the leading partial month
+    # is prorated, so the last tick never spikes from projecting the month forward.
+    js = _script()
+    assert "const curMonth = hi<mEnd;" in js, "current-month detection missing"
+    assert "(covered<md && !curMonth)" in js, "current month is still being prorated (spikes the last tick)"
+
+
 def test_rising_terms_truncation_honest():
     # The rising-terms card reports when it's showing only the top N of a longer list.
     js = _script()
@@ -453,7 +461,7 @@ def test_hover_only_caveats_made_visible():
     # as visible text, and the dangling 'records/month*' asterisk is gone.
     js = _script()
     assert "records/month*" not in js, "sparkline still prints the hover-only asterisk"
-    assert "Partial first / current months are prorated" in js, "proration caveat not shown as visible text"
+    assert "First partial month prorated to a full-month rate" in js, "proration caveat not shown as visible text"
     assert "newer half of the window vs the earlier half" in js, "momentum explanation not shown as visible text"
 
 

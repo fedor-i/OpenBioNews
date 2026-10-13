@@ -2859,11 +2859,12 @@ function notableCategories(records){
   return DEFS.map(d=>({...d, items:byCat.get(d.key)||[]})).filter(d=>d.items.length);
 }
 // ---- monthly volume, for a pure-SVG sparkline (time signal) ----
-// Records per calendar month. Partial edge months — the window's first month (if
-// it starts mid-month) and the current month (not yet over) — are prorated up to a
-// full-month rate so the trend line isn't dragged down at the ends; interior full
-// months and anything outside [from,to] are left as the raw count. Returns
-// [ym, proratedValue, rawCount]; the sparkline plots the prorated value.
+// Records per calendar month. The window's FIRST month (a past month we only sampled
+// part of, because the window starts mid-month) is prorated up to a full-month rate
+// so the line isn't dragged down at the start. The CURRENT month is left raw — it
+// isn't over, so projecting its rate up to a full month would invent a sharp upward
+// spike at the last tick for data that doesn't exist yet. Interior full months and
+// anything outside [from,to] are raw. Returns [ym, plottedValue, rawCount].
 function monthlyVolume(records, opts){
   opts=opts||{};
   const to=opts.to||daysAgoISO(0), from=opts.from||"";
@@ -2883,9 +2884,11 @@ function monthlyVolume(records, opts){
     if(hi<ce) ce=hi;                            // clamp the trailing (current) month to the present
     const covered=dnum(ce)-dnum(cs)+1;
     if(covered<=0) continue;                    // month lies outside [from, present] → not in the window
-    // Scale partial edge months up to a full-month rate — but cap the multiplier at 3×
-    // so a 2-day sliver with one record doesn't read as a 15/month spike.
-    const factor=(covered<md) ? Math.min(md/covered, 3) : 1;
+    const curMonth = hi<mEnd;                   // the still-running month: its end is clamped to today
+    // Scale the leading partial month up to a full-month rate (cap 3× so a 2-day
+    // sliver can't read as a huge bar) — but never the current month, whose raw
+    // (lower) count honestly shows "records so far" instead of a projected spike.
+    const factor=(covered<md && !curMonth) ? Math.min(md/covered, 3) : 1;
     const prorated=factor!==1 ? Math.round(raw*factor*10)/10 : raw;
     out.push([ym, prorated, raw]);
   }
@@ -3134,7 +3137,7 @@ function renderInsights(){
   const vol=monthlyVolume(recs, {from:R.fromISO, to:R.toISO}), spark=iSparkline(vol);
   if(spark) html+=`<div class="ispark-row"><span class="isl">records/month</span>${spark}`+
     `<span class="isl">${esc(vol[0][0])} → ${esc(vol[vol.length-1][0])}</span></div>`+
-    `<div class="mapcap">Partial first / current months are prorated to a full-month rate.</div>`;
+    `<div class="mapcap">First partial month prorated to a full-month rate; the current month is to date.</div>`;
   if(deltaTxt) html+=`<div class="idelta">Momentum: ${deltaTxt} <span class="ihint">· newer half of the window vs the earlier half</span></div>`;
   html+=`<button class="ijump" id="ijump">Jump to the ${coreN} source record${coreN!==1?"s":""} ↓</button>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
