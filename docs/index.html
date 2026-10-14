@@ -2347,11 +2347,15 @@ function normPubMed(r, pmid){
   const title=String(r.title||"").replace(/<[^>]+>/g,"").trim(); if(!title) return null;
   // NB: the journal is NOT a therapeutic area — keep areas empty so it never
   // pollutes the "Top therapeutic areas" bar; expose it as its own field.
-  // Date by sortpubdate — the date PubMed sorted the recency search on — so a paper
-  // that matched the window but carries an older *print* pubdate (often just a year,
-  // which would otherwise parse to Jan 1) is dated when it actually appeared.
+  // Date: prefer the ELECTRONIC pub date (when the paper actually went online) over
+  // sortpubdate/pubdate, which for an ahead-of-print article is the assigned *future*
+  // print-issue date and would read as "published next year". Pick the first candidate
+  // that isn't in the future; if we only have a future date, leave it undated rather
+  // than show a wrong one (undated records are excluded from the trend anyway).
+  const today=todayISO();
+  const pubDate=[r.epubdate, r.sortpubdate, r.pubdate].map(pubmedDateISO).find(d=>d && d<=today) || "";
   return {agency:"pubmed", id:"p:"+pmid, url:`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`,
-    date:pubmedDateISO(r.sortpubdate||r.epubdate||r.pubdate||""), title, text:title,
+    date:pubDate, title, text:title,
     company:"", areas:[], journal:(r.fulljournalname||r.source||"")};
 }
 async function fetchFedRegInsights(terms, fromISO, toISO){

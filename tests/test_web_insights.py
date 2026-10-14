@@ -425,13 +425,15 @@ def test_filtered_citations_skip_hidden():
     assert "forEach(item=>{ if(item.hidden) return; n++;" in js, "renumberCites still counts hidden cards"
 
 
-def test_pubmed_dated_by_sortpubdate():
-    # PubMed records are dated by sortpubdate (real recency) so a paper that matched
-    # the window but has an older/year-only print date isn't dumped on Jan 1.
+def test_pubmed_dated_by_electronic_date_never_future():
+    # PubMed records are dated by the electronic pub date (when the paper went online),
+    # never a future print-issue date: pick the first of [epubdate, sortpubdate, pubdate]
+    # that isn't after today, else leave undated.
     js = _script()
-    assert "r.sortpubdate||r.epubdate||r.pubdate" in js, "PubMed no longer prefers sortpubdate"
+    assert "[r.epubdate, r.sortpubdate, r.pubdate].map(pubmedDateISO).find(d=>d && d<=today)" in js, \
+        "PubMed date no longer prefers a non-future electronic date"
     assert r"/^(\d{4})[\/-](\d{1,2})(?:[\/-](\d{1,2}))?/" in js, \
-        "pubmedDateISO no longer parses numeric (sortpubdate) date formats"
+        "pubmedDateISO no longer parses numeric date formats"
 
 
 def test_pubmed_insights_relevance_capped_and_disclosed():
