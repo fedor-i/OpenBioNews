@@ -19,11 +19,9 @@ BUNDLES: dict[str, dict] = {
         "description": "Drug development, biotech companies, deals and trials.",
         "feeds": [
             {"name": "STAT News", "url": "https://www.statnews.com/feed/"},
-            {"name": "Fierce Biotech", "url": "https://www.fiercebiotech.com/rss/xml"},
-            {"name": "Fierce Pharma", "url": "https://www.fiercepharma.com/rss/xml"},
-            {"name": "Endpoints News", "url": "https://endpts.com/feed/"},
+            {"name": "GEN", "url": "https://www.genengnews.com/feed/"},
             {"name": "BioPharma Dive", "url": "https://www.biopharmadive.com/feeds/news/"},
-            {"name": "BioSpace", "url": "https://www.biospace.com/rss/news/"},
+            {"name": "BioSpace", "url": "https://www.biospace.com/all-news.rss"},
         ],
     },
     "regulatory": {
@@ -34,7 +32,9 @@ BUNDLES: dict[str, dict] = {
              "url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml"},
             {"name": "FDA Drug Approvals & Safety",
              "url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/drugs/rss.xml"},
-            {"name": "EMA News", "url": "https://www.ema.europa.eu/en/rss.xml"},
+            {"name": "EMA News", "url": "https://www.ema.europa.eu/en/news.xml"},
+            {"name": "EMA New Human Medicines",
+             "url": "https://www.ema.europa.eu/en/new-human-medicine-new.xml"},
         ],
     },
     "preprints": {
@@ -57,8 +57,8 @@ BUNDLES: dict[str, dict] = {
              "url": "https://www.sciencedaily.com/rss/plants_animals/genetics.xml"},
             {"name": "Phys.org Biology",
              "url": "https://phys.org/rss-feed/biology-news/"},
-            {"name": "Nature — Latest",
-             "url": "https://www.nature.com/nature.rss"},
+            {"name": "Nature Portfolio Biotechnology",
+             "url": "https://www.nature.com/subjects/biotechnology.rss"},
         ],
     },
     "health": {
