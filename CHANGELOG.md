@@ -7,6 +7,35 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **MCP server (optional `mcp` extra)**. `openbionews mcp` exposes the connectors as
+  ten Model Context Protocol tools so any MCP client (Claude Desktop, Claude Code, …)
+  can pull primary-source records with their citation URLs. The tool logic is
+  standard-library only; a CI job installs the extra and verifies the server builds
+  against the live SDK so an SDK API change can't break it silently.
+- **Records-first Insights layout (hosted page)**. The analytic cards (emergent
+  themes, stat bars, rising terms, word cloud, key phrases) now fold into one
+  collapsed "Patterns & analysis" drawer that sits just above the source records, so
+  the primary-source list reads first.
+
+### Changed / Fixed (Insights)
+- **Honest time series**. The records-over-time sparkline now bins into equal
+  whole-day periods (target six, ≥7 days each) anchored so the last bucket ends today,
+  replacing calendar-month bins whose partial current month spiked or dipped the last
+  tick; windows under two weeks render no chart. Momentum ("recent vs earlier half")
+  and rising terms are scoped to the selected window and split at its midpoint.
+- **PubMed dates & relevance**. Records are dated by their electronic publication date
+  (never a future print-issue date; undated if only a future date exists). Results are
+  the most-relevant in the window (not just newest), raised from 40 to 200, with an
+  honest "showing N of M matches" note when the match total is larger.
+- **No reference data in the analytics**. FAERS/label "also tracked" aux records and
+  PubMed journal / Federal Register agency names are kept out of the word cloud, YAKE!
+  key phrases, BM25 ranking, k-means clustering, rising terms, "Top companies" and
+  "Top therapeutic areas".
+- **Accessibility**. Added a WCAG-contrast ink token for text on accent fills,
+  keyboard-operable facets with `aria-pressed`, a labelled modal focus dialog, a
+  reduced-motion guard, an `<h1>`, and dark-mode-visible sparkline markers.
+
+### Added (earlier)
 - **"Notable right now" is now organised into category drawers (hosted page)**. The
   flat severity-ranked list is replaced by collapsible `<details>` drawers, one per
   signal type — **trials halted** (terminated / withdrawn / suspended), **recalls**,

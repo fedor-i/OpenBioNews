@@ -15,7 +15,7 @@ claim something.
       RSS bundles).
 
 ## Delivery & output
-- [ ] **Private RSS/Atom output** — publish the digest as a feed file.
+- [x] **Private RSS/Atom output** — publish the digest as a feed file (`format: rss` → `latest.xml`).
 - [ ] **Slack / Teams** incoming-webhook output.
 - [ ] A tiny **local web view** served from the latest digest.
 

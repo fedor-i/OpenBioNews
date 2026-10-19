@@ -134,6 +134,9 @@ def test_aux_excluded_from_all_term_analytics():
     assert "yakeKeyphrases(recs.filter(r=>!r.aux)" in js, "YAKE! key phrases still include aux reference text"
     assert "recs.reduce((n,r)=>n+(r.aux?0:1),0)" in js, "max-doc-frequency denominator still counts aux"
     assert "r.aux?-Infinity:(bmL[_bk++].score)" in js, "aux records not pushed to the bottom of BM25 ranking"
+    # "Top companies" must exclude aux: FDA-label aux records carry a drug BRAND in
+    # their company field, which would otherwise show up as a top "company".
+    assert "companyGroups(recs.filter(r=>!r.aux),8)" in js, "aux drug brands still leak into Top companies"
 
 
 def test_journal_and_agency_not_therapeutic_areas():

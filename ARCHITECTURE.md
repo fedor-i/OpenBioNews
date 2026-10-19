@@ -23,13 +23,16 @@ same pipeline.
 | `openbionews/config.py` | Load/save/validate the JSON config; ship sensible defaults. |
 | `openbionews/sources.py` | Curated topic bundles of RSS/Atom feeds. |
 | `openbionews/fetch.py` | Download and parse RSS/Atom feeds (stdlib parser). Failures are collected, never fatal. |
-| `openbionews/connectors/` | Primary-source connectors (ClinicalTrials.gov, openFDA recalls, SEC EDGAR) that emit cited `Item`s from a watch list. |
+| `openbionews/connectors/` | Primary-source connectors (ClinicalTrials.gov; openFDA recalls / approvals / shortages / adverse events / labeling; Federal Register; PubMed; SEC EDGAR) that emit cited `Item`s from a watch list. |
 | `openbionews/httputil.py` | Shared stdlib JSON-over-HTTP GET used by connectors. |
+| `openbionews/cite.py` | Per-sentence source citation of digest text. |
+| `openbionews/history.py` | Track seen items across runs → "what changed since last time". |
+| `openbionews/mcp_server.py` | Model Context Protocol server exposing the connectors as tools (optional `mcp` extra). |
 | `openbionews/models.py` | `Item`, `Cluster`, `Digest`, `Citation` dataclasses. |
 | `openbionews/pipeline.py` | Deterministic filtering, de-duplication, clustering, and importance ranking (`importance_score`). |
 | `openbionews/llm/` | Pluggable summarizer backends (`none`, `openai`, `ollama`) behind one interface; optional "why it matters" prompt. |
 | `openbionews/compose.py` | Ask the backend for a blurb per story; fall back to no-LLM on error. |
-| `openbionews/render.py` | Render a `Digest` to Markdown / HTML / text (with read-time). |
+| `openbionews/render.py` | Render a `Digest` to Markdown / HTML / text / RSS (with read-time). |
 | `openbionews/mailer.py` | Optional SMTP email delivery (stdlib `smtplib`). |
 | `openbionews/run.py` | Wire the stages together; write the file and/or email it. |
 | `openbionews/setup_wizard.py` | Interactive onboarding → personalized config. |
@@ -67,6 +70,8 @@ same pipeline.
 4. Split parsing from fetching (a `parse_*` function) so it can be unit-tested
    with a fixture and no network.
 
-Shipped connectors: `clinicaltrials`, `openfda` (drug recalls) and `edgar`
-(SEC full-text search). Running server-side, they set the `User-Agent` SEC
-requires and avoid the browser CORS limits that constrain the hosted page.
+Shipped connectors: `clinicaltrials`, `openfda` (drug recalls),
+`openfda_approvals`, `openfda_shortages`, `openfda_events` (FAERS),
+`openfda_labels`, `federalregister`, `pubmed` and `edgar` (SEC full-text
+search). Running server-side, they set the `User-Agent` SEC requires and avoid
+the browser CORS limits that constrain the hosted page.

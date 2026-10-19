@@ -160,7 +160,7 @@ falls back to the no-LLM summary — the run never aborts.
 Beyond RSS (which is *secondary* trade press), OpenBioNews can read **official
 primary records** and trace every development back to its source document.
 
-Three connectors are built in. You keep **one watch list** (companies,
+Nine connectors are built in. You keep **one watch list** (companies,
 conditions, drugs, terms) and switch on whichever official sources you want:
 
 - **ClinicalTrials.gov** — trial developments (registration, status, phase),
@@ -171,6 +171,14 @@ conditions, drugs, terms) and switch on whichever official sources you want:
   (new indication), cited to the Drugs@FDA page.
 - **openFDA drug shortages** — current/resolved shortages (reason, status,
   category), cited to the FDA Drug Shortages database.
+- **openFDA drug adverse events (FAERS)** — most-reported reactions per drug
+  (spontaneous report counts, not incidence), cited to the openFDA query.
+- **openFDA drug labeling** — current FDA label: indications and whether a drug
+  carries a boxed warning, cited to the openFDA label record.
+- **Federal Register** — FDA guidances, advisory-committee notices and rules,
+  cited to the Federal Register document.
+- **PubMed** — recent biomedical literature (NCBI E-utilities), cited to the
+  PubMed record (and DOI when present).
 - **SEC EDGAR** — filings (8-K, 10-K, S-1, 424B, 13D/G, DEF 14A, Form 4…), cited
   to the filing document. SEC asks for a contact User-Agent — set your email in
   `connectors.edgar.user_agent`.
@@ -211,7 +219,8 @@ that constrain the hosted web page — this is the reliable path for SEC data.
 ## Hosted web version — filter in your browser, no install
 
 For people who just want to **click and filter**, there's a single-page web app
-in [`docs/index.html`](docs/index.html) with two tabs:
+in [`docs/index.html`](docs/index.html) with a tab for each source, plus a
+cross-agency **Insights** digest:
 
 - **Clinical trials** — filter ClinicalTrials.gov by company, condition, drug,
   status, phase, **recency** ("updated within N days"), and
@@ -228,6 +237,13 @@ in [`docs/index.html`](docs/index.html) with two tabs:
   not reliably allow in-browser cross-origin requests, so when a visitor's
   browser is blocked, this tab falls back to opening the same search on SEC's
   official EDGAR site with the filters applied.)
+- **FDA adverse events (FAERS)** — most-reported reactions for a drug (signal,
+  not incidence), cited to the openFDA query.
+- **FDA labels** — current label indications and boxed-warning status per drug.
+- **Federal Register** — FDA guidances, advisory-committee notices and rules.
+- **Insights (beta)** — a deterministic, no-LLM cross-agency digest over a time
+  window: key stats, emergent themes, a word cloud, rising terms and a
+  BM25-ranked source list, every figure counted from the cited records beneath it.
 
 Both query the source **live in the browser**, show a link to each source
 record, and support **shareable links** (copy a link that reproduces the exact
@@ -437,13 +453,16 @@ primary-source connector. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md), see
 where things are headed in [`ROADMAP.md`](ROADMAP.md), and check the
 [good first issues](https://github.com/fedor-i/OpenBioNews/issues?q=is%3Aopen+label%3A%22good+first+issue%22).
 
-The whole test suite runs with no dependencies:
+The test suite runs with no dependencies (each file prints ok/FAIL per test):
 
 ```bash
-python3 tests/test_pipeline.py
+python3 tests/test_pipeline.py      # core pipeline
+python3 tests/test_web_insights.py  # hosted Insights analytics (structure guards)
+python3 tests/test_mcp.py           # MCP tool logic
+python3 tests/test_mcp_server.py    # MCP server wiring (skips without the mcp extra)
 ```
 
-CI runs it on Linux, macOS and Windows across Python 3.9–3.12 on every pull
+CI runs these on Linux, macOS and Windows across Python 3.9–3.12 on every pull
 request. Releases publish to PyPI automatically ([`RELEASING.md`](RELEASING.md)).
 
 ## License

@@ -3026,7 +3026,7 @@ function iBars(entries, max, cls, facet){
     `<span class="bar2${cls?" "+cls:""}" style="width:${Math.max(2,Math.round(72*v/max))}px"></span>`+
     `<span class="cnt">${v}</span></div>`).join("");
 }
-// Pure-SVG monthly-volume sparkline — deterministic, zero-dependency time signal.
+// Pure-SVG volume-over-time sparkline — deterministic, zero-dependency time signal.
 function iSparkline(series){
   if(series.length<2) return "";
   const W=150,H=30,pad=3,n=series.length,max=Math.max(...series.map(s=>s[1]))||1;
@@ -3148,9 +3148,15 @@ function renderInsights(){
     `</p>`+
     `<p class="irollup">${rollup}</p>`;
   const vol=volumeSeries(recs, {from:R.fromISO, to:R.toISO}), spark=iSparkline(vol);
-  if(spark) html+=`<div class="ispark-row"><span class="isl">records over time</span>${spark}`+
-    `<span class="isl">${esc(R.fromISO)} → ${esc(winHi)}</span></div>`+
-    `<div class="mapcap">Equal whole-day periods (not calendar months), the last ending today; recent days may be under-counted while sources finish indexing.</div>`;
+  if(spark){
+    // Label the ACTUAL charted span: volumeSeries drops the oldest < one-bucket sliver
+    // so every bucket is full, so the first charted day can be after R.fromISO.
+    const stepD = vol.length>1 ? Math.round((Date.parse(vol[1][0])-Date.parse(vol[0][0]))/864e5) : 0;
+    const chartFrom = new Date(Date.parse(vol[0][0])-(stepD-1)*864e5).toISOString().slice(0,10);
+    html+=`<div class="ispark-row"><span class="isl">records over time</span>${spark}`+
+      `<span class="isl">${esc(chartFrom)} → ${esc(winHi)}</span></div>`+
+      `<div class="mapcap">Equal whole-day periods (not calendar months), the last ending today; recent days may be under-counted while sources finish indexing.</div>`;
+  }
   if(deltaTxt) html+=`<div class="idelta">Momentum: ${deltaTxt} <span class="ihint">· newer vs earlier records in this window</span></div>`;
   if(coreN>0) html+=`<button class="ijump" id="ijump">Jump to the ${coreN} source record${coreN!==1?"s":""} ↓</button>`;
   if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
@@ -3192,7 +3198,7 @@ function renderInsights(){
       `</div></div>`;
   }
 
-  const companies=companyGroups(recs,8);   // cross-agency canonical (one firm counted once)
+  const companies=companyGroups(recs.filter(r=>!r.aux),8);   // cross-agency canonical (one firm counted once); exclude aux (label "company" is a drug brand)
   const areas=topN(countField(recs,r=>r.areas),8).map(([k,v])=>[k,v,idsWhere(r=>(r.areas||[]).includes(k))]);
   const phases=topN(countField(recs.filter(r=>r.agency==="trials"),r=>(r.phase||[]).map(prettyPhase1)),6);
   html+=`<div class="istats">`;
