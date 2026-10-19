@@ -52,23 +52,27 @@ sciences**, but you can point it at any topic.
 You need **Python 3.9 or newer**. Check with `python3 --version` (on Windows,
 `py --version`).
 
+Install from PyPI:
+
 ```bash
-# 1. Get the code
-git clone https://github.com/fedor-i/OpenBioNews.git
-cd OpenBioNews
+pip install openbionews            # core — pure standard library, no deps
+pip install "openbionews[mcp]"     # optional: + MCP server for AI assistants
 
-# 2. Try it right now, offline, with bundled sample data
-python3 -m openbionews run --demo
-
-# 3. Create your own personalized digest (interactive, ~1 minute)
-python3 -m openbionews setup
-
-# 4. Build today's digest
-python3 -m openbionews run
+openbionews run --demo             # try it offline with bundled sample data
+openbionews setup                  # personalize (interactive, ~1 minute)
+openbionews run                    # build today's digest
 ```
 
 That's it — your digest is written to the `digest/` folder as
 `digest-YYYY-MM-DD.md` (plus a `latest.md` you can always point to).
+
+Prefer to run from source (or hack on it)? Clone and skip the install:
+
+```bash
+git clone https://github.com/fedor-i/OpenBioNews.git
+cd OpenBioNews
+python3 -m openbionews run --demo
+```
 
 ### Works on Windows, macOS, and Linux
 
