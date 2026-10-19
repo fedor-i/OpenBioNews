@@ -6,6 +6,8 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-19
+
 ### Added
 - **MCP server (optional `mcp` extra)**. `openbionews mcp` exposes the connectors as
   ten Model Context Protocol tools so any MCP client (Claude Desktop, Claude Code, …)
