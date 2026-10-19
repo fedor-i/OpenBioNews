@@ -56,7 +56,7 @@ Install from PyPI:
 
 ```bash
 pip install openbionews            # core — pure standard library, no deps
-pip install "openbionews[mcp]"     # optional: + MCP server for AI assistants
+pipx install "openbionews[mcp]"    # optional: + MCP server for AI assistants (Python 3.10+)
 
 openbionews run --demo             # try it offline with bundled sample data
 openbionews setup                  # personalize (interactive, ~1 minute)
@@ -274,10 +274,26 @@ Code, …) can call OpenBioNews as a tool to pull **primary-source** records, ea
 returned with the exact URL it traces to. The AI gets grounded, citable facts; it
 never sees our prose.
 
+**The MCP server needs Python 3.10+** (the `mcp` SDK requires it; the core
+pipeline still runs on 3.9). Install it with an isolated installer so the
+`openbionews` command lands on your `PATH` — which the MCP config below relies on:
+
 ```bash
-pip install "openbionews[mcp]"   # the 'mcp' extra; the core stays dependency-free
-openbionews mcp                  # speaks MCP over stdio
+pipx install "openbionews[mcp]"              # recommended: isolated, command on PATH
+# or
+uv tool install "openbionews[mcp]"           # same idea, via uv
+# or, into an environment you manage yourself:
+python3 -m pip install "openbionews[mcp]"    # use python3.10+; see the note below
+
+openbionews mcp                              # speaks MCP over stdio
 ```
+
+> **On Python 3.9** `pip install "openbionews[mcp]"` can't install the `mcp` SDK,
+> so the extra resolves to nothing and you get the core without the server. Use
+> Python 3.10+ (`pipx install "openbionews[mcp]" --python python3.12`). A plain
+> `pip install --user` also warns that its script directory isn't on `PATH`,
+> which breaks the `"command": "openbionews"` config below — prefer `pipx`/`uv`,
+> or point `"command"` at `python3` with `"args": ["-m", "openbionews", "mcp"]`.
 
 Ten tools exposed: `search_clinical_trials`, `search_fda_recalls`,
 `search_fda_approvals`, `search_fda_shortages`, `search_fda_adverse_events`,

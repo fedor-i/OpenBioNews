@@ -244,10 +244,21 @@ def build_server():
         try:                                  # mcp 1.x
             from mcp.server.fastmcp import FastMCP as Server
         except ImportError as exc:  # pragma: no cover - exercised via the CLI message
-            raise ImportError(
+            import sys
+
+            hint = (
                 "The MCP server needs the optional 'mcp' package. Install it with:\n"
                 "    pip install \"openbionews[mcp]\""
-            ) from exc
+            )
+            if sys.version_info < (3, 10):
+                hint += (
+                    f"\n\nNote: the 'mcp' SDK requires Python 3.10+, but this is "
+                    f"Python {sys.version_info.major}.{sys.version_info.minor}. "
+                    "On 3.9 the [mcp] extra installs nothing (that is why 'mcp' is "
+                    "missing here). Run OpenBioNews on Python 3.10+ for the MCP server, "
+                    "e.g.  pipx install \"openbionews[mcp]\" --python python3.12"
+                )
+            raise ImportError(hint) from exc
     server = Server(SERVER_NAME)
     for fn in TOOLS:
         server.tool()(fn)

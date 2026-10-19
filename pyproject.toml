@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openbionews"
-version = "0.6.0"
+version = "0.6.1"
 description = "Free, self-hosted tool that turns biopharma primary sources (ClinicalTrials.gov, openFDA, SEC EDGAR) into a daily brief with per-sentence citations. Deterministic by default; bring your own LLM, or none."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -38,7 +38,12 @@ dependencies = []
 feeds = ["feedparser>=6.0"]
 # Optional: run `openbionews mcp` so an AI assistant can call the primary-source
 # connectors over the Model Context Protocol. The core stays dependency-free.
-mcp = ["mcp>=1.2"]
+# The MCP SDK needs Python >= 3.10, so the marker keeps this extra from making
+# `pip install "openbionews[mcp]"` on 3.9 silently resolve to an ancient release
+# (pip would backtrack past every version that declares the extra). On 3.9 the
+# extra is simply empty; the current release installs and `openbionews mcp`
+# reports that it needs 3.10+.
+mcp = ["mcp>=1.2; python_version >= '3.10'"]
 dev = ["pytest>=7.0"]
 
 [project.urls]

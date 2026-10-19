@@ -6,6 +6,17 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-10-19
+
+### Fixed
+- **`mcp` extra no longer silently downgrades on Python 3.9.** The `mcp` SDK
+  requires Python 3.10+, so on 3.9 `pip install "openbionews[mcp]"` used to
+  backtrack past every release that declares the extra and silently install an
+  ancient, MCP-less version. The extra now carries a `python_version >= '3.10'`
+  marker, so on 3.9 it resolves to nothing and the current release installs; the
+  server's import error, and the README, now state the 3.10+ requirement and
+  recommend `pipx`/`uv` so the `openbionews` command lands on `PATH`.
+
 ## [0.6.0] — 2026-10-19
 
 ### Added
