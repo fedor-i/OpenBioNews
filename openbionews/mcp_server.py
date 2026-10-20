@@ -31,6 +31,8 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 
+from . import __version__
+
 from .connectors.clinicaltrials import ClinicalTrialsConnector
 from .connectors.edgar import EdgarConnector, resolve_cik
 from .connectors.openfda import OpenFDAConnector
@@ -144,7 +146,7 @@ def _item_to_dict(item: Item, *, verbose: bool = False,
 
 
 def _search(connector_cls, *, cfg=None, phase=None, query_terms=None,
-            since_iso=None, verbose=False, page=None, **watch) -> dict:
+            since_iso=None, verbose=False, page=None, require_match=False, **watch) -> dict:
     """Run one connector over a watch list built from ``watch`` and serialise.
 
     ``watch`` keys are the watch-list fields the connectors understand:
@@ -169,6 +171,10 @@ def _search(connector_cls, *, cfg=None, phase=None, query_terms=None,
     if since_iso is not None:
         items = [i for i in items
                  if not i.published or i.published.date().isoformat() >= since_iso]
+    if require_match and query_terms:
+        # Drop records where no query term appears in the title, summary or facts —
+        # the loose-keyword strays (a different drug) that upstream search leaks in.
+        items = [i for i in items if _match(i, _facts(i), query_terms)["terms"]]
     truncated = False
     if page is not None:
         offset, count = page
@@ -204,14 +210,18 @@ def _as_list(value):
 # --------------------------------------------------------------------------- #
 def search_clinical_trials(query: str, status: str | None = None, phase: str | None = None,
                            recent_days: int = 90, limit: int = 20, offset: int = 0,
-                           since: str | None = None, verbose: bool = False) -> dict:
+                           since: str | None = None, require_match: bool = True,
+                           verbose: bool = False) -> dict:
     """Search ClinicalTrials.gov for recent studies matching ``query``.
 
     ``status`` e.g. "RECRUITING" / "COMPLETED" / "TERMINATED"; ``phase`` e.g. "3".
     ``since`` (YYYY-MM-DD) keeps only records on/after that date and flags each
     ``is_new``; ``offset`` pages through results and sets a ``truncated`` flag.
-    Each lean result carries a ``facts`` block (enrollment, start/primary-completion
-    dates, primary endpoints, phase, sponsor) cited to its NCT record.
+    ``require_match`` (default true) drops studies where the query term appears in no
+    field — the loose-keyword strays the registry's search leaks in; set it false to
+    see everything and filter yourself via each result's ``match``. Each lean result
+    carries a ``facts`` block (enrollment, start/primary-completion dates, primary
+    endpoints, phase, sponsor) cited to its NCT record.
     """
     span = offset + limit
     cfg = {"recent_days": recent_days, "max_total": span + 1, "max_per_query": span + 1}
@@ -219,7 +229,7 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
         cfg["statuses"] = _as_list(status)
     return _search(ClinicalTrialsConnector, terms=_as_list(query), cfg=cfg, phase=phase,
                    query_terms=_as_list(query), since_iso=since, verbose=verbose,
-                   page=(offset, limit))
+                   require_match=require_match, page=(offset, limit))
 
 
 def search_fda_recalls(query: str = "", firm: str | None = None,
@@ -292,15 +302,17 @@ def search_fda_labeling(query: str, limit: int = 10, verbose: bool = False) -> d
 
 
 def search_pubmed(query: str, recent_days: int = 365, limit: int = 10, offset: int = 0,
-                  since: str | None = None, verbose: bool = False) -> dict:
+                  since: str | None = None, require_match: bool = True,
+                  verbose: bool = False) -> dict:
     """Search PubMed (NCBI E-utilities) for recent biomedical literature matching
-    ``query``. ``since`` (YYYY-MM-DD) and ``offset`` work as on search_clinical_trials.
-    Each result cites its PubMed record (and DOI when present)."""
+    ``query``. ``since``/``offset``/``require_match`` work as on search_clinical_trials
+    (``require_match`` defaults true to drop loose-keyword strays). Each result cites
+    its PubMed record (and DOI when present)."""
     span = offset + limit
     cfg = {"recent_days": recent_days, "max_total": span + 1, "max_per_query": span + 1}
     return _search(PubMedConnector, terms=_as_list(query), cfg=cfg,
                    query_terms=_as_list(query), since_iso=since, verbose=verbose,
-                   page=(offset, limit))
+                   require_match=require_match, page=(offset, limit))
 
 
 def search_federal_register(query: str = "", recent_days: int = 30, limit: int = 20,
@@ -457,7 +469,10 @@ def build_server():
                     "e.g.  pipx install \"openbionews[mcp]\" --python python3.12"
                 )
             raise ImportError(hint) from exc
-    server = Server(SERVER_NAME)
+    try:                                      # clients display serverInfo.version
+        server = Server(SERVER_NAME, version=__version__)
+    except TypeError:                         # older SDK without a version kwarg
+        server = Server(SERVER_NAME)
     # Every tool is a read-only, side-effect-free lookup. Advertising that via MCP
     # tool annotations lets agent frameworks cache and parallelise calls safely.
     annotations = {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True}

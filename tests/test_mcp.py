@@ -184,9 +184,25 @@ def test_adverse_event_counts_are_structured():
 # --- phase filter still works, now addressing the lean source id ------------- #
 def test_phase_filter_keeps_only_matching():
     with _patch(clinicaltrials, CT_PHASES):
-        out = mcp_server.search_clinical_trials("x", phase="3")
+        out = mcp_server.search_clinical_trials("x", phase="3", require_match=False)
     ids = [r["source"]["id"] for r in out["results"]]
     assert ids == ["NCT_P3"]  # the Phase 1 study is filtered out
+
+
+CT_LEAK = {"studies": [
+    _ct_study("NCT_TZP", "Tirzepatide for obesity", "2026-10-05"),
+    _ct_study("NCT_SEC", "Secukinumab for psoriasis", "2026-10-06"),
+]}
+
+
+def test_require_match_drops_keyword_strays():
+    # The registry leaks loosely-matched studies; require_match (default) removes
+    # the one where the query term appears in no field.
+    with _patch(clinicaltrials, CT_LEAK):
+        strict = mcp_server.search_clinical_trials("tirzepatide")
+        loose = mcp_server.search_clinical_trials("tirzepatide", require_match=False)
+    assert [r["source"]["id"] for r in strict["results"]] == ["NCT_TZP"]
+    assert len(loose["results"]) == 2        # opt out to see everything + self-filter
 
 
 # --- per-source smoke tests on the lean shape -------------------------------- #
@@ -295,6 +311,19 @@ def test_sec_entity_not_found_is_explicit():
 def test_sec_requires_query_or_company():
     out = mcp_server.search_sec_filings()
     assert "error" in out and out["count"] == 0
+
+
+def test_sec_missing_ua_gives_actionable_403():
+    import os
+    saved = os.environ.pop("OPENBIONEWS_EDGAR_UA", None)  # force the default UA
+    try:
+        with _patch(edgar, raise_exc=HTTPJSONError(
+                "HTTP 403 from https://efts.sec.gov/LATEST/search-index: <html>Forbidden</html>")):
+            out = mcp_server.search_sec_filings("collaboration")
+    finally:
+        if saved is not None:
+            os.environ["OPENBIONEWS_EDGAR_UA"] = saved
+    assert "OPENBIONEWS_EDGAR_UA" in out["error"]        # actionable, not raw 403 HTML
 
 
 def test_resolve_cik_handles_names_tickers_and_raw_ciks():

@@ -56,6 +56,15 @@ def test_build_server_registers_every_tool():
     assert len(expected) == 10, "expected 10 MCP tools"
 
 
+def test_server_reports_its_version():
+    if not HAVE_MCP:
+        print("SKIP: the optional 'mcp' package is not installed")
+        return
+    server = mcp_server.build_server()
+    # clients display serverInfo.version; it must not be blank
+    assert getattr(server, "version", "") == mcp_server.__version__
+
+
 def test_tool_call_round_trips_through_the_server():
     if not HAVE_MCP:
         print("SKIP: the optional 'mcp' package is not installed")

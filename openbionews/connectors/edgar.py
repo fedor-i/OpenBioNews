@@ -218,6 +218,16 @@ class EdgarConnector(Connector):
         # by third parties merely mentioning the name.
         self.ciks = [str(c) for c in (cfg.get("ciks") or []) if c]
 
+    def _ua_hint(self, exc: HTTPJSONError) -> None:
+        """Turn SEC's bare 403 wall into an actionable message when no UA is set."""
+        if "403" in str(exc) and self.user_agent == DEFAULT_UA:
+            raise HTTPJSONError(
+                "SEC returned 403 Forbidden. SEC requires a descriptive User-Agent "
+                "with a contact. Set the OPENBIONEWS_EDGAR_UA environment variable to "
+                "'Your Name your@email.com' (or connectors.edgar.user_agent in config) "
+                "and retry."
+            ) from exc
+
     def _query_values(self) -> list[str]:
         wl = self.watchlist
         vals = []
@@ -258,6 +268,7 @@ class EdgarConnector(Connector):
                 payload = get_json(SUBMISSIONS_URL.format(cik=str(cik).zfill(10)),
                                    headers=headers, timeout=30)
             except HTTPJSONError as exc:
+                self._ua_hint(exc)
                 raise HTTPJSONError(f"cik={cik}: {exc}") from exc
             for item in parse_submissions(payload, topic=self.topic):
                 form = (item.meta.get("form") or "").lower()
@@ -288,6 +299,7 @@ class EdgarConnector(Connector):
                 payload = get_json(API_URL, params=self._params(q, 0),
                                    headers=headers, timeout=30)
             except HTTPJSONError as exc:
+                self._ua_hint(exc)
                 raise HTTPJSONError(f"q={q}: {exc}") from exc
             count = 0
             for item in parse_hits(payload, topic=self.topic):

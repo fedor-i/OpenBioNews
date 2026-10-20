@@ -302,9 +302,12 @@ Ten tools exposed: `search_clinical_trials`, `search_fda_recalls`,
 
 The output is shaped for LLM callers:
 
-- **Lean by default** — one `source: {id, name, url, kind}` object per record (not
-  three repeated links), so a page of results costs far fewer tokens. Pass
-  `verbose=true` for the full payload (`citations[]`, raw `meta`).
+- **Lean by default — the citation never drops.** Each record keeps one
+  `source: {id, name, url, kind}` object: `source.url` *is* the citation link, always
+  present, alongside the record `id` and `date`. Lean only collapses the three
+  repeated copies of that link into one — the "every record cited" guarantee holds in
+  lean exactly as in verbose. Pass `verbose=true` for the full `citations[]` array and
+  raw `meta` (e.g. a PubMed DOI also rides in `source.also`).
 - **The numbers travel in `facts`** — enrollment, start/primary-completion dates and
   primary endpoints for trials; reaction counts for FAERS; form/filer/accession for
   SEC; and so on. A model should cite these rather than infer figures. (SEC returns
@@ -313,9 +316,12 @@ The output is shaped for LLM callers:
   `status: "no_current_results"` with the `query_used` and `as_of` date, so "not in
   shortage as of 2026-10-20" is a citable fact, not an inference from a bare `0`.
 - **Provenance on every block** — `endpoint`, `retrieved_at`, `as_of`.
-- **A relevance signal** — each result carries `match: {terms, where}` showing which
-  query terms actually hit and where, so strays from loose keyword matching can be
-  dropped.
+- **A relevance signal, and a filter** — each result carries `match: {terms, where}`
+  showing which query terms actually hit and where. `search_clinical_trials` and
+  `search_pubmed` go further and **drop** strays by default (`require_match=true`):
+  a study the registry returns for a different drug, where the query term appears in
+  no field, is removed. Set `require_match=false` to see everything and filter
+  yourself via `match`.
 - **SEC entity scoping** — `search_sec_filings` has two modes. Give `company` (a name,
   ticker, or raw CIK; `query` optional) and it resolves the subject to its CIK and
   returns only that registrant's *own* filings — so a fund's 13F or an NPORT-P that
@@ -327,13 +333,19 @@ The output is shaped for LLM callers:
   `watchlist_digest` takes `sources=[...]` to query only the agencies you need.
 
 Register it with Claude Desktop (or Claude Code) — add to your MCP config
-(`claude_desktop_config.json`):
+(`claude_desktop_config.json`).
+
+> **Use an absolute path for `command`.** The desktop app does **not** inherit your
+> shell's `PATH`, so a bare `"command": "openbionews"` (or `"uvx"`) usually fails to
+> launch. Find the installed binary with `which openbionews` (after `pipx`/`uv tool
+> install`) and paste that full path. On macOS it's typically
+> `~/.local/bin/openbionews` (pipx) or `~/.local/bin/openbionews` / the uv tools dir.
 
 ```json
 {
   "mcpServers": {
     "openbionews": {
-      "command": "openbionews",
+      "command": "/Users/you/.local/bin/openbionews",
       "args": ["mcp"],
       "env": { "OPENBIONEWS_EDGAR_UA": "Your Name your@email.com" }
     }
@@ -341,10 +353,28 @@ Register it with Claude Desktop (or Claude Code) — add to your MCP config
 }
 ```
 
-`OPENBIONEWS_EDGAR_UA` is optional — SEC asks full-text-search callers to identify
-themselves with a contact; set it to your email to keep EDGAR happy. Then ask your
-assistant things like *"any Class I drug recalls for Moderna in the last 90 days?"*
-and it will call the tool and answer from the cited records.
+If you'd rather not hard-code a path, point `command` at the Python that has the
+package and run it as a module — more portable across machines:
+
+```json
+{
+  "mcpServers": {
+    "openbionews": {
+      "command": "/usr/bin/python3",
+      "args": ["-m", "openbionews", "mcp"],
+      "env": { "OPENBIONEWS_EDGAR_UA": "Your Name your@email.com" }
+    }
+  }
+}
+```
+
+**Set `OPENBIONEWS_EDGAR_UA` if you'll use `search_sec_filings`** — SEC rejects EDGAR
+requests without a descriptive User-Agent, so skipping it returns a 403 (the tool now
+says exactly this and names the variable, rather than surfacing raw 403 HTML). Set it
+to `"Your Name your@email.com"`. The other sources don't need it.
+
+Then ask your assistant things like *"any Class I drug recalls for Moderna in the last
+90 days?"* and it will call the tool and answer from the cited records.
 
 ---
 
@@ -431,7 +461,17 @@ OpenBioNews doesn't just dump every headline. Stories are:
    focused read with a **read-time estimate** in the header.
 
 If you use an LLM backend, turn on **"why it matters"** in setup to add a short
-significance note under each summary, generated locally or with your own key.
+significance note under each summary, generated locally or with your own key. It is
+always rendered as a clearly labelled *"Why it matters (AI analysis)"* line, kept
+separate from the deterministic, cited facts above it — so interpretation is never
+mistaken for a sourced claim.
+
+> **Pick a capable model for this note.** The cited facts never touch an LLM, but the
+> optional note does, and a *small* local model will confabulate — in our testing a
+> 9B model invented a precise, fake net-loss figure when the numbers weren't in front
+> of it. Prefer a strong model (a frontier API, or a larger local model with good
+> instruction-following) for "why it matters"; treat a tiny model's note as throwaway.
+> If a note ever states a number, trust the cited record, not the note.
 
 ---
 

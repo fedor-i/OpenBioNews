@@ -6,6 +6,27 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-10-20
+
+### Added / Changed (MCP — pre-ship hardening)
+- **Keyword-stray filter for trials & PubMed.** `search_clinical_trials` and
+  `search_pubmed` now drop results where the query term appears in no field
+  (`require_match=true`, the default) — the loose-keyword strays upstream search
+  leaks in (a different drug in a results list). Set `require_match=false` to opt out
+  and self-filter via each result's `match`.
+- **Actionable SEC User-Agent error.** A missing `OPENBIONEWS_EDGAR_UA` now yields a
+  clear message naming the variable and the `"Name email"` format, instead of SEC's
+  raw 403 HTML wall.
+- **`serverInfo.version` is populated** (clients display it; it was blank).
+
+### Docs
+- MCP setup now warns that the desktop app does **not** inherit shell `PATH`, so the
+  config must use an **absolute** `command` path (or `python3 -m openbionews mcp`);
+  the EDGAR User-Agent is called out as required for SEC; and the "why it matters"
+  LLM note carries a confabulation warning (use a capable model; it's labelled
+  analysis, never a cited fact). Clarified that lean output always keeps the citation
+  (`source.url`), `id`, and `date`.
+
 ## [0.7.1] — 2026-10-20
 
 ### Fixed (MCP — `search_sec_filings`)
