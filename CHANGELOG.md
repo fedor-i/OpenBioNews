@@ -6,6 +6,36 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-10-20
+
+### Changed / Added (MCP tools — optimized for LLM callers)
+Head-to-head local-model testing showed the root cause of confabulation wasn't the
+model — a dense 9B invented precise fake financials ("$15.8M net loss") because the
+tool payload carried no numbers to anchor on. These changes make the tools leaner and
+harder to hallucinate against.
+
+- **Lean output by default.** Records now carry one `source: {id, name, url, kind}`
+  object instead of three repeated links (`url` + `citation_url` + `citations[]`),
+  plus a `facts` block that surfaces the structured values each connector already
+  extracted. Pass `verbose=true` for the full payload. Collapses redundant tokens
+  substantially on every call.
+- **The numbers travel in `facts`.** ClinicalTrials.gov records now include
+  `enrollment`, `start_date`, `primary_completion_date` and `primary_endpoints`;
+  FAERS reaction counts, SEC form/filer/accession, approval/shortage fields all ride
+  in `facts` so a downstream model cites them rather than inventing them.
+- **A first-class empty result.** A successful-but-empty search returns
+  `status: "no_current_results"` with `query_used` and `as_of`, so a negative (e.g.
+  "not in shortage") is a citable fact, not an inference from a bare `0`.
+- **Relevance signal + scope filters.** Each result carries `match: {terms, where}`
+  for loose-keyword strays; `search_sec_filings` gains `own_filer_only` to drop
+  third-party filings (a fund's 13F) that merely mention the company.
+- **Monitoring + token-budgeted paging.** `since` (YYYY-MM-DD) filters to new records
+  and flags each `is_new`; `limit`/`offset` page results with a `truncated` flag;
+  `watchlist_digest` takes `sources=[...]` to query only the agencies needed.
+- **Provenance + MCP annotations.** Every block carries `endpoint`, `retrieved_at`
+  and `as_of`; every tool is registered with `readOnlyHint`/`idempotentHint` so agent
+  frameworks can cache and parallelize calls.
+
 ## [0.6.1] — 2026-10-19
 
 ### Fixed

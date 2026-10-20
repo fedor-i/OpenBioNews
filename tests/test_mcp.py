@@ -24,26 +24,32 @@ from openbionews.connectors import (
 from openbionews.httputil import HTTPJSONError
 from openbionews.models import Citation, Item
 
+
+def _ct_study(nct, title, date, phase="PHASE3", enrollment=120):
+    return {"protocolSection": {
+        "identificationModule": {"nctId": nct, "briefTitle": title},
+        "statusModule": {"overallStatus": "RECRUITING",
+                         "lastUpdatePostDateStruct": {"date": date},
+                         "startDateStruct": {"date": "2026-01-15"},
+                         "primaryCompletionDateStruct": {"date": "2027-06-30"}},
+        "sponsorCollaboratorsModule": {"leadSponsor": {"name": "Beam"}},
+        "conditionsModule": {"conditions": ["Sickle Cell"]},
+        "descriptionModule": {"briefSummary": "A CRISPR gene editing therapy."},
+        "designModule": {"phases": [phase], "enrollmentInfo": {"count": enrollment}},
+        "outcomesModule": {"primaryOutcomes": [{"measure": "Change in HbF at 24 weeks"}]}}}
+
+
 # ---- canned upstream payloads (same JSON shapes the real APIs return) ------- #
-CT = {"studies": [{"protocolSection": {
-    "identificationModule": {"nctId": "NCT0001", "briefTitle": "CRISPR base editing study"},
-    "statusModule": {"overallStatus": "RECRUITING",
-                     "lastUpdatePostDateStruct": {"date": "2026-10-01"}},
-    "sponsorCollaboratorsModule": {"leadSponsor": {"name": "Beam"}},
-    "conditionsModule": {"conditions": ["Sickle Cell"]},
-    "descriptionModule": {"briefSummary": "A CRISPR gene editing therapy."},
-    "designModule": {"phases": ["PHASE3"]}}}]}
+CT = {"studies": [_ct_study("NCT0001", "CRISPR base editing study", "2026-10-01")]}
+CT_MANY = {"studies": [
+    _ct_study("NCT_A", "Study A", "2026-10-10"),
+    _ct_study("NCT_B", "Study B", "2026-10-05"),
+    _ct_study("NCT_C", "Study C", "2026-08-01"),
+]}
 CT_PHASES = {"studies": [
-    {"protocolSection": {
-        "identificationModule": {"nctId": "NCT_P1", "briefTitle": "Early study"},
-        "statusModule": {"overallStatus": "RECRUITING",
-                         "lastUpdatePostDateStruct": {"date": "2026-10-01"}},
-        "designModule": {"phases": ["PHASE1"]}}},
-    {"protocolSection": {
-        "identificationModule": {"nctId": "NCT_P3", "briefTitle": "Pivotal study"},
-        "statusModule": {"overallStatus": "RECRUITING",
-                         "lastUpdatePostDateStruct": {"date": "2026-10-01"}},
-        "designModule": {"phases": ["PHASE3"]}}}]}
+    _ct_study("NCT_P1", "Early study", "2026-10-01", phase="PHASE1"),
+    _ct_study("NCT_P3", "Pivotal study", "2026-10-01", phase="PHASE3"),
+]}
 RECALLS = {"results": [{
     "recall_number": "D-1111-2026", "product_description": "Injectable 10 mg/mL",
     "recalling_firm": "Insilico", "reason_for_recall": "Contamination risk.",
@@ -64,6 +70,16 @@ EDGAR = {"hits": {"hits": [{"_id": "0001-26-000001:filing.htm", "_source": {
     "ciks": ["0001628280"], "display_names": ["BEAM THERAPEUTICS INC (RXRX)"],
     "root_form": "8-K", "file_date": "2026-10-01",
     "file_description": "Material agreement on a collaboration."}}]}}
+# A company query that also sweeps in a third party's 13F mentioning the company.
+EDGAR_MIXED = {"hits": {"hits": [
+    {"_id": "0001-26-000001:a.htm", "_source": {
+        "ciks": ["0001628280"], "display_names": ["BEAM THERAPEUTICS INC"],
+        "root_form": "8-K", "file_date": "2026-10-01",
+        "file_description": "Collaboration agreement."}},
+    {"_id": "0009-26-000009:b.htm", "_source": {
+        "ciks": ["0009999999"], "display_names": ["PERSISTENT ASSET PARTNERS LLC"],
+        "root_form": "13F-HR", "file_date": "2026-10-02",
+        "file_description": "Quarterly holdings incl. Beam Therapeutics."}}]}}
 EVENTS = {"results": [{"term": "NAUSEA", "count": 42}, {"term": "HEADACHE", "count": 17}]}
 LABELS = {"results": [{
     "openfda": {"brand_name": ["Examplor"], "generic_name": ["examplemab"],
@@ -108,49 +124,82 @@ class _patch:
         self.module.get_json = self._orig
 
 
-# --------------------------------------------------------------------------- #
-def test_item_to_dict_carries_citation():
+# --- A. lean serialisation: one source object, no triplicate citation -------- #
+def test_item_to_dict_is_lean_by_default():
     item = Item(title="T", link="https://x/1", summary="s", source="Src",
                 published=datetime(2026, 10, 1, tzinfo=timezone.utc), guid="g",
                 citations=[Citation(label="L", url="https://x/1", kind="registry")],
                 tag="Recruiting", meta={"status": "RECRUITING", "track": {"Status": "x"}})
     d = mcp_server._item_to_dict(item)
-    assert d["title"] == "T" and d["url"] == "https://x/1"
-    assert d["published"] == "2026-10-01"
-    assert d["citation_url"] == "https://x/1"
-    assert d["citations"][0]["label"] == "L"
-    assert "track" not in d["meta"] and d["meta"]["status"] == "RECRUITING"
+    # The link lives in exactly one place now — the source object.
+    assert d["source"] == {"id": "g", "name": "Src", "url": "https://x/1", "kind": "registry"}
+    assert "url" not in d and "citation_url" not in d and "citations" not in d
+    assert d["date"] == "2026-10-01" and d["status"] == "Recruiting"
+    # facts promote structured meta, drop the internal track key.
+    assert d["facts"] == {"status": "RECRUITING"}
 
 
-def test_search_clinical_trials():
+def test_item_to_dict_verbose_restores_full_payload():
+    item = Item(title="T", link="https://x/1", summary="s", source="Src",
+                published=datetime(2026, 10, 1, tzinfo=timezone.utc), guid="g",
+                citations=[Citation(label="L", url="https://x/1", kind="registry")],
+                tag="Recruiting", meta={"status": "RECRUITING", "track": {"x": 1}})
+    d = mcp_server._item_to_dict(item, verbose=True)
+    assert d["citation_url"] == "https://x/1" and d["citations"][0]["label"] == "L"
+    assert d["id"] == "g" and "track" not in d["meta"]
+
+
+def test_second_citation_rides_in_source_also():
+    item = Item(title="T", link="https://pm/1", source="PubMed", guid="g",
+                citations=[Citation(label="PMID", url="https://pm/1", kind="literature"),
+                           Citation(label="DOI", url="https://doi.org/x", kind="doi")])
+    d = mcp_server._item_to_dict(item)
+    assert d["source"]["url"] == "https://pm/1"
+    assert d["source"]["also"][0]["url"] == "https://doi.org/x"
+
+
+# --- B. the numbers travel in facts, so a model needn't invent them ---------- #
+def test_trials_facts_carry_the_hard_numbers():
     with _patch(clinicaltrials, CT):
         out = mcp_server.search_clinical_trials("crispr", limit=5)
     assert out["source"] == "ClinicalTrials.gov" and out["count"] == 1
+    f = out["results"][0]["facts"]
+    assert f["enrollment"] == 120
+    assert f["start_date"] == "2026-01-15" and f["primary_completion_date"] == "2027-06-30"
+    assert f["primary_endpoints"] == ["Change in HbF at 24 weeks"]
+    assert out["results"][0]["source"]["url"].startswith("https://clinicaltrials.gov")
+
+
+def test_adverse_event_counts_are_structured():
+    with _patch(openfda_events, EVENTS):
+        out = mcp_server.search_fda_adverse_events("semaglutide")
     r = out["results"][0]
-    assert "clinicaltrials.gov" in r["url"]
-    assert r["citations"] and "NCT0001" in r["citations"][0]["label"]
+    assert r["facts"]["total"] >= 1 and r["facts"]["reactions"]
+    assert "not incidence rates" in r["summary"]
 
 
+# --- phase filter still works, now addressing the lean source id ------------- #
 def test_phase_filter_keeps_only_matching():
     with _patch(clinicaltrials, CT_PHASES):
         out = mcp_server.search_clinical_trials("x", phase="3")
-    ids = [r["id"] for r in out["results"]]
+    ids = [r["source"]["id"] for r in out["results"]]
     assert ids == ["NCT_P3"]  # the Phase 1 study is filtered out
 
 
+# --- per-source smoke tests on the lean shape -------------------------------- #
 def test_search_fda_recalls():
     with _patch(openfda, RECALLS):
         out = mcp_server.search_fda_recalls("injectable", classification="Class I")
-    assert out["count"] == 1 and out["results"][0]["meta"]["classification"] == "Class I"
-    assert "fda.gov" in out["results"][0]["citation_url"]
+    r = out["results"][0]
+    assert out["count"] == 1 and r["facts"]["classification"] == "Class I"
+    assert "fda.gov" in r["source"]["url"]
 
 
 def test_search_fda_approvals():
     with _patch(openfda_approvals, APPROVALS):
         out = mcp_server.search_fda_approvals("editacel")
     assert out["count"] >= 1
-    assert any("FDA" in c["label"] or "fda" in c["url"]
-               for c in out["results"][0]["citations"])
+    assert "fda" in out["results"][0]["source"]["url"].lower()
 
 
 def test_search_fda_shortages():
@@ -159,47 +208,91 @@ def test_search_fda_shortages():
     assert out["count"] == 1 and "shortage" in out["results"][0]["title"].lower()
 
 
-def test_search_fda_adverse_events():
-    with _patch(openfda_events, EVENTS):
-        out = mcp_server.search_fda_adverse_events("semaglutide")
-    assert out["count"] == 1
-    r = out["results"][0]
-    assert "Nausea (42)" in r["summary"] and "not incidence rates" in r["summary"]
-    assert "count=patient.reaction" in r["citations"][0]["url"]
-
-
 def test_search_fda_labeling():
     with _patch(openfda_labels, LABELS):
         out = mcp_server.search_fda_labeling("examplemab")
-    assert out["count"] == 1
     r = out["results"][0]
-    assert "Boxed warning" in r["summary"] and "sickle cell" in r["summary"].lower()
-    assert "/drug/label.json" in r["citations"][0]["url"]
+    assert out["count"] == 1 and r["facts"]["boxed_warning"] is True
+    assert "/drug/label.json" in r["source"]["url"]
 
 
 def test_search_pubmed():
     with _patch(pubmed, _pubmed_fake):
         out = mcp_server.search_pubmed("base editing")
-    assert out["count"] == 1
     r = out["results"][0]
-    assert "pubmed.ncbi.nlm.nih.gov/40000001" in r["url"]
-    assert any("doi.org" in c["url"] for c in r["citations"])
+    assert out["count"] == 1 and "pubmed.ncbi.nlm.nih.gov/40000001" in r["source"]["url"]
+    assert any("doi.org" in c["url"] for c in r["source"]["also"])
 
 
 def test_search_federal_register():
     with _patch(federalregister, FEDREG):
         out = mcp_server.search_federal_register("guidance")
-    assert out["count"] == 1
     r = out["results"][0]
-    assert "federalregister.gov" in r["url"] and r["source"] == "Federal Register"
+    assert out["count"] == 1 and "federalregister.gov" in r["source"]["url"]
+    assert r["source"]["name"] == "Federal Register"
 
 
 def test_search_sec_filings():
     with _patch(edgar, EDGAR):
         out = mcp_server.search_sec_filings("collaboration")
-    assert out["count"] == 1 and "sec.gov" in out["results"][0]["url"]
+    assert out["count"] == 1 and "sec.gov" in out["results"][0]["source"]["url"]
 
 
+# --- C. relevance signal + SEC own-filer scope ------------------------------- #
+def test_match_reports_which_terms_hit_and_where():
+    with _patch(clinicaltrials, CT):
+        out = mcp_server.search_clinical_trials("crispr", limit=5)
+    m = out["results"][0]["match"]
+    assert "crispr" in [t.lower() for t in m["terms"]]
+    assert "summary" in m["where"] or "title" in m["where"]
+
+
+def test_own_filer_only_drops_third_party_filings():
+    with _patch(edgar, EDGAR_MIXED):
+        wide = mcp_server.search_sec_filings("beam", company="Beam")
+        narrow = mcp_server.search_sec_filings("beam", company="Beam", own_filer_only=True)
+    assert wide["count"] == 2                       # full-text sweeps in the 13F
+    assert narrow["count"] == 1 and narrow["own_filer_only"] is True
+    assert "BEAM" in narrow["results"][0]["title"].upper()
+
+
+# --- D. a successful-but-empty search is an explicit, citable negative -------- #
+def test_empty_search_returns_no_current_results():
+    with _patch(openfda_shortages, {"results": []}):
+        out = mcp_server.search_fda_shortages("tirzepatide")
+    assert out["status"] == "no_current_results" and out["count"] == 0
+    assert out["results"] == [] and "query_used" in out and out["as_of"]
+
+
+# --- E. since cursor filters + flags is_new ---------------------------------- #
+def test_since_filters_and_flags_new():
+    with _patch(clinicaltrials, CT_MANY):
+        out = mcp_server.search_clinical_trials("study", since="2026-09-01", limit=10)
+    ids = [r["source"]["id"] for r in out["results"]]
+    assert "NCT_C" not in ids                        # Aug study is before the cursor
+    assert all(r["is_new"] for r in out["results"])  # everything returned is new
+
+
+# --- F. provenance travels on every block ------------------------------------ #
+def test_provenance_fields_present():
+    with _patch(clinicaltrials, CT):
+        out = mcp_server.search_clinical_trials("crispr")
+    assert out["endpoint"].startswith("https://clinicaltrials.gov")
+    assert out["as_of"] and "T" in out["retrieved_at"]
+
+
+# --- G. token-budgeted pagination ------------------------------------------- #
+def test_pagination_offset_and_truncated_flag():
+    with _patch(clinicaltrials, CT_MANY):
+        page1 = mcp_server.search_clinical_trials("study", limit=2, offset=0)
+        page2 = mcp_server.search_clinical_trials("study", limit=2, offset=2)
+    assert page1["count"] == 2 and page1["truncated"] is True
+    assert page2["count"] == 1 and page2["truncated"] is False
+    assert {r["source"]["id"] for r in page1["results"]}.isdisjoint(
+        {r["source"]["id"] for r in page2["results"]})
+
+
+# --- H. watchlist source filter ---------------------------------------------- #
 def test_watchlist_digest_spans_all_sources():
     with _patch(clinicaltrials, CT), _patch(openfda, RECALLS), \
          _patch(openfda_approvals, APPROVALS), _patch(openfda_shortages, SHORTAGES), \
@@ -207,19 +300,23 @@ def test_watchlist_digest_spans_all_sources():
          _patch(federalregister, FEDREG), _patch(pubmed, _pubmed_fake), \
          _patch(edgar, EDGAR):
         out = mcp_server.watchlist_digest(["beam"], limit_per_source=5)
-    names = {s["source"] for s in out["sources"]}
-    assert names == {"ClinicalTrials.gov", "openFDA (Drug Recalls)",
-                     "Drugs@FDA (Approvals)", "FDA Drug Shortages",
-                     "openFDA (FAERS)", "openFDA (Drug Labeling)",
-                     "Federal Register", "PubMed", "SEC EDGAR"} \
-        or len(out["sources"]) == 9  # names may vary; nine blocks either way
     assert out["total"] >= 9 and len(out["sources"]) == 9
+    assert {s["key"] for s in out["sources"]} == set(mcp_server._DIGEST_KEYS)
+
+
+def test_watchlist_digest_sources_filter_restricts_blocks():
+    with _patch(clinicaltrials, CT), _patch(edgar, EDGAR):
+        out = mcp_server.watchlist_digest(["beam"], sources=["sec", "trials"])
+    keys = {s["key"] for s in out["sources"]}
+    assert keys == {"sec", "trials"}
+    assert out["sources_requested"] == ["sec", "trials"]
 
 
 def test_upstream_failure_is_returned_as_data():
     with _patch(clinicaltrials, raise_exc=HTTPJSONError("boom")):
         out = mcp_server.search_clinical_trials("x")
     assert "boom" in out["error"] and out["results"] == [] and out["count"] == 0
+    assert out["endpoint"]  # provenance still present on an error block
 
 
 def test_all_tools_registered():

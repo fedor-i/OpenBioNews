@@ -85,6 +85,15 @@ def study_to_item(study: dict, topic: str = "clinical_trials") -> Item | None:
     summary = _dig(ps, "descriptionModule", "briefSummary") or ""
     has_results = bool(study.get("hasResults"))
 
+    # Hard numbers worth citing (so a downstream model needn't invent them).
+    enrollment = _dig(ps, "designModule", "enrollmentInfo", "count")
+    start_date = _dig(ps, "statusModule", "startDateStruct", "date") or ""
+    primary_completion = _dig(ps, "statusModule", "primaryCompletionDateStruct", "date") or ""
+    primary_outcomes = [
+        o.get("measure", "") for o in (_dig(ps, "outcomesModule", "primaryOutcomes") or [])
+        if isinstance(o, dict) and o.get("measure")
+    ]
+
     link = f"https://clinicaltrials.gov/study/{nct}"
     tag_parts = [x for x in (_pretty_status(status), _pretty_phase(phases), sponsor) if x]
 
@@ -110,6 +119,10 @@ def study_to_item(study: dict, topic: str = "clinical_trials") -> Item | None:
             "sponsor": sponsor,
             "conditions": conditions,
             "interventions": interventions,
+            "enrollment": enrollment,
+            "start_date": start_date,
+            "primary_completion_date": primary_completion,
+            "primary_endpoints": primary_outcomes,
             "has_results": has_results,
             "track": track,
         },

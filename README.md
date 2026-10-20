@@ -298,8 +298,28 @@ openbionews mcp                              # speaks MCP over stdio
 Ten tools exposed: `search_clinical_trials`, `search_fda_recalls`,
 `search_fda_approvals`, `search_fda_shortages`, `search_fda_adverse_events`,
 `search_fda_labeling`, `search_federal_register`, `search_pubmed`,
-`search_sec_filings`, and `watchlist_digest` (every source at once). Each returns
-JSON records with a `citation_url`.
+`search_sec_filings`, and `watchlist_digest` (every source at once).
+
+The output is shaped for LLM callers:
+
+- **Lean by default** — one `source: {id, name, url, kind}` object per record (not
+  three repeated links), so a page of results costs far fewer tokens. Pass
+  `verbose=true` for the full payload (`citations[]`, raw `meta`).
+- **The numbers travel in `facts`** — enrollment, start/primary-completion dates and
+  primary endpoints for trials; reaction counts for FAERS; form/filer/accession for
+  SEC; and so on. A model should cite these rather than infer figures. (SEC returns
+  the filing *pointer*, not extracted financials — read the cited document for those.)
+- **A trustworthy negative** — a successful-but-empty search returns
+  `status: "no_current_results"` with the `query_used` and `as_of` date, so "not in
+  shortage as of 2026-10-20" is a citable fact, not an inference from a bare `0`.
+- **Provenance on every block** — `endpoint`, `retrieved_at`, `as_of`.
+- **A relevance signal** — each result carries `match: {terms, where}` showing which
+  query terms actually hit and where, so strays from loose keyword matching can be
+  dropped. `search_sec_filings` adds `own_filer_only` to exclude third-party filings
+  (e.g. a fund's 13F) that merely mention the company.
+- **Monitoring + paging** — `since` (YYYY-MM-DD) filters to new records and flags each
+  `is_new`; `limit`/`offset` page through results with a `truncated` flag;
+  `watchlist_digest` takes `sources=[...]` to query only the agencies you need.
 
 Register it with Claude Desktop (or Claude Code) — add to your MCP config
 (`claude_desktop_config.json`):
