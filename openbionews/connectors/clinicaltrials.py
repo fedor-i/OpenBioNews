@@ -150,6 +150,10 @@ class ClinicalTrialsConnector(Connector):
         self.max_per_query = int(cfg.get("max_per_query", 20) or 20)
         self.max_total = int(cfg.get("max_total", 60) or 60)
         self.statuses = [s for s in cfg.get("statuses", []) if s]
+        # Canonical ct.gov phase tokens (e.g. "PHASE3"), filtered server-side so the
+        # recency/page limit applies to matching studies — not to an all-phase page
+        # that is then whittled down to almost nothing.
+        self.phases = [p for p in cfg.get("phases", []) if p]
 
     def _queries(self) -> list[tuple[str, str]]:
         """Turn the watch list into (api_field, value) query pairs."""
@@ -189,6 +193,9 @@ class ClinicalTrialsConnector(Connector):
             }
             if self.statuses:
                 params["filter.overallStatus"] = ",".join(self.statuses)
+            if self.phases:
+                # Essie advanced filter: AREA[Phase](PHASE2 OR PHASE3)
+                params["filter.advanced"] = f"AREA[Phase]({' OR '.join(self.phases)})"
             try:
                 payload = get_json(API_URL, params=params, timeout=30)
             except HTTPJSONError as exc:

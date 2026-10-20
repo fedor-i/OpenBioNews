@@ -182,11 +182,25 @@ def test_adverse_event_counts_are_structured():
 
 
 # --- phase filter still works, now addressing the lean source id ------------- #
-def test_phase_filter_keeps_only_matching():
-    with _patch(clinicaltrials, CT_PHASES):
-        out = mcp_server.search_clinical_trials("x", phase="3", require_match=False)
-    ids = [r["source"]["id"] for r in out["results"]]
-    assert ids == ["NCT_P3"]  # the Phase 1 study is filtered out
+def test_phase_filter_is_pushed_server_side():
+    # The phase filter must ride in the ct.gov request (so the recency/page limit
+    # applies to matching studies), not be a post-fetch pass over a truncated page.
+    captured = {}
+    orig = clinicaltrials.get_json
+    clinicaltrials.get_json = lambda url, *a, **k: (captured.update(k.get("params") or {}) or CT_PHASES)
+    try:
+        mcp_server.search_clinical_trials("x", phase="3", require_match=False)
+    finally:
+        clinicaltrials.get_json = orig
+    assert "filter.advanced" in captured, "phase was not pushed into the ct.gov query"
+    assert captured["filter.advanced"] == "AREA[Phase](PHASE3)"
+
+
+def test_phase_normalisation():
+    assert mcp_server._norm_phase("3") == "PHASE3"
+    assert mcp_server._norm_phase("Phase 2") == "PHASE2"
+    assert mcp_server._norm_phase("PHASE4") == "PHASE4"
+    assert mcp_server._norm_phase("early") == "EARLY_PHASE1"
 
 
 CT_LEAK = {"studies": [

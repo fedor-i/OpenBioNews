@@ -6,6 +6,17 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.3] — 2026-10-20
+
+### Fixed (MCP — `search_clinical_trials`)
+- **Phase filter is now applied server-side.** It was filtered in the tool layer
+  *after* ClinicalTrials.gov returned a recency-sorted, page-size-capped set, so a
+  phase-3 search could come back nearly empty even when the registry held many
+  matching studies. The phase now rides in the ct.gov query itself
+  (`filter.advanced=AREA[Phase](PHASE3)`), so the recency/page limit applies to
+  matching studies. Accepts "3" / "Phase 3" / "PHASE3" and multiple phases
+  (`["2","3"]` → `AREA[Phase](PHASE2 OR PHASE3)`). (`status` was already server-side.)
+
 ## [0.7.2] — 2026-10-20
 
 ### Added / Changed (MCP — pre-ship hardening)

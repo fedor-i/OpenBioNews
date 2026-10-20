@@ -145,7 +145,7 @@ def _item_to_dict(item: Item, *, verbose: bool = False,
     return rec
 
 
-def _search(connector_cls, *, cfg=None, phase=None, query_terms=None,
+def _search(connector_cls, *, cfg=None, query_terms=None,
             since_iso=None, verbose=False, page=None, require_match=False, **watch) -> dict:
     """Run one connector over a watch list built from ``watch`` and serialise.
 
@@ -164,10 +164,6 @@ def _search(connector_cls, *, cfg=None, phase=None, query_terms=None,
         items = connector_cls(cfg or {}, watchlist).fetch()
     except HTTPJSONError as exc:
         return {**base, "error": str(exc), "count": 0, "results": []}
-    if phase:
-        want = str(phase).upper().replace("PHASE", "").strip()
-        items = [i for i in items
-                 if any(want in str(p).upper() for p in (i.meta.get("phases") or []))]
     if since_iso is not None:
         items = [i for i in items
                  if not i.published or i.published.date().isoformat() >= since_iso]
@@ -205,6 +201,19 @@ def _as_list(value):
     return value if isinstance(value, list) else [value]
 
 
+def _norm_phase(p) -> str:
+    """Normalise a phase ("3", "Phase 3", "PHASE3") to a ct.gov token ("PHASE3")."""
+    s = str(p).strip().upper().replace(" ", "_")
+    if "EARLY" in s:
+        return "EARLY_PHASE1"
+    if s in ("NA", "N/A"):
+        return "NA"
+    for d in "1234":
+        if d in s:
+            return "PHASE" + d
+    return s
+
+
 # --------------------------------------------------------------------------- #
 # Tool implementations (plain functions — no MCP dependency needed to call them)
 # --------------------------------------------------------------------------- #
@@ -227,7 +236,11 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
     cfg = {"recent_days": recent_days, "max_total": span + 1, "max_per_query": span + 1}
     if status:
         cfg["statuses"] = _as_list(status)
-    return _search(ClinicalTrialsConnector, terms=_as_list(query), cfg=cfg, phase=phase,
+    if phase:
+        # Filtered server-side (see the connector) so the limit applies to matching
+        # studies, not to an all-phase page that is then truncated.
+        cfg["phases"] = [_norm_phase(p) for p in _as_list(phase)]
+    return _search(ClinicalTrialsConnector, terms=_as_list(query), cfg=cfg,
                    query_terms=_as_list(query), since_iso=since, verbose=verbose,
                    require_match=require_match, page=(offset, limit))
 
