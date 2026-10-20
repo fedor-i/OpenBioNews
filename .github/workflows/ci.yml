@@ -58,44 +58,62 @@ jobs:
   distros:
     name: distro (${{ matrix.name }})
     runs-on: ubuntu-latest
-    container: ${{ matrix.image }}
     # Secondary robustness coverage; the authoritative cross-platform gate is the
-    # `test` job above. Don't let a container-registry hiccup fail the whole run.
+    # `test` job above. This job must never turn `main` red over a registry hiccup.
+    # We deliberately do NOT use the `container:` key: a pull failure there happens
+    # in the "Initialize containers" phase, which `continue-on-error` does NOT cover
+    # (it bypassed continue-on-error and failed the whole run). Instead we pull and
+    # run inside ordinary steps, where continue-on-error applies and we can retry.
     continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         # Prove the pure-stdlib core runs across Linux distributions and libc
-        # flavours: Debian (glibc), Alpine (musl) and Fedora. Images are pulled
-        # from the AWS ECR Public mirror of Docker's official images, which allows
-        # anonymous pulls without Docker Hub's unauthenticated rate limit (the
-        # cause of past "toomanyrequests" / pull-timeout CI failures).
+        # flavours: Debian (glibc), Alpine (musl) and Fedora. Images come from the
+        # AWS ECR Public mirror of Docker's official images (anonymous pulls, no
+        # Docker Hub unauthenticated rate limit). `setup` is any pre-step the image
+        # needs before python3 is available.
         include:
           - name: "python:3.12-slim-bookworm"   # Debian 12, glibc
             image: "public.ecr.aws/docker/library/python:3.12-slim-bookworm"
+            setup: ""
           - name: "python:3.11-slim-bullseye"   # Debian 11, glibc
             image: "public.ecr.aws/docker/library/python:3.11-slim-bullseye"
+            setup: ""
           - name: "python:3.12-alpine"           # Alpine, musl libc
             image: "public.ecr.aws/docker/library/python:3.12-alpine"
+            setup: ""
           - name: "fedora:40"                    # Fedora (installs python3)
             image: "public.ecr.aws/docker/library/fedora:40"
+            setup: "dnf install -y python3 python3-pip"
     steps:
       - uses: actions/checkout@v4
-      - name: Install Python on Fedora
-        if: startsWith(matrix.name, 'fedora')
-        run: dnf install -y python3 python3-pip
-      - name: Show interpreter
-        run: python3 --version
-      - name: Byte-compile all modules
-        run: python3 -m compileall -q openbionews
-      - name: Run the test suite (standard library only)
-        run: python3 tests/test_pipeline.py
-      - name: Guard the hosted Insights analytics (standard library only)
-        run: python3 tests/test_web_insights.py
-      - name: Run the MCP server tool tests (standard library only)
-        run: python3 tests/test_mcp.py
-      - name: Verify the package installs and the CLI runs
+      - name: Pull image (tolerate a registry hiccup)
+        id: pull
+        continue-on-error: true
         run: |
-          python3 -m pip install --break-system-packages . || python3 -m pip install .
-          openbionews --version
-          openbionews run --demo --quiet --stdout
+          for i in 1 2 3; do
+            docker pull "${{ matrix.image }}" && exit 0
+            echo "::warning::pull attempt $i for ${{ matrix.image }} failed; backing off"
+            sleep $((i * 10))
+          done
+          echo "::warning::could not pull ${{ matrix.image }} after retries — skipping this distro"
+          exit 1
+      # Only runs if the image actually pulled. A genuine code failure here turns the
+      # job red (visible), but the job's continue-on-error keeps the overall run green.
+      - name: Run core checks in the container
+        if: steps.pull.outcome == 'success'
+        env:
+          INNER: |
+            set -e
+            ${{ matrix.setup }}
+            python3 --version
+            python3 -m compileall -q openbionews
+            python3 tests/test_pipeline.py
+            python3 tests/test_web_insights.py
+            python3 tests/test_mcp.py
+            python3 -m pip install --break-system-packages . || python3 -m pip install .
+            openbionews --version
+            openbionews run --demo --quiet --stdout
+        run: |
+          docker run --rm -v "$PWD":/w -w /w "${{ matrix.image }}" sh -c "$INNER"
