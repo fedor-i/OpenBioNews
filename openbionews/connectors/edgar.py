@@ -20,7 +20,130 @@ from ..models import Citation, Item
 from .base import Connector
 
 API_URL = "https://efts.sec.gov/LATEST/search-index"
+SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
+TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 DEFAULT_UA = "OpenBioNews/0.3 (contact: set email in config; +https://github.com/fedor-i/OpenBioNews)"
+
+# Corporate-form words dropped when matching a name to a registrant (so
+# "Viking Therapeutics Inc" resolves from "Viking Therapeutics"). Industry words
+# like "therapeutics" are kept — they're what make the name distinctive.
+_FORM_SUFFIXES = {
+    "inc", "incorporated", "corp", "corporation", "co", "company", "ltd", "limited",
+    "plc", "llc", "lp", "sa", "nv", "ag", "the",
+}
+_TICKERS_CACHE: list[dict] | None = None
+
+
+def _norm_name(text: str) -> str:
+    """Lowercase, keep alphanumerics, drop corporate-form suffix words."""
+    tokens = [t for t in re.findall(r"[a-z0-9]+", (text or "").lower())
+              if t not in _FORM_SUFFIXES]
+    return " ".join(tokens)
+
+
+def _load_tickers(user_agent: str | None) -> list[dict]:
+    """SEC's registrant directory (ticker + CIK + title), fetched once per process."""
+    global _TICKERS_CACHE
+    if _TICKERS_CACHE is None:
+        payload = get_json(TICKERS_URL, headers={"User-Agent": user_agent or DEFAULT_UA},
+                           timeout=30)
+        rows = payload.values() if isinstance(payload, dict) else (payload or [])
+        _TICKERS_CACHE = [
+            {"cik": str(r["cik_str"]).zfill(10),
+             "ticker": str(r.get("ticker", "")).upper(),
+             "norm": _norm_name(r.get("title", "")),
+             "title": r.get("title", "")}
+            for r in rows if isinstance(r, dict) and r.get("cik_str")
+        ]
+    return _TICKERS_CACHE
+
+
+def resolve_cik(name: str, user_agent: str | None = None) -> str | None:
+    """Resolve a company name, ticker, or raw CIK to a zero-padded 10-digit CIK.
+
+    Returns None if nothing matches confidently — the caller then reports the
+    entity as not found rather than silently falling back to a noisy full-text
+    search (which is what let third-party filings leak in before).
+    """
+    if not name or not name.strip():
+        return None
+    raw = name.strip()
+    if raw.isdigit():                                  # already a CIK
+        return raw.zfill(10)
+    try:
+        rows = _load_tickers(user_agent)
+    except HTTPJSONError:
+        return None
+    upper = raw.upper()
+    for r in rows:                                     # exact ticker (e.g. VKTX)
+        if r["ticker"] and r["ticker"] == upper:
+            return r["cik"]
+    want = _norm_name(raw)
+    if not want:
+        return None
+    exact = [r for r in rows if r["norm"] == want]
+    if exact:
+        return min(exact, key=lambda r: len(r["title"]))["cik"]
+    want_tokens = set(want.split())                    # all query tokens appear in title
+    subset = [r for r in rows if want_tokens and want_tokens.issubset(set(r["norm"].split()))]
+    if subset:
+        return min(subset, key=lambda r: len(r["norm"]))["cik"]
+    return None
+
+
+def submission_to_item(cik, entity: str, form: str, filing_date: str, accn: str,
+                       primary_doc: str, desc: str, topic: str) -> Item:
+    """One row of a registrant's submissions feed as an Item (its own filing)."""
+    cik_int = str(int(cik)) if str(cik).isdigit() else str(cik)
+    accn_nodash = (accn or "").replace("-", "")
+    if accn_nodash and primary_doc:
+        url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{accn_nodash}/{primary_doc}"
+    elif accn_nodash:
+        url = f"https://www.sec.gov/Archives/edgar/data/{cik_int}/{accn_nodash}/"
+    else:
+        url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_int}"
+    published = None
+    try:
+        published = datetime.strptime(filing_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        pass
+    return Item(
+        title=f"{entity} — {form}",
+        link=url,
+        summary=desc or f"{form} filing",
+        source="SEC EDGAR",
+        topic=topic,
+        published=published,
+        guid=f"{accn}:{primary_doc}" if accn else (primary_doc or url),
+        citations=[Citation(label=f"EDGAR {accn or 'filing'}", url=url, kind="filing")],
+        tag=form,
+        meta={"form": form, "ciks": [str(cik).zfill(10)], "accession": accn,
+              "filer": entity, "track": ({"Form": form} if form else {})},
+        age_exempt=True,
+    )
+
+
+def parse_submissions(payload: dict, topic: str = "sec_filings") -> list[Item]:
+    """Turn a data.sec.gov submissions feed into Items (the entity's own filings)."""
+    entity = payload.get("name") or ""
+    cik = payload.get("cik") or ""
+    recent = ((payload.get("filings") or {}).get("recent")) or {}
+    forms = recent.get("form") or []
+    dates = recent.get("filingDate") or []
+    accns = recent.get("accessionNumber") or []
+    docs = recent.get("primaryDocument") or []
+    descs = recent.get("primaryDocDescription") or []
+    items: list[Item] = []
+    for i, accn in enumerate(accns):
+        items.append(submission_to_item(
+            cik, entity,
+            forms[i] if i < len(forms) else "",
+            dates[i] if i < len(dates) else "",
+            accn,
+            docs[i] if i < len(docs) else "",
+            descs[i] if i < len(descs) else "",
+            topic))
+    return items
 
 
 def _accession_url(hit_id: str, ciks) -> tuple[str, str]:
@@ -90,6 +213,10 @@ class EdgarConnector(Connector):
         self.max_per_query = int(cfg.get("max_per_query", 20) or 20)
         self.max_total = int(cfg.get("max_total", 40) or 40)
         self.user_agent = cfg.get("user_agent") or DEFAULT_UA
+        # When set, scope to these registrants' OWN filings (data.sec.gov
+        # submissions) instead of a full-text search that also matches filings
+        # by third parties merely mentioning the name.
+        self.ciks = [str(c) for c in (cfg.get("ciks") or []) if c]
 
     def _query_values(self) -> list[str]:
         wl = self.watchlist
@@ -119,11 +246,42 @@ class EdgarConnector(Connector):
             params["from"] = offset
         return params
 
+    def _fetch_entity(self, headers: dict) -> list[Item]:
+        """A registrant's own recent filings, from the submissions feed."""
+        cutoff = None
+        if self.recent_days:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=self.recent_days)
+        refine = [t.lower() for t in self._query_values()]  # optional within-entity text
+        by_id: dict[str, Item] = {}
+        for cik in self.ciks:
+            try:
+                payload = get_json(SUBMISSIONS_URL.format(cik=str(cik).zfill(10)),
+                                   headers=headers, timeout=30)
+            except HTTPJSONError as exc:
+                raise HTTPJSONError(f"cik={cik}: {exc}") from exc
+            for item in parse_submissions(payload, topic=self.topic):
+                form = (item.meta.get("form") or "").lower()
+                if self.forms and not any(f.lower() in form for f in self.forms):
+                    continue
+                if cutoff and item.published and item.published < cutoff:
+                    continue
+                if refine:
+                    hay = (item.title + " " + (item.summary or "")).lower()
+                    if not any(t in hay for t in refine):
+                        continue
+                by_id.setdefault(item.guid, item)
+        items = list(by_id.values())
+        items.sort(key=lambda i: i.published or datetime.min.replace(tzinfo=timezone.utc),
+                   reverse=True)
+        return items[: self.max_total]
+
     def fetch(self) -> list[Item]:
+        headers = {"User-Agent": self.user_agent}
+        if self.ciks:                                 # entity-scoped: own filings only
+            return self._fetch_entity(headers)
         values = self._query_values()
         if not values:
             return []
-        headers = {"User-Agent": self.user_agent}
         by_id: dict[str, Item] = {}
         for q in values:
             try:

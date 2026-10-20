@@ -29,11 +29,10 @@ them rather than invent them. Nothing is summarised or fabricated.
 from __future__ import annotations
 
 import os
-import re
 from datetime import datetime, timezone
 
 from .connectors.clinicaltrials import ClinicalTrialsConnector
-from .connectors.edgar import EdgarConnector
+from .connectors.edgar import EdgarConnector, resolve_cik
 from .connectors.openfda import OpenFDAConnector
 from .connectors.federalregister import FederalRegisterConnector
 from .connectors.openfda_approvals import OpenFDAApprovalsConnector
@@ -320,36 +319,60 @@ def search_federal_register(query: str = "", recent_days: int = 30, limit: int =
                    page=(offset, limit))
 
 
-def search_sec_filings(query: str, company: str | None = None, form: str | None = None,
-                       recent_days: int = 90, limit: int = 20, offset: int = 0,
-                       own_filer_only: bool = False, since: str | None = None,
-                       verbose: bool = False) -> dict:
-    """Full-text search SEC EDGAR filings. ``query`` is the search text; ``company``
-    narrows by filer; ``form`` e.g. "8-K". Full-text search also returns filings *by
-    third parties* that merely mention the company (a fund's 13F, say) — set
-    ``own_filer_only`` true with ``company`` to keep only filings whose own filer is
-    that company. ``since`` (YYYY-MM-DD) and ``offset`` work as on
+def search_sec_filings(query: str = "", company: str | None = None,
+                       form: str | None = None, recent_days: int = 90, limit: int = 20,
+                       offset: int = 0, own_filer_only: bool = False,
+                       since: str | None = None, verbose: bool = False) -> dict:
+    """Search SEC EDGAR filings. Two modes, picked by what you pass:
+
+    - **Entity mode** — give ``company`` (a name, ticker, or raw CIK; ``query`` is
+      then optional). The subject is resolved to its CIK and only that registrant's
+      *own* filings are returned, so third-party filings that merely mention it (a
+      fund's 13F, an NPORT-P) are excluded. ``query``, if also given, filters those
+      filings by text in the form/description. ``own_filer_only=true`` applies the
+      same entity scoping when you only have ``query`` (it is resolved as the entity).
+    - **Full-text mode** — give only ``query`` (and not ``own_filer_only``): a
+      document full-text search that matches any filing mentioning the terms.
+
+    ``form`` e.g. "8-K"; ``since`` (YYYY-MM-DD) and ``offset`` work as on
     search_clinical_trials. Each result cites the filing document. Set the
     OPENBIONEWS_EDGAR_UA env var to your email (SEC requests a contact).
 
-    Note: this returns the filing *pointer* (form, filer, date, accession) — it does
-    not extract financial figures from the document body, so a caller must read the
-    cited filing for numbers rather than infer them."""
+    Note: results are the filing *pointer* (form, filer, date, accession) — figures
+    are not extracted from the document body, so read the cited filing for numbers
+    rather than inferring them."""
+    base = {"source": EdgarConnector.name,
+            "endpoint": _ENDPOINTS.get(EdgarConnector.name, ""),
+            "retrieved_at": _now(), "as_of": _today()}
+    if not query and not company:
+        return {**base, "error": "provide 'query' (full-text) and/or 'company' (entity)",
+                "count": 0, "results": []}
     span = offset + limit
-    cfg = {"recent_days": recent_days, "max_total": span + 1, "max_per_query": span + 1}
+    cfg = _edgar_cfg({"recent_days": recent_days,
+                      "max_total": span + 1, "max_per_query": span + 1})
     if form:
         cfg["forms"] = _as_list(form)
-    res = _search(EdgarConnector, terms=_as_list(query), sponsors=_as_list(company),
-                  cfg=_edgar_cfg(cfg), query_terms=_as_list(query) or _as_list(company),
-                  since_iso=since, verbose=verbose, page=(offset, limit))
-    if own_filer_only and company and res.get("results"):
-        toks = [t for t in re.split(r"\W+", company.lower()) if len(t) > 2]
-        kept = [r for r in res["results"]
-                if any(t in r["title"].split(" — ")[0].lower() for t in toks)]
-        res["results"] = kept
-        res["count"] = len(kept)
+    qterms = _as_list(query) or _as_list(company)
+
+    # Entity mode: scope to the subject's own filings by resolving it to a CIK.
+    subject = company or (query if own_filer_only else None)
+    if subject:
+        cik = resolve_cik(subject, cfg.get("user_agent"))
+        if not cik:
+            return {**base, "status": "entity_not_found", "entity": subject,
+                    "count": 0, "results": []}
+        cfg["ciks"] = [cik]
+        # A query distinct from the entity name refines within that filer's filings.
+        refine = _as_list(query) if (query and query != subject) else None
+        res = _search(EdgarConnector, cfg=cfg, terms=refine, query_terms=qterms,
+                      since_iso=since, verbose=verbose, page=(offset, limit))
+        res["resolved_cik"] = cik
         res["own_filer_only"] = True
-    return res
+        return res
+
+    # Full-text mode.
+    return _search(EdgarConnector, terms=_as_list(query), cfg=cfg, query_terms=qterms,
+                   since_iso=since, verbose=verbose, page=(offset, limit))
 
 
 # connector + the watch-list field a free-text term maps to, for the combined digest.

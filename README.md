@@ -315,8 +315,13 @@ The output is shaped for LLM callers:
 - **Provenance on every block** — `endpoint`, `retrieved_at`, `as_of`.
 - **A relevance signal** — each result carries `match: {terms, where}` showing which
   query terms actually hit and where, so strays from loose keyword matching can be
-  dropped. `search_sec_filings` adds `own_filer_only` to exclude third-party filings
-  (e.g. a fund's 13F) that merely mention the company.
+  dropped.
+- **SEC entity scoping** — `search_sec_filings` has two modes. Give `company` (a name,
+  ticker, or raw CIK; `query` optional) and it resolves the subject to its CIK and
+  returns only that registrant's *own* filings — so a fund's 13F or an NPORT-P that
+  merely lists the ticker is excluded (unresolvable names come back as
+  `entity_not_found`). Give only `query` for a document full-text search;
+  `own_filer_only=true` applies the same entity scoping to a bare `query`.
 - **Monitoring + paging** — `since` (YYYY-MM-DD) filters to new records and flags each
   `is_new`; `limit`/`offset` page through results with a `truncated` flag;
   `watchlist_digest` takes `sources=[...]` to query only the agencies you need.

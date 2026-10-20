@@ -6,6 +6,22 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-10-20
+
+### Fixed (MCP — `search_sec_filings`)
+- **`company` is now a real filer filter, and `query` is optional.** Previously both
+  `query` and `company` were merged into the EDGAR full-text query, so `company` never
+  restricted by filer and `own_filer_only` only ran when `company` was set — which you
+  couldn't set alone because `query` was required. As a result a search for a company
+  returned third-party filings that merely mention it (a fund's 13F-HR, an NPORT-P).
+- **Entity mode resolves the subject to its CIK.** Give `company` (a name, ticker, or
+  raw CIK; `query` optional) and the tool resolves it via SEC's registrant directory
+  and returns only that registrant's *own* filings (data.sec.gov submissions feed),
+  reporting the `resolved_cik`. An unresolvable name returns `status:"entity_not_found"`
+  rather than silently falling back to a noisy full-text search. `own_filer_only=true`
+  applies the same scoping to a bare `query`. A plain `query` (no entity) still does a
+  document full-text search.
+
 ## [0.7.0] — 2026-10-20
 
 ### Changed / Added (MCP tools — optimized for LLM callers)

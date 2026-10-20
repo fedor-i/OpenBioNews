@@ -70,16 +70,19 @@ EDGAR = {"hits": {"hits": [{"_id": "0001-26-000001:filing.htm", "_source": {
     "ciks": ["0001628280"], "display_names": ["BEAM THERAPEUTICS INC (RXRX)"],
     "root_form": "8-K", "file_date": "2026-10-01",
     "file_description": "Material agreement on a collaboration."}}]}}
-# A company query that also sweeps in a third party's 13F mentioning the company.
-EDGAR_MIXED = {"hits": {"hits": [
-    {"_id": "0001-26-000001:a.htm", "_source": {
-        "ciks": ["0001628280"], "display_names": ["BEAM THERAPEUTICS INC"],
-        "root_form": "8-K", "file_date": "2026-10-01",
-        "file_description": "Collaboration agreement."}},
-    {"_id": "0009-26-000009:b.htm", "_source": {
-        "ciks": ["0009999999"], "display_names": ["PERSISTENT ASSET PARTNERS LLC"],
-        "root_form": "13F-HR", "file_date": "2026-10-02",
-        "file_description": "Quarterly holdings incl. Beam Therapeutics."}}]}}
+# SEC's registrant directory (name/ticker -> CIK), as company_tickers.json returns it.
+TICKERS = {
+    "0": {"cik_str": 1607678, "ticker": "VKTX", "title": "Viking Therapeutics, Inc."},
+    "1": {"cik_str": 1628280, "ticker": "BEAM", "title": "Beam Therapeutics Inc."},
+}
+# A subject's OWN filings, as data.sec.gov/submissions/CIK##########.json returns them.
+VIKING_SUBMISSIONS = {"cik": "1607678", "name": "Viking Therapeutics, Inc.",
+    "filings": {"recent": {
+        "form": ["8-K", "10-Q"],
+        "filingDate": ["2026-10-10", "2026-09-30"],
+        "accessionNumber": ["0001607678-26-000045", "0001607678-26-000040"],
+        "primaryDocument": ["vktx-8k.htm", "vktx-10q.htm"],
+        "primaryDocDescription": ["Current report", "Quarterly report"]}}}
 EVENTS = {"results": [{"term": "NAUSEA", "count": 42}, {"term": "HEADACHE", "count": 17}]}
 LABELS = {"results": [{
     "openfda": {"brand_name": ["Examplor"], "generic_name": ["examplemab"],
@@ -232,7 +235,16 @@ def test_search_federal_register():
     assert r["source"]["name"] == "Federal Register"
 
 
-def test_search_sec_filings():
+def _edgar_router(url, *a, **k):
+    """Route EDGAR calls by URL: registrant directory, submissions, or full-text."""
+    if "company_tickers" in url:
+        return TICKERS
+    if "data.sec.gov/submissions" in url:
+        return VIKING_SUBMISSIONS
+    return EDGAR  # efts.sec.gov full-text
+
+
+def test_search_sec_filings_fulltext_mode():
     with _patch(edgar, EDGAR):
         out = mcp_server.search_sec_filings("collaboration")
     assert out["count"] == 1 and "sec.gov" in out["results"][0]["source"]["url"]
@@ -247,13 +259,52 @@ def test_match_reports_which_terms_hit_and_where():
     assert "summary" in m["where"] or "title" in m["where"]
 
 
-def test_own_filer_only_drops_third_party_filings():
-    with _patch(edgar, EDGAR_MIXED):
-        wide = mcp_server.search_sec_filings("beam", company="Beam")
-        narrow = mcp_server.search_sec_filings("beam", company="Beam", own_filer_only=True)
-    assert wide["count"] == 2                       # full-text sweeps in the 13F
-    assert narrow["count"] == 1 and narrow["own_filer_only"] is True
-    assert "BEAM" in narrow["results"][0]["title"].upper()
+def test_sec_company_scopes_to_own_filings_query_optional():
+    # company alone (no query) must work, and return only the subject's OWN filings.
+    edgar._TICKERS_CACHE = None
+    with _patch(edgar, _edgar_router):
+        out = mcp_server.search_sec_filings(company="Viking Therapeutics")
+    assert out["resolved_cik"] == "0001607678" and out["own_filer_only"] is True
+    assert out["count"] == 2                         # both VKTX own filings
+    filers = {r["title"].split(" — ")[0] for r in out["results"]}
+    assert filers == {"Viking Therapeutics, Inc."}   # no Persistent/Buffalo noise
+
+
+def test_sec_own_filer_only_resolves_the_query_as_entity():
+    edgar._TICKERS_CACHE = None
+    with _patch(edgar, _edgar_router):
+        out = mcp_server.search_sec_filings(query="Viking Therapeutics", own_filer_only=True)
+    assert out["resolved_cik"] == "0001607678" and out["count"] == 2
+
+
+def test_sec_ticker_resolves_to_cik():
+    edgar._TICKERS_CACHE = None
+    with _patch(edgar, _edgar_router):
+        out = mcp_server.search_sec_filings(company="VKTX")
+    assert out["resolved_cik"] == "0001607678" and out["count"] == 2
+
+
+def test_sec_entity_not_found_is_explicit():
+    edgar._TICKERS_CACHE = None
+    with _patch(edgar, _edgar_router):
+        out = mcp_server.search_sec_filings(company="Nonexistent Holdings")
+    assert out["status"] == "entity_not_found" and out["entity"] == "Nonexistent Holdings"
+    assert out["count"] == 0 and out["results"] == []
+
+
+def test_sec_requires_query_or_company():
+    out = mcp_server.search_sec_filings()
+    assert "error" in out and out["count"] == 0
+
+
+def test_resolve_cik_handles_names_tickers_and_raw_ciks():
+    edgar._TICKERS_CACHE = None
+    with _patch(edgar, _edgar_router):
+        assert edgar.resolve_cik("Viking Therapeutics") == "0001607678"   # name
+        assert edgar.resolve_cik("viking therapeutics inc") == "0001607678"  # + suffix
+        assert edgar.resolve_cik("VKTX") == "0001607678"                  # ticker
+        assert edgar.resolve_cik("1607678") == "0001607678"               # raw CIK
+        assert edgar.resolve_cik("No Such Biotech") is None               # miss
 
 
 # --- D. a successful-but-empty search is an explicit, citable negative -------- #
