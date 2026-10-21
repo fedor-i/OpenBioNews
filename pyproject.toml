@@ -44,6 +44,10 @@ feeds = ["feedparser>=6.0"]
 # extra is simply empty; the current release installs and `openbionews mcp`
 # reports that it needs 3.10+.
 mcp = ["mcp>=1.2; python_version >= '3.10'"]
+# Optional: semantic (LSA) relevance ranking via `rank_by="semantic"`. Classical ML
+# (TF-IDF + TruncatedSVD), local and deterministic. The core stays dependency-free and
+# falls back to lexical relevance when this isn't installed.
+ml = ["scikit-learn>=1.3"]
 dev = ["pytest>=7.0"]
 
 [project.urls]

@@ -221,10 +221,20 @@ def _search(connector_cls, *, cfg=None, query_terms=None, since_iso=None, verbos
         items = [i for i in items if _match(i, _facts(i), query_terms)["terms"]]
     # Score the whole candidate pool, then (optionally) rank by it — before paging, so
     # the top page is the most relevant, not the most relevant within a recency page.
-    scores = {}
+    scores, ranked_by, note = {}, None, None
     if score_fn is not None and query_terms:
-        scores = {id(i): score_fn(i, query_terms) for i in items}
-        if rank_by == "relevance":
+        if rank_by == "semantic":
+            scores = _semantic_pool_scores(items, query_terms)
+            if scores is None:            # optional [ml] extra not installed
+                scores, ranked_by = {}, "relevance"
+                note = ("semantic ranking needs the optional [ml] extra "
+                        "(pip install \"openbionews[ml]\"); used lexical relevance")
+            else:
+                ranked_by = "semantic"
+        if not scores:                    # lexical: default, or the semantic fallback
+            scores = {id(i): score_fn(i, query_terms) for i in items}
+            ranked_by = ranked_by or (rank_by if rank_by == "relevance" else "recency")
+        if ranked_by in ("relevance", "semantic"):
             items.sort(key=lambda i: scores[id(i)]["score"], reverse=True)
     truncated = False
     if page is not None:
@@ -243,6 +253,10 @@ def _search(connector_cls, *, cfg=None, query_terms=None, since_iso=None, verbos
         return {**base, "status": "no_current_results", "count": 0,
                 "query_used": watchlist, "results": []}
     out = {**base, "count": len(results), "results": results}
+    if ranked_by:
+        out["ranked_by"] = ranked_by
+    if note:
+        out["ranking_note"] = note
     if page is not None:
         out["truncated"] = truncated
     return out
@@ -327,10 +341,40 @@ def _scorer(signal_fn=None):
 
 
 def _rank_cap(rank_by, span: int) -> tuple[bool, str, int]:
-    """(ranking?, canonical rank_by, candidate cap). Relevance ranks over a wider
-    recent pool so the top page is the most relevant, not the page's local best."""
-    by_rel = str(rank_by).lower() == "relevance"
-    return by_rel, ("relevance" if by_rel else "recency"), (max(span + 1, 50) if by_rel else span + 1)
+    """(ranking?, canonical rank_by, candidate cap). "relevance"/"semantic" rank over a
+    wider recent pool so the top page is the most relevant, not the page's local best."""
+    rb = str(rank_by).lower()
+    rb = rb if rb in ("relevance", "semantic") else "recency"
+    widen = rb != "recency"
+    return widen, rb, (max(span + 1, 50) if widen else span + 1)
+
+
+def _doc_text(item: Item) -> str:
+    """The text a semantic ranker reads for a record: title, summary, and facts."""
+    facts = _facts(item)
+    parts = [item.title or "", item.summary or ""] + [str(v) for v in facts.values()]
+    return " ".join(p for p in parts if p)
+
+
+def _semantic_pool_scores(items, query_terms):
+    """Semantic (LSA) scores over the whole candidate pool, blended with recency.
+
+    Returns {id(item): {score, components}}, or None when the optional ``[ml]`` extra
+    isn't installed — the caller then falls back to lexical relevance.
+    """
+    try:
+        from .mlrank import semantic_scores
+    except ImportError:
+        return None
+    if not items:
+        return {}
+    sims = semantic_scores(" ".join(str(t) for t in query_terms), [_doc_text(i) for i in items])
+    out = {}
+    for item, sim in zip(items, sims):
+        _, recency = _match_recency(item, query_terms)
+        out[id(item)] = {"score": round(0.75 * sim + 0.25 * recency, 4),
+                         "components": {"semantic": round(sim, 3), "recency": recency}}
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -351,17 +395,15 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
 
     Every result carries a deterministic ``relevance_score`` (0–1) blending query
     match with phase, recency, enrollment, results-posted and status. ``rank_by``
-    orders results: "recency" (default — most recently updated first) or "relevance"
-    (highest score first, ranked over a wider recent candidate pool). The component
-    breakdown is in each result's ``relevance_components`` under ``verbose``. Each
-    lean result also carries a ``facts`` block (enrollment, start/primary-completion
-    dates, primary endpoints, phase, sponsor) cited to its NCT record.
+    orders results: "recency" (default), "relevance" (lexical score, over a wider
+    recent candidate pool), or "semantic" (LSA similarity — needs the optional
+    ``[ml]`` extra, and falls back to "relevance" with a ``ranking_note`` when it
+    isn't installed). The component breakdown is in each result's
+    ``relevance_components`` under ``verbose``. Each lean result also carries a
+    ``facts`` block (enrollment, start/primary-completion dates, primary endpoints,
+    phase, sponsor) cited to its NCT record.
     """
-    by_relevance = str(rank_by).lower() == "relevance"
-    span = offset + limit
-    # Rank over a wider recent pool so the top page is genuinely the most relevant,
-    # not just the most relevant among one recency-ordered page.
-    cap = max(span + 1, 50) if by_relevance else span + 1
+    _, rb, cap = _rank_cap(rank_by, offset + limit)
     cfg = {"recent_days": recent_days, "max_total": cap, "max_per_query": cap}
     if status:
         cfg["statuses"] = _as_list(status)
@@ -372,8 +414,7 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
     return _search(ClinicalTrialsConnector, terms=_as_list(query), cfg=cfg,
                    query_terms=_as_list(query), since_iso=since, verbose=verbose,
                    require_match=require_match, page=(offset, limit),
-                   score_fn=_trial_relevance,
-                   rank_by="relevance" if by_relevance else "recency")
+                   score_fn=_trial_relevance, rank_by=rb)
 
 
 def search_fda_recalls(query: str = "", firm: str | None = None,
@@ -587,7 +628,7 @@ def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15,
     per source, each record cited."""
     terms = _as_list(terms) or []
     want = set(_as_list(sources) or _DIGEST_KEYS)
-    rb = "relevance" if str(rank_by).lower() == "relevance" else "recency"
+    _, rb, _ = _rank_cap(rank_by, 0)
     base = {"recent_days": recent_days, "max_total": limit_per_source,
             "max_per_query": limit_per_source}
     blocks = []

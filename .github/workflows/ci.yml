@@ -55,6 +55,22 @@ jobs:
       - name: Build the MCP server and round-trip a tool call
         run: python tests/test_mcp_server.py
 
+  ml:
+    name: semantic ranking (py3.12 + ml extra)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Install the optional 'ml' extra so the semantic (LSA) ranker actually runs —
+      # the stdlib-only jobs exercise the graceful fallback instead.
+      - name: Install with the ML extra
+        run: pip install ".[ml]"
+      - name: Exercise the semantic ranker
+        run: python tests/test_mlrank.py
+
   distros:
     name: distro (${{ matrix.name }})
     runs-on: ubuntu-latest

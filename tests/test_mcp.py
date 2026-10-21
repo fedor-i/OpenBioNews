@@ -237,6 +237,17 @@ def test_rank_by_relevance_reorders_vs_recency():
         by_relevance["results"][1]["relevance_score"]
 
 
+def test_rank_by_semantic_scores_or_falls_back():
+    # Works whether or not the optional [ml] extra is installed: semantic ranking when
+    # available, a clean fall back to lexical relevance (with a note) when not.
+    with _patch(clinicaltrials, CT_RANK):
+        out = mcp_server.search_clinical_trials("aspirin", rank_by="semantic")
+    assert out["ranked_by"] in ("semantic", "relevance")
+    assert all("relevance_score" in r for r in out["results"])
+    if out["ranked_by"] == "relevance":
+        assert "[ml]" in out["ranking_note"]       # told the caller how to enable it
+
+
 def test_relevance_components_in_verbose():
     with _patch(clinicaltrials, CT_RANK):
         out = mcp_server.search_clinical_trials("aspirin", rank_by="relevance", verbose=True)

@@ -20,8 +20,18 @@ to follow [Semantic Versioning](https://semver.org/).
   highest); approvals weight priority review; shortages weight current-vs-resolved;
   PubMed / Federal Register / SEC use match + recency.
 - This is classical scoring (no LLM, no new dependencies): it only orders records
-  that already cite themselves and invents nothing. Semantic ranking via an optional
-  `[ml]` extra remains on the roadmap (issue #12, phases 2–3).
+  that already cite themselves and invents nothing.
+
+### Added (MCP — optional semantic ranking; issue #12 phase 2)
+- **`rank_by="semantic"` + the optional `[ml]` extra.** Ranks by meaning rather than
+  keywords using TF-IDF + Latent Semantic Analysis (TruncatedSVD) — classical ML, run
+  locally, deterministic (pinned `random_state`), no LLM. `pip install
+  "openbionews[ml]"` enables it; the core stays dependency-free. Without the extra,
+  `rank_by="semantic"` falls back to lexical `relevance` and says so in a
+  `ranking_note`. Every ranked result reports `ranked_by`. Semantic scoring blends
+  LSA cosine similarity with recency and, like all ranking here, only orders records
+  that already cite themselves — it invents nothing. A dedicated CI job installs the
+  `[ml]` extra and exercises the ranker (phase 3, the website, remains on the roadmap).
 
 ## [0.7.3] — 2026-10-20
 

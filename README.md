@@ -339,8 +339,12 @@ The output is shaped for LLM callers:
   results-posted / status; recalls weight severity (Class I highest); approvals weight
   priority review; shortages weight current-vs-resolved. The per-signal breakdown is in
   `relevance_components` under `verbose`. This is classical scoring — it only orders
-  records that already cite themselves, and invents nothing. (Semantic ranking via an
-  optional `[ml]` extra is on the roadmap, issue #12.)
+  records that already cite themselves, and invents nothing.
+- **Semantic ranking (optional `[ml]` extra)** — `rank_by="semantic"` ranks by meaning
+  rather than keywords, using TF-IDF + LSA (`pip install "openbionews[ml]"`; classical,
+  local, deterministic — no LLM). It surfaces an on-topic record whose wording differs
+  from the query. Without the extra it falls back to lexical `relevance` and says so in
+  a `ranking_note`. Results report `ranked_by`.
 
 Register it with Claude Desktop (or Claude Code) — add to your MCP config
 (`claude_desktop_config.json`).
