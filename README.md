@@ -331,13 +331,16 @@ The output is shaped for LLM callers:
 - **Monitoring + paging** — `since` (YYYY-MM-DD) filters to new records and flags each
   `is_new`; `limit`/`offset` page through results with a `truncated` flag;
   `watchlist_digest` takes `sources=[...]` to query only the agencies you need.
-- **Relevance ranking (trials)** — `search_clinical_trials` attaches a deterministic
-  `relevance_score` (0–1) to each result, blending query match with phase, recency,
-  enrollment, results-posted and status. `rank_by="relevance"` orders by it (over a
-  wider recent candidate pool); `rank_by="recency"` (default) keeps most-recent-first.
-  The per-signal breakdown is in `relevance_components` under `verbose`. This is
-  classical scoring — it only orders records that already cite themselves, and
-  invents nothing. (Semantic ranking via an optional `[ml]` extra is on the roadmap.)
+- **Relevance ranking** — every search tool attaches a deterministic `relevance_score`
+  (0–1) to each result and takes `rank_by="relevance"` to order by it (over a wider
+  recent candidate pool); `rank_by="recency"` (default) keeps most-recent-first, and
+  `watchlist_digest` applies it within each source block. The score blends query match
+  with recency plus a per-source signal: trials weight phase / enrollment /
+  results-posted / status; recalls weight severity (Class I highest); approvals weight
+  priority review; shortages weight current-vs-resolved. The per-signal breakdown is in
+  `relevance_components` under `verbose`. This is classical scoring — it only orders
+  records that already cite themselves, and invents nothing. (Semantic ranking via an
+  optional `[ml]` extra is on the roadmap, issue #12.)
 
 Register it with Claude Desktop (or Claude Code) — add to your MCP config
 (`claude_desktop_config.json`).

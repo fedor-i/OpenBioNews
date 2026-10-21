@@ -275,6 +275,64 @@ def _norm_phase(p) -> str:
     return s
 
 
+# Generic relevance for non-trial sources: lexical match + recency, plus an optional
+# per-source "signal" (recall severity, approval priority, shortage currency). Same
+# classical, deterministic, invent-nothing basis as the trial scorer.
+_GENERIC_WEIGHTS = {"match": 0.6, "recency": 0.4}
+_SIGNAL_WEIGHTS = {"match": 0.5, "recency": 0.3, "signal": 0.2}
+# Ordered most-specific first: "CLASS I" is a substring of "CLASS III"/"CLASS II".
+_RECALL_CLASS = {"CLASS III": 0.3, "CLASS II": 0.6, "CLASS I": 1.0}
+
+
+def _match_recency(item: Item, query_terms) -> tuple[float, float]:
+    facts = _facts(item)
+    terms = [t for t in (query_terms or []) if str(t).strip()]
+    hit = _match(item, facts, terms)
+    frac = (len(hit["terms"]) / len(terms)) if terms else 0.0
+    match = min(1.0, frac + (0.25 if "title" in hit["where"] else 0.0))
+    recency = 0.0
+    if item.published:
+        age = (datetime.now(timezone.utc) - item.published).days
+        recency = max(0.0, 1.0 - age / 365.0)
+    return round(match, 3), round(recency, 3)
+
+
+def _generic_relevance(item: Item, query_terms, signal_fn=None) -> dict:
+    match, recency = _match_recency(item, query_terms)
+    comp = {"match": match, "recency": recency}
+    weights = _GENERIC_WEIGHTS
+    if signal_fn is not None:
+        comp["signal"] = round(signal_fn(item), 3)
+        weights = _SIGNAL_WEIGHTS
+    return {"score": round(sum(comp[k] * w for k, w in weights.items()), 4),
+            "components": comp}
+
+
+def _recall_signal(item: Item) -> float:        # Class I most serious
+    c = (item.meta.get("classification") or "").upper()
+    return next((v for k, v in _RECALL_CLASS.items() if k in c), 0.5)
+
+
+def _approval_signal(item: Item) -> float:      # priority review is more notable
+    return 1.0 if "PRIORITY" in (item.meta.get("priority") or "").upper() else 0.5
+
+
+def _shortage_signal(item: Item) -> float:      # a current shortage outranks a resolved one
+    return 1.0 if "CURRENT" in (item.meta.get("status") or "").upper() else 0.4
+
+
+def _scorer(signal_fn=None):
+    """Bind a per-source signal into a score_fn(item, query_terms)."""
+    return lambda item, q: _generic_relevance(item, q, signal_fn)
+
+
+def _rank_cap(rank_by, span: int) -> tuple[bool, str, int]:
+    """(ranking?, canonical rank_by, candidate cap). Relevance ranks over a wider
+    recent pool so the top page is the most relevant, not the page's local best."""
+    by_rel = str(rank_by).lower() == "relevance"
+    return by_rel, ("relevance" if by_rel else "recency"), (max(span + 1, 50) if by_rel else span + 1)
+
+
 # --------------------------------------------------------------------------- #
 # Tool implementations (plain functions — no MCP dependency needed to call them)
 # --------------------------------------------------------------------------- #
@@ -321,50 +379,59 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
 def search_fda_recalls(query: str = "", firm: str | None = None,
                        classification: str | None = None,
                        recent_days: int = 90, limit: int = 20, offset: int = 0,
-                       since: str | None = None, verbose: bool = False) -> dict:
+                       since: str | None = None, rank_by: str = "recency",
+                       verbose: bool = False) -> dict:
     """Search openFDA drug recalls. ``query`` matches the product; ``firm`` the
     recalling company; ``classification`` e.g. "Class I". Empty query + no firm
-    returns all recent recalls. ``since`` (YYYY-MM-DD) and ``offset`` work as on
-    search_clinical_trials. Each result cites its openFDA record."""
-    span = offset + limit
-    cfg = {"recent_days": recent_days, "max_total": span + 1, "max_per_query": span + 1}
+    returns all recent recalls. ``since``/``offset`` work as on search_clinical_trials;
+    ``rank_by`` ("recency" default or "relevance") and a per-result ``relevance_score``
+    work the same way — here the signal weights recall severity (Class I highest).
+    Each result cites its openFDA record."""
+    _, rb, cap = _rank_cap(rank_by, offset + limit)
+    cfg = {"recent_days": recent_days, "max_total": cap, "max_per_query": cap}
     if classification:
         cfg["classifications"] = _as_list(classification)
     return _search(OpenFDAConnector, interventions=_as_list(query),
                    sponsors=_as_list(firm), cfg=cfg,
                    query_terms=_as_list(query) or _as_list(firm),
-                   since_iso=since, verbose=verbose, page=(offset, limit))
+                   since_iso=since, verbose=verbose, page=(offset, limit),
+                   score_fn=_scorer(_recall_signal), rank_by=rb)
 
 
 def search_fda_approvals(query: str = "", company: str | None = None,
                          include_supplements: bool = True,
                          recent_days: int = 90, limit: int = 20, offset: int = 0,
-                         since: str | None = None, verbose: bool = False) -> dict:
+                         since: str | None = None, rank_by: str = "recency",
+                         verbose: bool = False) -> dict:
     """Search Drugs@FDA approvals (openFDA). ``query`` matches brand/generic name;
-    ``company`` the sponsor. ``since`` (YYYY-MM-DD) and ``offset`` work as on
-    search_clinical_trials. Each result cites its Drugs@FDA record."""
-    span = offset + limit
-    cfg = {"recent_days": recent_days, "max_total": span + 1, "max_per_query": span + 1,
+    ``company`` the sponsor. ``since``/``offset``/``rank_by`` and a ``relevance_score``
+    per result work as on search_clinical_trials (the signal weights priority review).
+    Each result cites its Drugs@FDA record."""
+    _, rb, cap = _rank_cap(rank_by, offset + limit)
+    cfg = {"recent_days": recent_days, "max_total": cap, "max_per_query": cap,
            "include_supplements": include_supplements}
     return _search(OpenFDAApprovalsConnector, interventions=_as_list(query),
                    sponsors=_as_list(company), cfg=cfg,
                    query_terms=_as_list(query) or _as_list(company),
-                   since_iso=since, verbose=verbose, page=(offset, limit))
+                   since_iso=since, verbose=verbose, page=(offset, limit),
+                   score_fn=_scorer(_approval_signal), rank_by=rb)
 
 
 def search_fda_shortages(query: str = "", company: str | None = None,
                          status: str = "Current", limit: int = 20, offset: int = 0,
-                         verbose: bool = False) -> dict:
+                         rank_by: str = "recency", verbose: bool = False) -> dict:
     """Search FDA drug shortages (openFDA). ``query`` matches brand/generic name;
     ``status`` e.g. "Current" / "Resolved". A product not in shortage returns an
     explicit ``no_current_results`` status (a citable negative), not a bare 0.
-    Each result cites its openFDA record."""
-    span = offset + limit
-    cfg = {"max_total": span + 1, "max_per_query": span + 1, "statuses": _as_list(status) or []}
+    ``rank_by`` and a per-result ``relevance_score`` work as on search_clinical_trials
+    (a current shortage outranks a resolved one). Each result cites its openFDA record."""
+    _, rb, cap = _rank_cap(rank_by, offset + limit)
+    cfg = {"max_total": cap, "max_per_query": cap, "statuses": _as_list(status) or []}
     return _search(OpenFDAShortagesConnector, interventions=_as_list(query),
                    sponsors=_as_list(company), cfg=cfg,
                    query_terms=_as_list(query) or _as_list(company),
-                   verbose=verbose, page=(offset, limit))
+                   verbose=verbose, page=(offset, limit),
+                   score_fn=_scorer(_shortage_signal), rank_by=rb)
 
 
 def search_fda_adverse_events(query: str, top_reactions: int = 8, limit: int = 20,
@@ -389,38 +456,42 @@ def search_fda_labeling(query: str, limit: int = 10, verbose: bool = False) -> d
 
 def search_pubmed(query: str, recent_days: int = 365, limit: int = 10, offset: int = 0,
                   since: str | None = None, require_match: bool = True,
-                  verbose: bool = False) -> dict:
+                  rank_by: str = "recency", verbose: bool = False) -> dict:
     """Search PubMed (NCBI E-utilities) for recent biomedical literature matching
-    ``query``. ``since``/``offset``/``require_match`` work as on search_clinical_trials
-    (``require_match`` defaults true to drop loose-keyword strays). Each result cites
-    its PubMed record (and DOI when present)."""
-    span = offset + limit
-    cfg = {"recent_days": recent_days, "max_total": span + 1, "max_per_query": span + 1}
+    ``query``. ``since``/``offset``/``require_match``/``rank_by`` and a per-result
+    ``relevance_score`` work as on search_clinical_trials (``require_match`` defaults
+    true to drop loose-keyword strays). Each result cites its PubMed record (and DOI
+    when present)."""
+    _, rb, cap = _rank_cap(rank_by, offset + limit)
+    cfg = {"recent_days": recent_days, "max_total": cap, "max_per_query": cap}
     return _search(PubMedConnector, terms=_as_list(query), cfg=cfg,
                    query_terms=_as_list(query), since_iso=since, verbose=verbose,
-                   require_match=require_match, page=(offset, limit))
+                   require_match=require_match, page=(offset, limit),
+                   score_fn=_scorer(), rank_by=rb)
 
 
 def search_federal_register(query: str = "", recent_days: int = 30, limit: int = 20,
                             offset: int = 0, all_agencies: bool = False,
-                            since: str | None = None, verbose: bool = False) -> dict:
+                            since: str | None = None, rank_by: str = "recency",
+                            verbose: bool = False) -> dict:
     """Search Federal Register documents (FDA guidances, advisory-committee notices,
     proposed/final rules). ``query`` is the search text; by default results are
-    limited to the FDA — set ``all_agencies`` true to search every agency. ``since``
-    (YYYY-MM-DD) and ``offset`` work as on search_clinical_trials. Each result cites
-    its Federal Register document."""
-    span = offset + limit
-    cfg = {"recent_days": recent_days, "max_total": span + 1, "max_per_query": span + 1,
+    limited to the FDA — set ``all_agencies`` true to search every agency.
+    ``since``/``offset``/``rank_by`` and a per-result ``relevance_score`` work as on
+    search_clinical_trials. Each result cites its Federal Register document."""
+    _, rb, cap = _rank_cap(rank_by, offset + limit)
+    cfg = {"recent_days": recent_days, "max_total": cap, "max_per_query": cap,
            "agencies": [] if all_agencies else ["food-and-drug-administration"]}
     return _search(FederalRegisterConnector, terms=_as_list(query), cfg=cfg,
                    query_terms=_as_list(query), since_iso=since, verbose=verbose,
-                   page=(offset, limit))
+                   page=(offset, limit), score_fn=_scorer(), rank_by=rb)
 
 
 def search_sec_filings(query: str = "", company: str | None = None,
                        form: str | None = None, recent_days: int = 90, limit: int = 20,
                        offset: int = 0, own_filer_only: bool = False,
-                       since: str | None = None, verbose: bool = False) -> dict:
+                       since: str | None = None, rank_by: str = "recency",
+                       verbose: bool = False) -> dict:
     """Search SEC EDGAR filings. Two modes, picked by what you pass:
 
     - **Entity mode** — give ``company`` (a name, ticker, or raw CIK; ``query`` is
@@ -432,9 +503,10 @@ def search_sec_filings(query: str = "", company: str | None = None,
     - **Full-text mode** — give only ``query`` (and not ``own_filer_only``): a
       document full-text search that matches any filing mentioning the terms.
 
-    ``form`` e.g. "8-K"; ``since`` (YYYY-MM-DD) and ``offset`` work as on
-    search_clinical_trials. Each result cites the filing document. Set the
-    OPENBIONEWS_EDGAR_UA env var to your email (SEC requests a contact).
+    ``form`` e.g. "8-K"; ``since``/``offset``/``rank_by`` and a per-result
+    ``relevance_score`` work as on search_clinical_trials. Each result cites the
+    filing document. Set the OPENBIONEWS_EDGAR_UA env var to your email (SEC requests
+    a contact).
 
     Note: results are the filing *pointer* (form, filer, date, accession) — figures
     are not extracted from the document body, so read the cited filing for numbers
@@ -445,9 +517,8 @@ def search_sec_filings(query: str = "", company: str | None = None,
     if not query and not company:
         return {**base, "error": "provide 'query' (full-text) and/or 'company' (entity)",
                 "count": 0, "results": []}
-    span = offset + limit
-    cfg = _edgar_cfg({"recent_days": recent_days,
-                      "max_total": span + 1, "max_per_query": span + 1})
+    _, rb, cap = _rank_cap(rank_by, offset + limit)
+    cfg = _edgar_cfg({"recent_days": recent_days, "max_total": cap, "max_per_query": cap})
     if form:
         cfg["forms"] = _as_list(form)
     qterms = _as_list(query) or _as_list(company)
@@ -463,14 +534,16 @@ def search_sec_filings(query: str = "", company: str | None = None,
         # A query distinct from the entity name refines within that filer's filings.
         refine = _as_list(query) if (query and query != subject) else None
         res = _search(EdgarConnector, cfg=cfg, terms=refine, query_terms=qterms,
-                      since_iso=since, verbose=verbose, page=(offset, limit))
+                      since_iso=since, verbose=verbose, page=(offset, limit),
+                      score_fn=_scorer(), rank_by=rb)
         res["resolved_cik"] = cik
         res["own_filer_only"] = True
         return res
 
     # Full-text mode.
     return _search(EdgarConnector, terms=_as_list(query), cfg=cfg, query_terms=qterms,
-                   since_iso=since, verbose=verbose, page=(offset, limit))
+                   since_iso=since, verbose=verbose, page=(offset, limit),
+                   score_fn=_scorer(), rank_by=rb)
 
 
 # connector + the watch-list field a free-text term maps to, for the combined digest.
@@ -487,20 +560,34 @@ _DIGEST_SPEC = [
     ("sec", EdgarConnector, "terms"),
 ]
 _DIGEST_KEYS = [key for key, _, _ in _DIGEST_SPEC]
+# Per-source relevance scorer for the digest (None = leave recency order, e.g. the
+# per-drug FAERS/labeling lookups where ranking isn't meaningful).
+_DIGEST_SCORERS = {
+    "trials": _trial_relevance,
+    "recalls": _scorer(_recall_signal),
+    "approvals": _scorer(_approval_signal),
+    "shortages": _scorer(_shortage_signal),
+    "federal_register": _scorer(),
+    "pubmed": _scorer(),
+    "sec": _scorer(),
+}
 
 
 def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15,
                      sources=None, since: str | None = None,
-                     verbose: bool = False) -> dict:
+                     rank_by: str = "recency", verbose: bool = False) -> dict:
     """Pull recent primary-source records for ``terms`` across every source at once
     (the cross-agency watchlist). ``terms`` is a list of companies, drugs or topics.
     ``sources`` restricts to a subset by key (e.g. ["sec", "trials"]) so an SEC-only
     intent doesn't spend tokens on PubMed and FAERS; valid keys are: trials, recalls,
     approvals, shortages, adverse_events, labeling, federal_register, pubmed, sec.
     ``since`` (YYYY-MM-DD) keeps only records on/after that date and flags each
-    ``is_new``. Returns one grouped block per source, each record cited."""
+    ``is_new``. ``rank_by`` ("recency" default or "relevance") orders the records
+    within each source block and adds a ``relevance_score``. Returns one grouped block
+    per source, each record cited."""
     terms = _as_list(terms) or []
     want = set(_as_list(sources) or _DIGEST_KEYS)
+    rb = "relevance" if str(rank_by).lower() == "relevance" else "recency"
     base = {"recent_days": recent_days, "max_total": limit_per_source,
             "max_per_query": limit_per_source}
     blocks = []
@@ -509,7 +596,8 @@ def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15,
             continue
         cfg = _edgar_cfg(base) if connector_cls is EdgarConnector else dict(base)
         block = _search(connector_cls, cfg=cfg, query_terms=terms, since_iso=since,
-                        verbose=verbose, **{field: terms})
+                        verbose=verbose, score_fn=_DIGEST_SCORERS.get(key), rank_by=rb,
+                        **{field: terms})
         block["key"] = key
         blocks.append(block)
     total = sum(s.get("count", 0) for s in blocks)

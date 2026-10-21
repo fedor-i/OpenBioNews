@@ -245,6 +245,43 @@ def test_relevance_components_in_verbose():
                          "results_posted", "status"}
 
 
+RECALLS_SEV = {"results": [
+    {"recall_number": "D-3-2026", "product_description": "Aspirin low dose",
+     "recalling_firm": "X", "reason_for_recall": "Label mix-up.",
+     "classification": "Class III", "status": "Ongoing", "report_date": "20261019",
+     "openfda": {"brand_name": ["Aspirin Low"]}},
+    {"recall_number": "D-1-2026", "product_description": "Aspirin extra",
+     "recalling_firm": "X", "reason_for_recall": "Contamination.",
+     "classification": "Class I", "status": "Ongoing", "report_date": "20260822",
+     "openfda": {"brand_name": ["Aspirin Extra"]}},
+]}
+
+
+def test_recall_relevance_weights_severity():
+    with _patch(openfda, RECALLS_SEV):
+        rel = mcp_server.search_fda_recalls("aspirin", rank_by="relevance")
+    # Class I (most serious) outranks the newer Class III despite recency
+    assert rel["results"][0]["facts"]["classification"] == "Class I"
+    assert all("relevance_score" in r for r in rel["results"])
+
+
+def test_relevance_score_present_across_sources():
+    with _patch(pubmed, _pubmed_fake):
+        assert "relevance_score" in mcp_server.search_pubmed("base editing")["results"][0]
+    with _patch(openfda_approvals, APPROVALS):
+        assert "relevance_score" in mcp_server.search_fda_approvals("editacel")["results"][0]
+    with _patch(federalregister, FEDREG):
+        assert "relevance_score" in mcp_server.search_federal_register("guidance")["results"][0]
+
+
+def test_watchlist_rank_by_relevance_scores_blocks():
+    with _patch(clinicaltrials, CT), _patch(edgar, EDGAR):
+        out = mcp_server.watchlist_digest(["beam"], sources=["trials", "sec"],
+                                          rank_by="relevance")
+    trials = next(b for b in out["sources"] if b["key"] == "trials")
+    assert trials["results"] and all("relevance_score" in r for r in trials["results"])
+
+
 def test_require_match_drops_keyword_strays():
     # The registry leaks loosely-matched studies; require_match (default) removes
     # the one where the query term appears in no field.
