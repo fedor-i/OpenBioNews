@@ -31,7 +31,15 @@ to follow [Semantic Versioning](https://semver.org/).
   `ranking_note`. Every ranked result reports `ranked_by`. Semantic scoring blends
   LSA cosine similarity with recency and, like all ranking here, only orders records
   that already cite themselves — it invents nothing. A dedicated CI job installs the
-  `[ml]` extra and exercises the ranker (phase 3, the website, remains on the roadmap).
+  `[ml]` extra and exercises the ranker.
+
+### Added (website Insights — relevance ranking; issue #12 phase 3)
+- **The hosted Insights "Sources" list now ranks by the same multi-signal relevance.**
+  It previously ordered by BM25 (lexical match) alone; it now blends that match with
+  recency and a per-source signal — trial phase/status, recall severity (Class I
+  highest), original-vs-supplemental approval, current shortage — mirroring the MCP
+  scorer. Deterministic, no LLM, client-side; it only reorders records that already
+  cite themselves. Verified in-browser (phase-3 over phase-1, Class I over Class III).
 
 ## [0.7.3] — 2026-10-20
 

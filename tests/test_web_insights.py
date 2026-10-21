@@ -561,6 +561,21 @@ def test_records_first_folds_analytics_into_drawer():
         "analysis drawer is not placed before the Sources list"
 
 
+def test_sources_ranked_by_multisignal_relevance():
+    # Phase 3 of the ML relevance work: the Sources list blends BM25 (match) with
+    # recency + a per-source signal, not BM25 alone.
+    js = _script()
+    assert "function iRelevanceScore(" in js, "relevance scorer missing"
+    scorer = js[js.index("function iRelevanceScore("):]
+    assert "match" in scorer and "recency" in scorer and "signal" in scorer, \
+        "relevance scorer is not the documented match+recency+signal blend"
+    # the Sources sort must actually use it (not the old bmScore-only comparator)
+    assert "relOf(b.i)-relOf(a.i)" in js, "Sources list no longer sorts by relevance score"
+    assert "ranked by relevance" in js, "Sources heading not updated to relevance ranking"
+    assert "iRelevanceScore" in js[js.index("window.OBN_INSIGHTS"):], \
+        "iRelevanceScore not exposed on the test hook"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

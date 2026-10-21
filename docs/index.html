@@ -3041,6 +3041,29 @@ const I_AG={trials:"ClinicalTrials.gov",recalls:"FDA recalls",approvals:"FDA app
 // under a run of publications, so let the reader pick a record type up front).
 const I_CAT={trials:"Trials",recalls:"Recalls",approvals:"Approvals",shortages:"Shortages",sec:"SEC filings",fedreg:"Fed. Register",pubmed:"Publications",events:"Adverse events",labels:"Labels"};
 const I_AGENCIES=Object.keys(I_AG);   // every source the Insights digest gathers (superset of the data-tab TABS)
+// Deterministic relevance score for a record (0–1) — the same classical, no-LLM basis
+// as the MCP tools: lexical match (normalised BM25) + recency + a per-source signal
+// (trial phase/status, recall severity, original vs supplemental approval, current
+// shortage). It only reorders records that already cite themselves; it invents nothing.
+function iRelevanceScore(rec, bm, maxBm){
+  const match = maxBm>0 ? Math.max(0,bm)/maxBm : 0;
+  let recency = 0;
+  if(rec.date){ const age=(Date.now()-Date.parse(rec.date))/864e5; if(age>=0) recency=Math.max(0,1-age/365); }
+  let signal = 0.5;
+  if(rec.agency==="trials"){
+    const ph=(rec.phase||[]).map(p=>String(p).toUpperCase());
+    signal = ph.includes("PHASE4")?1.0:ph.includes("PHASE3")?0.85:ph.includes("PHASE2")?0.6:ph.includes("PHASE1")?0.35:0.3;
+    if(/TERMINATED|WITHDRAWN|SUSPENDED/.test((rec.status||"").toUpperCase())) signal*=0.5;
+  } else if(rec.agency==="recalls"){           // Class I most serious (check III/II before I — substring)
+    const c=(rec.cls||"").toUpperCase();
+    signal = /CLASS III/.test(c)?0.3:/CLASS II/.test(c)?0.6:/CLASS I/.test(c)?1.0:0.5;
+  } else if(rec.agency==="approvals"){
+    signal = /—\s*FDA approval/.test(rec.title)?1.0:0.6;   // original approval > supplemental
+  } else if(rec.agency==="shortages"){
+    signal = /\(current\)/i.test(rec.title)?1.0:0.4;
+  }
+  return 0.5*match + 0.3*recency + 0.2*signal;
+}
 function renderInsights(){
   const box=$("insights"); box.innerHTML="";
   const recs=iRecords;
@@ -3277,7 +3300,7 @@ function renderInsights(){
   const typeChips=active.map(t=>
     `<button class="istype ifacet" aria-pressed="false" data-facet="source:${escA(I_CAT[t]||t)}" data-ids="${escA(JSON.stringify(idsWhere(r=>r.agency===t)))}">`+
     `${esc(I_CAT[t]||t)} <b>${perAgency[t]}</b></button>`).join("");
-  html+=`<h3 class="isrc-h">Sources — ${coreN} development${coreN!==1?"s":""}${auxN?` + ${auxN} reference card${auxN!==1?"s":""}`:""}, ranked by BM25 relevance${srcNote}</h3>`+
+  html+=`<h3 class="isrc-h">Sources — ${coreN} development${coreN!==1?"s":""}${auxN?` + ${auxN} reference card${auxN!==1?"s":""}`:""}, ranked by relevance${srcNote}</h3>`+
     (active.length>1?`<div class="isrctypes" id="isrctypes"><span class="istlabel">Jump to type:</span>${typeChips}</div>`:"")+
     `<div class="isrcview" id="isrcview"><button data-view="ranked">Ranked</button><button data-view="grouped">Grouped by cluster</button></div>`+
     `<div id="ifilter" hidden></div><div id="isrc"></div></div>`;
@@ -3303,8 +3326,13 @@ function renderInsights(){
   // instead of being silently limited to the records that happened to render.
   const recById=new Map(recs.map((r,i)=>[r.id,{r,i}]));
   iMakeCard=id=>{ const e=recById.get(id); return e?iCard(e.r, unseen(e.r), simFor(e.i).map(([j])=>recs[j].id)):null; };
+  // Relevance ordering: blend the BM25 match with recency + a per-source signal (the
+  // same multi-signal score the MCP tools use), so a substantial recent development
+  // isn't buried by a loosely-matched one. aux cards keep -Infinity → sort to the end.
+  const maxBm=Math.max(0, ...bmL.map(x=>x.score));
+  const relOf=i=>{ const bm=bmScore.get(i); return bm===-Infinity?-Infinity:iRelevanceScore(recs[i], bm, maxBm); };
   recs.map((r,i)=>({r,i,isNew:unseen(r)}))
-    .sort((a,b)=>(b.isNew-a.isNew) || ((bmScore.get(b.i)||0)-(bmScore.get(a.i)||0)) || (b.r.date||"").localeCompare(a.r.date||""))
+    .sort((a,b)=>(b.isNew-a.isNew) || (relOf(b.i)-relOf(a.i)) || (b.r.date||"").localeCompare(a.r.date||""))
     .slice(0,SRC_CAP)
     .forEach(o=>srcBox.appendChild(iCard(o.r, o.isNew, simFor(o.i).map(([j])=>recs[j].id))));
   renumberCites(srcBox);                                   // Sources: references 1..N by order
@@ -3329,7 +3357,7 @@ function layoutSources(srcBox, recCluster, grouped){
   srcBox.querySelectorAll(":scope > .isrc-grp").forEach(h=>h.remove());
   const cards=[...srcBox.querySelectorAll(":scope > article")];
   if(!grouped){
-    cards.sort((a,b)=>(+a.dataset.rank)-(+b.dataset.rank));   // restore BM25 order
+    cards.sort((a,b)=>(+a.dataset.rank)-(+b.dataset.rank));   // restore relevance order
     cards.forEach(c=>srcBox.appendChild(c));
     renumberCites(srcBox); return;
   }
@@ -3348,7 +3376,7 @@ function layoutSources(srcBox, recCluster, grouped){
   renumberCites(srcBox);
 }
 function wireSourceGrouping(box, srcBox, recCluster){
-  [...srcBox.querySelectorAll(":scope > article")].forEach((c,i)=>c.dataset.rank=i);   // remember BM25 order
+  [...srcBox.querySelectorAll(":scope > article")].forEach((c,i)=>c.dataset.rank=i);   // remember relevance order
   const bar=box.querySelector("#isrcview"); if(!bar) return;
   const nLabels=new Set(recCluster.values()).size;
   if(nLabels<2){ bar.hidden=true; return; }                                            // nothing meaningful to group by
@@ -3457,7 +3485,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,singular,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
   clusterTerms,buildThemes,risingTerms,riseWindow,notableEvents,notableCategories,volumeSeries,wordleLayout,canonCompany,companyGroups,similarRecords,
-  normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,I_STOP};
+  normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,iRelevanceScore,I_STOP};
 
 // ---- shareable URL state ----
 const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent",t_from:"tfrom",t_to:"tto"};
