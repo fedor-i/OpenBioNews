@@ -576,6 +576,17 @@ def test_sources_ranked_by_multisignal_relevance():
         "iRelevanceScore not exposed on the test hook"
 
 
+def test_getjson_retries_transient_and_errors_are_deduped():
+    # openFDA returns transient 500s under burst; the fetch helper retries 429/5xx and
+    # the Insights error list collapses duplicate per-term failures.
+    js = _script()
+    assert "res.status===429 || res.status>=500" in js, "getJson no longer retries 429/5xx"
+    assert "attempt<2" in js, "getJson retry bound missing"
+    assert "function iDedupeErrors(" in js, "duplicate-error collapser missing"
+    assert "iErrors.join(" not in js, "error render still uses raw (undeduped) iErrors.join"
+    assert js.count("iDedupeErrors().join(") >= 2, "dedupe not applied at both error render sites"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

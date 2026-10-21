@@ -843,16 +843,24 @@ VIEW_TABS.forEach(t => { $("tab-"+t).onclick = () => { selectTab(t); syncUrl(); 
 
 // ---- shared fetch helper (openFDA returns 404 for "no matches") ----
 async function getJson(url, noMatchOn404){
-  const res = await fetch(url, {headers:{"Accept":"application/json"}});
-  if(res.status===404 && noMatchOn404) return {__empty:true};
-  if(!res.ok){
+  // openFDA regularly returns a transient HTTP 500 ("…Check your request and try
+  // again…"), especially under a burst of unauthenticated requests. Retry 429/5xx a
+  // couple of times with backoff + jitter; 400/404 are deterministic (don't retry),
+  // and a thrown fetch (CORS/network, e.g. SEC in-browser) propagates immediately.
+  for(let attempt=0; ; attempt++){
+    const res = await fetch(url, {headers:{"Accept":"application/json"}});
+    if(res.status===404 && noMatchOn404) return {__empty:true};
+    if(res.ok) return res.json();
     // openFDA puts the real reason in the body ({"error":{"message":"…"}}) —
     // surface it so a bad query says *why*, not just "HTTP 400".
     let detail="";
     try{ const e=await res.json(); if(e&&e.error&&e.error.message) detail=": "+e.error.message; }catch(_){}
+    if((res.status===429 || res.status>=500) && attempt<2){
+      await new Promise(r=>setTimeout(r, 400*(attempt+1)+Math.random()*250));
+      continue;
+    }
     throw new Error("HTTP "+res.status+detail);
   }
-  return res.json();
 }
 
 // ---- global sort (applies to the active tab, and to the watchlist) ----
@@ -2229,6 +2237,13 @@ const I_STOP = new Set(("a an and or the of to in for on at by from with without
   "subject object item items part parts type types kind form forms way ways case cases point points area areas field fields").split(/\s+/).filter(Boolean));
 
 let iRecords = [], iErrors = [], iNotes = [], iSubjectLabel = "", iBusy = false;
+// Collapse repeated per-term failures (e.g. 8 identical "FAERS (HTTP 500 …)") into one
+// line with a count, so a transient source outage doesn't produce a wall of duplicates.
+function iDedupeErrors(){
+  const m=new Map();
+  for(const e of iErrors) m.set(e, (m.get(e)||0)+1);
+  return [...m].map(([e,n])=>n>1?`${e} ×${n}`:e);
+}
 
 function prettyPhase1(p){ return (p||"").replace("EARLY_PHASE1","Early Phase 1").replace("PHASE","Phase "); }
 function isoFromYmd(d){ d=String(d||"").replace(/[^0-9]/g,""); return d.length>=8 ? `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}` : ""; }
@@ -3069,7 +3084,7 @@ function renderInsights(){
   const recs=iRecords;
   if(!recs.length){
     box.innerHTML=`<div class="iempty">No records found for this subject across the agencies. Try a broader topic, or add a company to your watchlist.</div>`+
-      (iErrors.length?`<div class="ierr">Unreachable: ${esc(iErrors.join(" · "))}</div>`:"");
+      (iErrors.length?`<div class="ierr">Unreachable: ${esc(iDedupeErrors().join(" · "))}</div>`:"");
     return;
   }
   const stop=iSubjectStop();
@@ -3182,7 +3197,7 @@ function renderInsights(){
   }
   if(deltaTxt) html+=`<div class="idelta">Momentum: ${deltaTxt} <span class="ihint">· newer vs earlier records in this window</span></div>`;
   if(coreN>0) html+=`<button class="ijump" id="ijump">Jump to the ${coreN} source record${coreN!==1?"s":""} ↓</button>`;
-  if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iErrors.join(" · "))}</div>`;
+  if(iErrors.length) html+=`<div class="ierr">Some sources were unreachable: ${esc(iDedupeErrors().join(" · "))}</div>`;
   if(iNotes.length) html+=`<div class="inote">${iNotes.map(n=>esc(n)).join(" · ")}. Narrow the subject or shorten the window for the full set.</div>`;
   html+=`<div class="icov"><b>Coverage:</b> ClinicalTrials.gov · FDA recalls / approvals / shortages · Federal Register · SEC EDGAR · PubMed, plus FDA adverse events (FAERS) &amp; labels <i>(also tracked)</i> — <b>US regulators plus PubMed literature</b>. No EMA / ex-US regulators, no press releases. Nothing here ≠ nothing happened.</div>`+
     `<div class="imethods">Methods: <b>TextRank</b> salience · <b>YAKE!</b> keyphrases · <b>BM25</b> ranking · <b>k-means</b> clustering · rising-term novelty — all classical, deterministic, no LLM.</div>`+
