@@ -25,10 +25,11 @@ from openbionews.httputil import HTTPJSONError
 from openbionews.models import Citation, Item
 
 
-def _ct_study(nct, title, date, phase="PHASE3", enrollment=120):
-    return {"protocolSection": {
+def _ct_study(nct, title, date, phase="PHASE3", enrollment=120,
+              status="RECRUITING", has_results=False):
+    return {"hasResults": has_results, "protocolSection": {
         "identificationModule": {"nctId": nct, "briefTitle": title},
-        "statusModule": {"overallStatus": "RECRUITING",
+        "statusModule": {"overallStatus": status,
                          "lastUpdatePostDateStruct": {"date": date},
                          "startDateStruct": {"date": "2026-01-15"},
                          "primaryCompletionDateStruct": {"date": "2027-06-30"}},
@@ -293,6 +294,30 @@ def test_salience_reaches_landmark_via_enrollment_pass():
     assert sal["results"][0]["source"]["id"] == "NCT_SELECT"        # 17,604-pt landmark tops
     # the recency window never surfaces it (it enters only via the enrollment pass)
     assert "NCT_SELECT" not in [r["source"]["id"] for r in recent["results"]]
+
+
+def test_salience_pivotal_outcomes_beats_recent_phase4():
+    # The failure the landmark-recall validation caught: a recent Phase-4 label-expansion
+    # study crowding out a pivotal, large, completed Phase-3 with results. Salience must
+    # rank on maturity/results/enrollment/phase (equal blend, no recency), not freshness.
+    pivotal = _ct_study("NCT_PIVOTAL", "Semaglutide SELECT cardiovascular outcomes",
+                        "2024-08-01", phase="PHASE3", enrollment=17000,
+                        status="COMPLETED", has_results=True)
+    recent_p4 = _ct_study("NCT_P4", "Semaglutide label-expansion study", "2026-10-15",
+                          phase="PHASE4", enrollment=60, status="RECRUITING")
+
+    def router(url, *a, **k):
+        sort = (k.get("params") or {}).get("sort", "")
+        return {"studies": [pivotal, recent_p4]} if "EnrollmentCount" in sort \
+            else {"studies": [recent_p4]}
+
+    with _patch(clinicaltrials, router):
+        sal = mcp_server.search_clinical_trials("semaglutide", rank_by="salience",
+                                                limit=10, verbose=True)
+    top = sal["results"][0]
+    assert top["source"]["id"] == "NCT_PIVOTAL", "recent Phase-4 crowded out the pivotal trial"
+    assert "maturity" in top["relevance_components"]          # maturity signal present
+    assert top["relevance_score"] > sal["results"][1]["relevance_score"]
 
 
 def test_salience_enrollment_pass_is_best_effort():

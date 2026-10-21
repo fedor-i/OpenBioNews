@@ -168,18 +168,35 @@ def _trial_relevance(item: Item, query_terms) -> dict:
     return {"score": round(score, 4), "components": components}
 
 
-# "What matters" rather than "what matches": the same trial signals, reweighted so
-# size and maturity (enrollment, phase, results posted) dominate and keyword density
-# barely counts. Paired with a wide candidate pool (see the tool) so a landmark trial
-# isn't cut by the recency window before it can be scored.
-_TRIAL_SALIENCE_W = {"enrollment": 0.35, "phase": 0.30, "results_posted": 0.20,
-                     "status": 0.05, "recency": 0.07, "match": 0.03}
+# "What matters" rather than "what matches". Validated against landmark-trial recall
+# (6 drugs, 18 verified landmark trials): an EQUAL blend of structural maturity signals
+# matched a web agent's top-7 (~0.9 recall), while the earlier recency-weighted blend
+# scored ~0.39 — recency let recent Phase-4 studies crowd out pivotal Phase-3 / outcomes
+# trials. So recency is dropped from salience, and so is query match (the candidate pool
+# is already query-filtered; importance alone decides order within it). Fine-tuned
+# coefficients did not beat the equal blend in cross-validation, so we ship the simple
+# blend. NB: we intentionally do NOT use a raw reference/"publication footprint" count —
+# ct.gov's referencesModule mixes BACKGROUND (the investigators' bibliography) with
+# RESULT/DERIVED (papers reporting this trial), and counting all of it overweights small
+# investigator-initiated trials; a footprint signal, if ever added, must use RESULT+DERIVED only.
+_SALIENCE_FEATURES = ("enrollment", "phase", "results_posted", "maturity")
+_STATUS_MATURITY = {
+    "COMPLETED": 1.0, "ACTIVE_NOT_RECRUITING": 0.85, "ENROLLING_BY_INVITATION": 0.6,
+    "RECRUITING": 0.6, "NOT_YET_RECRUITING": 0.3,
+    "SUSPENDED": 0.3, "TERMINATED": 0.2, "WITHDRAWN": 0.1,
+}
+
+
+def _trial_maturity(item: Item) -> float:
+    """How far along the study is — completed/with-results outranks just-recruiting."""
+    return _STATUS_MATURITY.get((item.meta.get("status") or "").upper(), 0.5)
 
 
 def _trial_salience(item: Item, query_terms) -> dict:
-    components = _trial_relevance(item, query_terms)["components"]
-    score = sum(components[k] * w for k, w in _TRIAL_SALIENCE_W.items())
-    return {"score": round(score, 4), "components": components}
+    comp = _trial_relevance(item, query_terms)["components"]   # match/phase/recency/enrollment/results/status
+    comp["maturity"] = round(_trial_maturity(item), 3)
+    score = sum(comp[k] for k in _SALIENCE_FEATURES) / len(_SALIENCE_FEATURES)
+    return {"score": round(score, 4), "components": comp}
 
 
 def _item_to_dict(item: Item, *, verbose: bool = False,
@@ -393,7 +410,7 @@ def _rank_cap(rank_by, span: int) -> tuple[bool, str, int]:
     rb = rb if rb in _RANK_MODES else "recency"
     cap = span + 1
     if rb == "salience":
-        cap = max(span + 1, 250)
+        cap = max(span + 1, 500)   # widest, so every landmark trial for a drug can enter
     elif rb in ("relevance", "semantic"):
         cap = max(span + 1, 100)
     return rb != "recency", rb, cap
@@ -447,9 +464,10 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
     "recency" (default — what's new, most recently updated first); "relevance" (lexical
     query match, over a wider recent pool); "semantic" (LSA similarity — needs the
     optional ``[ml]`` extra, falls back to "relevance" with a ``ranking_note``); or
-    "salience" (**what matters** — weighted by enrollment, phase, results-posted and
-    status, so a large mature trial outranks a small keyword-dense one; it searches a
-    wide window and pool so a landmark older study can surface). The component breakdown
+    "salience" (**what matters** — an equal blend of enrollment, phase, results-posted
+    and maturity, with recency and keyword match dropped, so a large mature pivotal trial
+    outranks a small recent one; it searches a wide window and pool so a landmark older
+    study can surface). The component breakdown
     is in each result's ``relevance_components`` under ``verbose``, and ``ranked_by``
     reports the mode used. Each lean result also carries a ``facts`` block (enrollment,
     start/primary-completion dates, primary endpoints, phase, sponsor) cited to its NCT

@@ -6,6 +6,27 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-10-21
+
+### Changed (MCP — salience weighting, validated against landmark recall)
+A landmark-recall head-to-head (6 drugs, 18 verified landmark trials) showed the
+0.8.2 salience weighting scored only ~0.39 Recall@7 — recency let recent Phase-4
+studies crowd out pivotal Phase-3 / outcomes trials (e.g. it missed SELECT/SUSTAIN for
+semaglutide). Reweighted to match a web agent's ~0.9:
+
+- **Salience is now an equal blend of four structural signals** — enrollment, phase,
+  results-posted, and **maturity** (a new signal: completed/with-results outranks
+  just-recruiting). **Recency is dropped** from salience (it hurt importance ranking),
+  and so is query match (the candidate pool is already query-filtered). Cross-validation
+  showed tuned coefficients didn't beat the equal blend, so the simple blend ships.
+- **Wider candidate pull** for salience (pool cap 250 → 500), so every landmark trial
+  for a drug can enter before ranking.
+- Documented guard: salience intentionally does **not** use a raw reference /
+  "publication footprint" count — ct.gov's referencesModule mixes BACKGROUND (the
+  investigators' bibliography) with RESULT/DERIVED (papers reporting the trial), and
+  counting all of it overweights small investigator-initiated trials; a footprint signal,
+  if ever added, must use RESULT+DERIVED only.
+
 ## [0.8.2] — 2026-10-21
 
 ### Fixed (MCP)

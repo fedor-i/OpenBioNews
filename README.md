@@ -337,12 +337,14 @@ The output is shaped for LLM callers:
   - `relevance` — lexical **keyword match**, over a wider recent candidate pool. Use it
     to find records containing your terms; use `salience` when you want the important
     ones.
-  - `salience` — **what matters**: weighted by the signals (trials: enrollment / phase /
-    results-posted / status; recalls: severity; approvals: priority; shortages:
-    current-vs-resolved) so a large, mature record outranks a small keyword-dense one.
-    It searches a **wide window and pool**, so a landmark older study can surface
-    instead of being cut by the recency window. Sources without a salience signal fall
-    back to `relevance` with a `ranking_note`.
+  - `salience` — **what matters**: for trials, an equal blend of enrollment, phase,
+    results-posted and maturity (completed/with-results > just-recruiting), with recency
+    and keyword match dropped — validated against landmark-trial recall, so a pivotal
+    Phase-3/outcomes trial isn't crowded out by a fresher Phase-4. (Recalls weight
+    severity; approvals priority; shortages current-vs-resolved.) It searches a **wide
+    window and pool**, so a landmark older study can surface instead of being cut by the
+    recency window. Sources without a salience signal fall back to `relevance` with a
+    `ranking_note`.
 
   The per-signal breakdown is in `relevance_components` under `verbose`, and
   `watchlist_digest` applies the chosen mode within each source block. This is
