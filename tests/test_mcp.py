@@ -330,6 +330,18 @@ def test_salience_pivotal_outcomes_beats_recent_phase4():
     assert top["relevance_score"] > sal["results"][1]["relevance_score"]
 
 
+def test_salience_phase3_outranks_phase4_when_otherwise_equal():
+    # Pivotal weighting: with identical enrollment/results/maturity, the registrational
+    # Phase 3 must outrank the post-marketing Phase 4 (the fix that took recall to 1.0).
+    p3 = _ct_study("NCT_P3", "Drug pivotal outcomes", "2026-01-01", phase="PHASE3",
+                   enrollment=1000, status="COMPLETED", has_results=True)
+    p4 = _ct_study("NCT_P4b", "Drug post-marketing", "2026-01-01", phase="PHASE4",
+                   enrollment=1000, status="COMPLETED", has_results=True)
+    with _patch(clinicaltrials, {"studies": [p4, p3]}):
+        out = mcp_server.search_clinical_trials("drug", rank_by="salience", limit=10)
+    assert out["results"][0]["source"]["id"] == "NCT_P3"
+
+
 def test_salience_enrollment_pass_is_best_effort():
     # If the API rejects the enrollment sort, salience must still work off the recency
     # pool, not fail the whole fetch.

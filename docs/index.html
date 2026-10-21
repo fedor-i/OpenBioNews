@@ -3091,7 +3091,7 @@ function iRelevanceScore(rec, bm, maxBm){
   let signal = 0.5;
   if(rec.agency==="trials"){
     const ph=(rec.phase||[]).map(p=>String(p).toUpperCase());
-    signal = ph.includes("PHASE4")?1.0:ph.includes("PHASE3")?0.85:ph.includes("PHASE2")?0.6:ph.includes("PHASE1")?0.35:0.3;
+    signal = ph.includes("PHASE3")?1.0:ph.includes("PHASE4")?0.8:ph.includes("PHASE2")?0.6:ph.includes("PHASE1")?0.35:0.3;  // pivotal: Phase 3 > Phase 4
     if(/TERMINATED|WITHDRAWN|SUSPENDED/.test((rec.status||"").toUpperCase())) signal*=0.5;
   } else if(rec.agency==="recalls"){           // Class I most serious (check III/II before I — substring)
     const c=(rec.cls||"").toUpperCase();
@@ -3112,7 +3112,7 @@ const I_MATURITY={COMPLETED:1.0,ACTIVE_NOT_RECRUITING:0.85,ENROLLING_BY_INVITATI
 function iSalienceScore(rec){
   if(rec.agency==="trials"){
     const ph=(rec.phase||[]).map(p=>String(p).toUpperCase());
-    const phase=ph.includes("PHASE4")?1.0:ph.includes("PHASE3")?0.85:ph.includes("PHASE2")?0.6:ph.includes("PHASE1")?0.35:0.3;
+    const phase=ph.includes("PHASE3")?1.0:ph.includes("PHASE4")?0.8:ph.includes("PHASE2")?0.6:ph.includes("PHASE1")?0.35:0.3;  // pivotal: Phase 3 > Phase 4
     const enr=Number(rec.enrollment)||0;
     const enrollment=enr>0?Math.min(1,Math.log10(enr+1)/Math.log10(5001)):0;
     const results=rec.hasResults?1:0;

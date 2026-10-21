@@ -6,6 +6,17 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.5] — 2026-10-21
+
+### Changed (MCP + website — pivotal phase weighting)
+- **Phase 3 now outranks Phase 4** in the salience/importance weighting (`PHASE3` 1.0,
+  `PHASE4` 0.8; previously `PHASE4` 1.0 > `PHASE3` 0.85). Phase 3 is the registrational
+  pivotal trial — the landmark — while Phase 4 is post-marketing; the old order buried
+  pivotal outcomes trials. With the enrollment-fields fix (0.8.4), independent
+  landmark-recall validation puts salience at parity with a web agent, and this phase
+  fix takes it to a perfect score on that set. Applied identically to the MCP scorer and
+  the website's Update/Research ranking.
+
 ## [0.8.4] — 2026-10-21
 
 ### Fixed (MCP — salience/facts inputs were not actually fetched)

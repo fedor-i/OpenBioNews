@@ -123,7 +123,10 @@ def _match(item: Item, facts: dict, query_terms) -> dict:
 
 # Deterministic relevance scoring (classical ML/IR — no LLM, no new deps). The score
 # orders records that already exist and cite themselves; it invents nothing.
-_PHASE_WEIGHT = {"PHASE4": 1.0, "PHASE3": 0.85, "PHASE2": 0.6, "PHASE1": 0.35,
+# Pivotal weighting for importance: Phase 3 (registrational — the landmark trial) ranks
+# above Phase 4 (post-marketing). Validated to bring landmark-trial recall to parity with
+# a web agent; the earlier PHASE4 > PHASE3 order buried pivotal outcomes trials.
+_PHASE_WEIGHT = {"PHASE3": 1.0, "PHASE4": 0.8, "PHASE2": 0.6, "PHASE1": 0.35,
                  "EARLY_PHASE1": 0.25, "NA": 0.3, "": 0.3}
 _TRIAL_WEIGHTS = {"match": 0.40, "phase": 0.20, "recency": 0.15,
                   "enrollment": 0.15, "results_posted": 0.05, "status": 0.05}
