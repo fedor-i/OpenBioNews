@@ -17,11 +17,15 @@ from .base import Connector
 
 API_URL = "https://clinicaltrials.gov/api/v2/studies"
 
-# The specific leaf fields we need — keeps the payload small.
+# The specific leaf fields we need — keeps the payload small. MUST include every leaf
+# study_to_item reads: the ct.gov v2 `fields` param prunes everything else, so a missing
+# name here silently yields empty facts (e.g. a dropped EnrollmentCount zeroes the
+# salience enrollment signal). Keep this in sync with study_to_item.
 FIELDS = [
     "NCTId", "BriefTitle", "OverallStatus", "LastUpdatePostDate",
     "LeadSponsorName", "Condition", "InterventionName", "BriefSummary",
     "Phase", "StudyType", "HasResults",
+    "EnrollmentCount", "StartDate", "PrimaryCompletionDate", "PrimaryOutcomeMeasure",
 ]
 
 

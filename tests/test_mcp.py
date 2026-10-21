@@ -174,6 +174,16 @@ def test_trials_facts_carry_the_hard_numbers():
     assert out["results"][0]["source"]["url"].startswith("https://clinicaltrials.gov")
 
 
+def test_ct_fields_request_the_leaves_the_parser_reads():
+    # ct.gov's `fields` param prunes everything else, so a leaf the parser reads but
+    # FIELDS omits comes back empty in real queries (silent, since mocks ignore fields).
+    # Guard the salience/facts inputs specifically.
+    fields = set(clinicaltrials.FIELDS)
+    for required in ("EnrollmentCount", "StartDate", "PrimaryCompletionDate",
+                     "PrimaryOutcomeMeasure", "HasResults", "Phase", "OverallStatus"):
+        assert required in fields, f"ct.gov FIELDS missing {required} (parser reads it)"
+
+
 def test_adverse_event_counts_are_structured():
     with _patch(openfda_events, EVENTS):
         out = mcp_server.search_fda_adverse_events("semaglutide")

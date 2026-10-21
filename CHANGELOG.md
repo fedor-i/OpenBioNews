@@ -6,6 +6,24 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.4] — 2026-10-21
+
+### Fixed (MCP — salience/facts inputs were not actually fetched)
+- The ClinicalTrials.gov connector requested `HasResults` but **not** `EnrollmentCount`,
+  `StartDate`, `PrimaryCompletionDate` or `PrimaryOutcomeMeasure` — and ct.gov's `fields`
+  param prunes everything else, so in real queries `facts.enrollment`/dates/endpoints came
+  back empty and the salience **enrollment signal was always 0** (the mocks ignore
+  `fields`, so tests never caught it). Added the missing leaf fields and a regression
+  guard that keeps `FIELDS` in sync with what the parser reads. The 0.7.0 `facts` numbers
+  and the 0.8.3 salience enrollment weight now work against the live API.
+
+### Added (website — Insights "Update vs Research" mode)
+- A mode toggle on the Insights tab. **Update** (default) is the windowed "what's new"
+  digest, unchanged. **Research** ranks the Sources list by the same salience blend as the
+  MCP tools (enrollment · phase · results-posted · maturity) and adds a wide-window,
+  enrollment-sorted candidate pass, so landmark/pivotal trials surface instead of being
+  cut by the recency window. `normTrial` now carries `enrollment` and `hasResults`.
+
 ## [0.8.3] — 2026-10-21
 
 ### Changed (MCP — salience weighting, validated against landmark recall)

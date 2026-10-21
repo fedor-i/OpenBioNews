@@ -686,6 +686,12 @@
             <input type="date" id="i_from" aria-label="From date"><input type="date" id="i_to" aria-label="To date">
           </div>
         </div>
+        <div><label for="i_mode">Mode</label>
+          <select id="i_mode" title="Update: newest activity in the window. Research: landmark/pivotal trials by size, phase, results & maturity (wide window).">
+            <option value="update" selected>Update — what's new</option>
+            <option value="research">Research — what matters</option>
+          </select>
+        </div>
       </div>
       <div class="row">
         <button class="go" id="i_run">Build digest</button>
@@ -745,7 +751,7 @@
 const $ = id => document.getElementById(id);
 const CT_API = "https://clinicaltrials.gov/api/v2/studies";
 const CT_FIELDS = ["NCTId","BriefTitle","OverallStatus","LastUpdatePostDate","LeadSponsorName",
-  "Condition","InterventionName","BriefSummary","Phase","StudyType"].join(",");
+  "Condition","InterventionName","BriefSummary","Phase","StudyType","EnrollmentCount","HasResults"].join(",");
 // Data-tab / watchlist cards also pull the full DetailedDescription so a study's
 // whole write-up is available (shown via the "… more" expander). The Insights pull
 // keeps the lean field set — it fetches up to 500 records and only needs the brief.
@@ -2237,6 +2243,9 @@ const I_STOP = new Set(("a an and or the of to in for on at by from with without
   "subject object item items part parts type types kind form forms way ways case cases point points area areas field fields").split(/\s+/).filter(Boolean));
 
 let iRecords = [], iErrors = [], iNotes = [], iSubjectLabel = "", iBusy = false;
+// "update" = what's new (default, windowed); "research" = what matters (salience,
+// wide trial window + enrollment candidate pass). Read live from the control.
+function iModeVal(){ return ($("i_mode") && $("i_mode").value) === "research" ? "research" : "update"; }
 // Collapse repeated per-term failures (e.g. 8 identical "FAERS (HTTP 500 …)") into one
 // line with a count, so a transient source outage doesn't produce a wall of duplicates.
 function iDedupeErrors(){
@@ -2282,6 +2291,8 @@ function normTrial(st){
     company:dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")||"",
     areas:dig(ps,"conditionsModule","conditions")||[],
     status:dig(ps,"statusModule","overallStatus")||"",
+    enrollment:Number(dig(ps,"designModule","enrollmentInfo","count"))||0,
+    hasResults:!!st.hasResults,
     phase:(dig(ps,"designModule","phases")||[]).filter(p=>p&&p!=="NA")};
 }
 function normRecall(r){
@@ -2440,13 +2451,13 @@ async function fetchLabelsInsights(terms){
 // different topics over different periods each get their complete set. Each source
 // pages until the window is exhausted (reported total reached, a short last page,
 // or no more results), with only a generous per-source page cap as a safety net.
-async function pageCt(agency, base, parse, maxPages){
+async function pageCt(agency, base, parse, maxPages, quiet){
   const out=[], seen=new Set(); let token=null;
   try{ for(let p=0;p<maxPages;p++){
     const d=await getJson(base+(token?"&pageToken="+encodeURIComponent(token):""));
     for(const r of parse(d)){ if(r&&r.id&&!seen.has(r.id)){ seen.add(r.id); out.push(r); } }
     token=d&&d.nextPageToken; if(!token) break;
-  } }catch(err){ iErrors.push(agency+" ("+err.message+")"); }
+  } }catch(err){ if(!quiet) iErrors.push(agency+" ("+err.message+")"); }   // quiet: best-effort extra pass
   return out;
 }
 async function pageSkip(agency, base, parse, step, maxPages, noMatch){
@@ -2478,12 +2489,16 @@ async function fetchInsights(terms, range){
   const fromISO=range.fromISO, toISO=range.toISO||todayISO();
   const fromYmd=fromISO.replace(/-/g,""), toYmd=toISO.replace(/-/g,"");
   const inWin=r=>!r.date || (r.date>=fromISO && r.date<=toISO);   // client-side window (both bounds) for undated-sort sources
-  // ClinicalTrials.gov — last-update window, newest first
-  const ctp=new URLSearchParams(); const oe=ctOrExpr(terms); if(oe) ctp.append("query.term",oe);
-  ctp.append("filter.advanced",`AREA[LastUpdatePostDate]RANGE[${fromISO},${range.custom?toISO:"MAX"}]`);
-  // Fetch the detailed write-up too, so Insights source cards can show the full study
-  // description (behind "… more"); analytics still key off the brief summary (r.text).
-  ctp.append("sort","LastUpdatePostDate:desc"); ctp.append("fields",CT_FIELDS_FULL); ctp.append("pageSize","500"); ctp.append("countTotal","true");
+  // ClinicalTrials.gov — last-update window, newest first. The recency pass stays
+  // windowed (so the windowed analytics aren't distorted); Research mode adds a second,
+  // WIDE-window pass sorted by enrollment so landmark/pivotal trials enter before
+  // salience ranks them. Fetch the detailed write-up too for the "… more" expander.
+  const research=iModeVal()==="research";
+  const oe=ctOrExpr(terms);
+  const ctBase=(sort,from)=>{ const p=new URLSearchParams(); if(oe) p.append("query.term",oe);
+    p.append("filter.advanced",`AREA[LastUpdatePostDate]RANGE[${from},${range.custom?toISO:"MAX"}]`);
+    p.append("fields",CT_FIELDS_FULL); p.append("pageSize","500"); p.append("countTotal","true"); p.append("sort",sort);
+    return CT_API+"?"+p.toString(); };
   // openFDA recalls — report_date window (server-filtered + sorted)
   const recSearch=fdaOrExpr(terms,["recalling_firm","product_description"])+`+AND+report_date:[${fromYmd}+TO+${toYmd}]`;
   const recBase=`${FDA_API}?search=${encodeURIComponent(recSearch).replace(/%2B/g,"+")}&sort=report_date:desc`;
@@ -2495,8 +2510,17 @@ async function fetchInsights(terms, range){
   // SEC EDGAR — filed-within window
   const secp=new URLSearchParams(); secp.append("q", terms.map(t=>/[\s&]/.test(t)?`"${t}"`:t).join(" OR "));
   secp.append("dateRange","custom"); secp.append("startdt",fromISO); secp.append("enddt",toISO);
+  const ctParse=d=>(d.studies||[]).map(normTrial).filter(Boolean);
   const groups=await Promise.all([
-    pageCt("ClinicalTrials.gov", CT_API+"?"+ctp.toString(), d=>(d.studies||[]).map(normTrial).filter(Boolean), 6),
+    (async()=>{
+      const recent=await pageCt("ClinicalTrials.gov", ctBase("LastUpdatePostDate:desc", fromISO), ctParse, 6);
+      if(!research) return recent;
+      // best-effort enrollment pass (quiet, wide window): the top studies by enrollment
+      // surface landmark/pivotal trials the recency pass can't reach. If the API rejects
+      // the sort, salience still works off `recent`.
+      const big=await pageCt("ClinicalTrials.gov", ctBase("EnrollmentCount:desc", daysAgoISO(3650)), ctParse, 1, true);
+      return recent.concat(big);
+    })(),
     pageSkip("openFDA recalls", recBase, d=>(d.results||[]).map(normRecall).filter(Boolean), 1000, 6, true),
     pageSkip("Drugs@FDA", aprBase, d=>(d.results||[]).map(normApproval).flat().filter(r=>r&&inWin(r)), 1000, 6, true),
     pageSkip("openFDA shortages", shrBase, d=>(d.results||[]).map(normShortage).filter(r=>r&&inWin(r)), 1000, 4, true),
@@ -3079,6 +3103,29 @@ function iRelevanceScore(rec, bm, maxBm){
   }
   return 0.5*match + 0.3*recency + 0.2*signal;
 }
+// Research mode: "what matters", not "what's new". Mirrors the MCP salience ranker —
+// for trials an equal blend of enrollment, phase, results-posted and maturity (recency
+// and keyword match dropped), validated against landmark-trial recall. Other sources
+// fall back to a signal-first blend. Deterministic, no LLM; only reorders cited records.
+const I_MATURITY={COMPLETED:1.0,ACTIVE_NOT_RECRUITING:0.85,ENROLLING_BY_INVITATION:0.6,
+  RECRUITING:0.6,NOT_YET_RECRUITING:0.3,SUSPENDED:0.3,TERMINATED:0.2,WITHDRAWN:0.1};
+function iSalienceScore(rec){
+  if(rec.agency==="trials"){
+    const ph=(rec.phase||[]).map(p=>String(p).toUpperCase());
+    const phase=ph.includes("PHASE4")?1.0:ph.includes("PHASE3")?0.85:ph.includes("PHASE2")?0.6:ph.includes("PHASE1")?0.35:0.3;
+    const enr=Number(rec.enrollment)||0;
+    const enrollment=enr>0?Math.min(1,Math.log10(enr+1)/Math.log10(5001)):0;
+    const results=rec.hasResults?1:0;
+    const maturity=I_MATURITY[(rec.status||"").toUpperCase()]??0.5;
+    return (enrollment+phase+results+maturity)/4;
+  }
+  let recency=0; if(rec.date){ const age=(Date.now()-Date.parse(rec.date))/864e5; if(age>=0) recency=Math.max(0,1-age/365); }
+  let signal=0.5;
+  if(rec.agency==="recalls"){ const c=(rec.cls||"").toUpperCase(); signal=/CLASS III/.test(c)?0.3:/CLASS II/.test(c)?0.6:/CLASS I/.test(c)?1.0:0.5; }
+  else if(rec.agency==="approvals"){ signal=/—\s*FDA approval/.test(rec.title)?1.0:0.6; }
+  else if(rec.agency==="shortages"){ signal=/\(current\)/i.test(rec.title)?1.0:0.4; }
+  return 0.7*signal + 0.3*recency;
+}
 function renderInsights(){
   const box=$("insights"); box.innerHTML="";
   const recs=iRecords;
@@ -3315,7 +3362,8 @@ function renderInsights(){
   const typeChips=active.map(t=>
     `<button class="istype ifacet" aria-pressed="false" data-facet="source:${escA(I_CAT[t]||t)}" data-ids="${escA(JSON.stringify(idsWhere(r=>r.agency===t)))}">`+
     `${esc(I_CAT[t]||t)} <b>${perAgency[t]}</b></button>`).join("");
-  html+=`<h3 class="isrc-h">Sources — ${coreN} development${coreN!==1?"s":""}${auxN?` + ${auxN} reference card${auxN!==1?"s":""}`:""}, ranked by relevance${srcNote}</h3>`+
+  const _research=iModeVal()==="research";
+  html+=`<h3 class="isrc-h">Sources — ${coreN} development${coreN!==1?"s":""}${auxN?` + ${auxN} reference card${auxN!==1?"s":""}`:""}, ranked by ${_research?"importance <span class=\"ihint\">(research mode — size · phase · results · maturity)</span>":"relevance"}${srcNote}</h3>`+
     (active.length>1?`<div class="isrctypes" id="isrctypes"><span class="istlabel">Jump to type:</span>${typeChips}</div>`:"")+
     `<div class="isrcview" id="isrcview"><button data-view="ranked">Ranked</button><button data-view="grouped">Grouped by cluster</button></div>`+
     `<div id="ifilter" hidden></div><div id="isrc"></div></div>`;
@@ -3345,9 +3393,16 @@ function renderInsights(){
   // same multi-signal score the MCP tools use), so a substantial recent development
   // isn't buried by a loosely-matched one. aux cards keep -Infinity → sort to the end.
   const maxBm=Math.max(0, ...bmL.map(x=>x.score));
-  const relOf=i=>{ const bm=bmScore.get(i); return bm===-Infinity?-Infinity:iRelevanceScore(recs[i], bm, maxBm); };
+  // Research mode orders by importance (salience) alone; Update mode keeps new-first,
+  // then relevance. aux "also tracked" cards sort to the end in both.
+  const scoreOf = _research
+    ? i=>(recs[i].aux?-Infinity:iSalienceScore(recs[i]))
+    : i=>{ const bm=bmScore.get(i); return bm===-Infinity?-Infinity:iRelevanceScore(recs[i], bm, maxBm); };
+  const cmp = _research
+    ? (a,b)=>(scoreOf(b.i)-scoreOf(a.i)) || (b.r.date||"").localeCompare(a.r.date||"")
+    : (a,b)=>(b.isNew-a.isNew) || (scoreOf(b.i)-scoreOf(a.i)) || (b.r.date||"").localeCompare(a.r.date||"");
   recs.map((r,i)=>({r,i,isNew:unseen(r)}))
-    .sort((a,b)=>(b.isNew-a.isNew) || (relOf(b.i)-relOf(a.i)) || (b.r.date||"").localeCompare(a.r.date||""))
+    .sort(cmp)
     .slice(0,SRC_CAP)
     .forEach(o=>srcBox.appendChild(iCard(o.r, o.isNew, simFor(o.i).map(([j])=>recs[j].id))));
   renumberCites(srcBox);                                   // Sources: references 1..N by order
@@ -3483,6 +3538,9 @@ function maybeAutoInsights(){
 }
 $("i_run").onclick=()=>{ iRecords=[]; runInsights(); };
 $("i_q").addEventListener("keydown",e=>{ if(e.key==="Enter"){ iRecords=[]; runInsights(); }});
+// Mode changed → re-pull: Research widens the trial window and adds an enrollment
+// candidate pass, so it needs a fresh fetch, not just a re-sort.
+if($("i_mode")) $("i_mode").onchange=()=>{ if(iRecords.length || watch.length || $("i_q").value.trim()){ iRecords=[]; runInsights(); } };
 // Window changed → re-pull, EXCEPT when "Specific range…" was just picked with no
 // dates yet: reveal the inputs and wait, rather than firing a wasted default-window
 // fetch. The date inputs themselves re-run once the user sets an end.
@@ -3500,7 +3558,7 @@ $("i_clear").onclick=()=>{ $("i_q").value=""; iRecords=[]; iSubjectLabel="";
 // Test hook (no-op in normal use): lets the headless suite exercise the pure analysis.
 window.OBN_INSIGHTS={iTokens,singular,iDocTokens,iFreq,pageRank,textRankTerms,yakeKeyphrases,bm25Rank,countField,topN,
   clusterTerms,buildThemes,risingTerms,riseWindow,notableEvents,notableCategories,volumeSeries,wordleLayout,canonCompany,companyGroups,similarRecords,
-  normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,iRelevanceScore,I_STOP};
+  normTrial,normRecall,normApproval,normShortage,normFiling,fetchInsights,iRelevanceScore,iSalienceScore,I_STOP};
 
 // ---- shareable URL state ----
 const T_FIELDS={t_spons:"spons",t_cond:"cond",t_intr:"intr",t_term:"term",t_status:"status",t_phase:"phase",t_recent:"recent",t_from:"tfrom",t_to:"tto"};

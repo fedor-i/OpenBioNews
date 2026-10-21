@@ -265,7 +265,7 @@ def test_insights_cards_carry_full_description():
     assert "full:dig(ps,\"descriptionModule\",\"detailedDescription\")" in js, \
         "normTrial no longer carries the full detailed description"
     assert "r.full||r.text" in js, "Insights card no longer prefers the full description"
-    assert 'ctp.append("fields",CT_FIELDS_FULL)' in js, \
+    assert 'p.append("fields",CT_FIELDS_FULL)' in js, \
         "Insights CT fetch no longer requests DetailedDescription"
 
 
@@ -570,10 +570,28 @@ def test_sources_ranked_by_multisignal_relevance():
     assert "match" in scorer and "recency" in scorer and "signal" in scorer, \
         "relevance scorer is not the documented match+recency+signal blend"
     # the Sources sort must actually use it (not the old bmScore-only comparator)
-    assert "relOf(b.i)-relOf(a.i)" in js, "Sources list no longer sorts by relevance score"
-    assert "ranked by relevance" in js, "Sources heading not updated to relevance ranking"
+    assert "scoreOf(b.i)-scoreOf(a.i)" in js, "Sources list no longer sorts by a relevance/salience score"
+    assert 'ranked by ${_research?"importance' in js, \
+        "Sources heading no longer reflects relevance/importance ranking by mode"
     assert "iRelevanceScore" in js[js.index("window.OBN_INSIGHTS"):], \
         "iRelevanceScore not exposed on the test hook"
+
+
+def test_update_vs_research_mode_toggle():
+    # The Insights page offers an Update (what's new) / Research (what matters) toggle;
+    # Research ranks by the salience blend and the normalizer must carry its inputs.
+    js = _script()
+    assert 'id="i_mode"' in SRC, "Update/Research mode toggle missing from the page"
+    assert "function iSalienceScore(" in js, "research-mode salience scorer missing"
+    sal = js[js.index("function iSalienceScore("):]
+    for feat in ("enrollment", "phase", "results", "maturity"):
+        assert feat in sal, f"salience scorer missing the {feat} signal"
+    # the normalizer must actually capture the salience inputs (else they're always 0/false)
+    assert "enrollment:Number(dig(ps" in js, "normTrial no longer captures enrollment"
+    assert "hasResults:!!st.hasResults" in js, "normTrial no longer captures hasResults"
+    assert "EnrollmentCount" in js and "HasResults" in js, "CT fetch doesn't request the salience fields"
+    # the Sources list must switch comparator by mode
+    assert "iModeVal()" in js and "iSalienceScore(recs[i])" in js, "sources list not wired to research mode"
 
 
 def test_getjson_retries_transient_and_errors_are_deduped():
