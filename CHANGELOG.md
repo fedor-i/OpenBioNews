@@ -6,6 +6,30 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-10-21
+
+### Fixed (MCP)
+- **Salience can now reach landmark historical trials.** `rank_by="salience"` still
+  only re-ranked the N most-recently-updated studies, so a large but older-updated
+  landmark (e.g. a 17,000-patient Phase 3 last updated two years ago) never entered the
+  pool. The ClinicalTrials.gov connector now adds a second candidate pass sorted by
+  **enrollment** in salience mode (best-effort — if the API rejects the sort, salience
+  still works off the recency pool), skips the recency cutoff, and returns the whole
+  union for scoring rather than truncating by date. A landmark trial now enters and
+  tops the salience ranking.
+- **Unknown `rank_by` values are rejected, not silently ignored.** `rank_by` is now a
+  typed enum (`recency`, `relevance`, `semantic`, `salience`) advertised in every
+  tool's MCP input schema, so a typo or an unimplemented mode (e.g. `impact`) is
+  rejected with a clear validation error instead of no-oping to the default.
+
+### Docs
+- Clarified that `salience` is the "what matters" ranker and `relevance` is keyword
+  match (use `salience` for importance).
+
+### Website
+- Insights now retries transient openFDA 500s (429/5xx, with backoff) and collapses
+  duplicate per-source error lines into one with a count.
+
 ## [0.8.1] — 2026-10-21
 
 ### Added / Fixed (MCP — `rank_by="salience"`, "what matters" vs "what's new")

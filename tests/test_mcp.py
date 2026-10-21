@@ -270,6 +270,51 @@ def test_salience_widens_candidate_pool():
     assert int(cap.get("pageSize", 0)) >= 250, "salience should pull a wide candidate pool"
 
 
+# A landmark trial (huge enrollment, last updated years ago) + two small recent ones.
+# The recency pass never sees the landmark; the enrollment pass does.
+_SELECT = _ct_study("NCT_SELECT", "Semaglutide SELECT cardiovascular outcomes",
+                    "2024-08-01", phase="PHASE3", enrollment=17604)
+_SMALL_A = _ct_study("NCT_SA", "Semaglutide pilot A", "2026-10-10", phase="PHASE1", enrollment=30)
+_SMALL_B = _ct_study("NCT_SB", "Semaglutide pilot B", "2026-10-09", phase="PHASE2", enrollment=60)
+
+
+def _ct_sort_router(url, *a, **k):
+    sort = (k.get("params") or {}).get("sort", "")
+    if "EnrollmentCount" in sort:        # the salience enrollment pass sees the landmark
+        return {"studies": [_SELECT, _SMALL_A, _SMALL_B]}
+    return {"studies": [_SMALL_A, _SMALL_B]}   # recency pass: recent small trials only
+
+
+def test_salience_reaches_landmark_via_enrollment_pass():
+    with _patch(clinicaltrials, _ct_sort_router):
+        sal = mcp_server.search_clinical_trials("semaglutide", rank_by="salience", limit=10)
+        recent = mcp_server.search_clinical_trials("semaglutide")   # default recency, 90d
+    assert sal["ranked_by"] == "salience"
+    assert sal["results"][0]["source"]["id"] == "NCT_SELECT"        # 17,604-pt landmark tops
+    # the recency window never surfaces it (it enters only via the enrollment pass)
+    assert "NCT_SELECT" not in [r["source"]["id"] for r in recent["results"]]
+
+
+def test_salience_enrollment_pass_is_best_effort():
+    # If the API rejects the enrollment sort, salience must still work off the recency
+    # pool, not fail the whole fetch.
+    def router(url, *a, **k):
+        if "EnrollmentCount" in (k.get("params") or {}).get("sort", ""):
+            raise HTTPJSONError("HTTP 400: unsupported sort")
+        return {"studies": [_SMALL_A, _SMALL_B]}
+    with _patch(clinicaltrials, router):
+        out = mcp_server.search_clinical_trials("semaglutide", rank_by="salience")
+    assert out["ranked_by"] == "salience" and out["count"] >= 1
+
+
+def test_unknown_rank_by_coerces_safely_in_direct_call():
+    # The MCP boundary rejects unknown rank_by via the Literal enum; a direct Python
+    # call coerces to the safe recency default rather than crashing.
+    with _patch(clinicaltrials, CT):
+        out = mcp_server.search_clinical_trials("crispr", rank_by="impact")
+    assert out.get("ranked_by") in (None, "recency")
+
+
 def test_salience_falls_back_for_unsupported_source():
     with _patch(pubmed, _pubmed_fake):
         out = mcp_server.search_pubmed("base editing", rank_by="salience")

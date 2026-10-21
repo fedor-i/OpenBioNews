@@ -154,6 +154,12 @@ class ClinicalTrialsConnector(Connector):
         # recency/page limit applies to matching studies — not to an all-phase page
         # that is then whittled down to almost nothing.
         self.phases = [p for p in cfg.get("phases", []) if p]
+        # Salience mode ("what matters"): the caller ranks by enrollment/phase/results,
+        # so a newest-updated page isn't the right candidate pool — a landmark trial
+        # (large, but last updated a while ago) must be able to enter. In this mode we
+        # add a second pass sorted by enrollment, skip the recency cutoff, and return
+        # the whole union for the caller to rank (rather than truncating by date).
+        self.salience = bool(cfg.get("salience"))
 
     def _queries(self) -> list[tuple[str, str]]:
         """Turn the watch list into (api_field, value) query pairs."""
@@ -180,37 +186,52 @@ class ClinicalTrialsConnector(Connector):
             return []
 
         cutoff = None
-        if self.recent_days:
+        if self.recent_days and not self.salience:
             cutoff = datetime.now(timezone.utc) - timedelta(days=self.recent_days)
+
+        # Recency pass always; in salience mode also pull the largest trials by
+        # enrollment so a landmark (large but older-updated) study can compete. The
+        # enrollment sort is best-effort — if the API rejects it, salience still works
+        # off the recency pool rather than failing the whole fetch.
+        sorts = ["LastUpdatePostDate:desc"]
+        if self.salience:
+            sorts.append("EnrollmentCount:desc")
 
         by_nct: dict[str, Item] = {}
         for field, value in queries:
-            params = {
-                field: value,
-                "sort": "LastUpdatePostDate:desc",
-                "pageSize": self.max_per_query,
-                "fields": ",".join(FIELDS),
-            }
-            if self.statuses:
-                params["filter.overallStatus"] = ",".join(self.statuses)
-            if self.phases:
-                # Essie advanced filter: AREA[Phase](PHASE2 OR PHASE3)
-                params["filter.advanced"] = f"AREA[Phase]({' OR '.join(self.phases)})"
-            try:
-                payload = get_json(API_URL, params=params, timeout=30)
-            except HTTPJSONError as exc:
-                raise HTTPJSONError(f"{field}={value}: {exc}") from exc
+            for idx, sort in enumerate(sorts):
+                params = {
+                    field: value,
+                    "sort": sort,
+                    "pageSize": self.max_per_query,
+                    "fields": ",".join(FIELDS),
+                }
+                if self.statuses:
+                    params["filter.overallStatus"] = ",".join(self.statuses)
+                if self.phases:
+                    # Essie advanced filter: AREA[Phase](PHASE2 OR PHASE3)
+                    params["filter.advanced"] = f"AREA[Phase]({' OR '.join(self.phases)})"
+                try:
+                    payload = get_json(API_URL, params=params, timeout=30)
+                except HTTPJSONError as exc:
+                    if idx > 0:          # the extra salience sort is best-effort
+                        continue
+                    raise HTTPJSONError(f"{field}={value}: {exc}") from exc
 
-            for item in parse_studies(payload, topic=self.topic):
-                if cutoff and item.published is not None and item.published < cutoff:
-                    continue
-                nct = item.meta.get("nct_id", item.guid)
-                if nct not in by_nct:
-                    by_nct[nct] = item
-            if len(by_nct) >= self.max_total:
+                for item in parse_studies(payload, topic=self.topic):
+                    if cutoff and item.published is not None and item.published < cutoff:
+                        continue
+                    nct = item.meta.get("nct_id", item.guid)
+                    if nct not in by_nct:
+                        by_nct[nct] = item
+            if not self.salience and len(by_nct) >= self.max_total:
                 break
 
         items = list(by_nct.values())
+        if self.salience:
+            # Keep the whole union (newest + largest) so a big-but-old landmark isn't
+            # truncated out before the caller scores it by salience.
+            return items
         items.sort(key=lambda i: i.published or datetime.min.replace(tzinfo=timezone.utc),
                    reverse=True)
         return items[: self.max_total]

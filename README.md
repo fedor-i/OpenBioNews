@@ -334,7 +334,9 @@ The output is shaped for LLM callers:
 - **Relevance ranking** — every search tool attaches a deterministic score (0–1) to
   each result, reports `ranked_by`, and takes `rank_by` to pick the intent:
   - `recency` (default) — what's new, most recently updated first.
-  - `relevance` — lexical query match, over a wider recent candidate pool.
+  - `relevance` — lexical **keyword match**, over a wider recent candidate pool. Use it
+    to find records containing your terms; use `salience` when you want the important
+    ones.
   - `salience` — **what matters**: weighted by the signals (trials: enrollment / phase /
     results-posted / status; recalls: severity; approvals: priority; shortages:
     current-vs-resolved) so a large, mature record outranks a small keyword-dense one.

@@ -31,8 +31,14 @@ from __future__ import annotations
 import math
 import os
 from datetime import datetime, timezone
+from typing import Literal
 
 from . import __version__
+
+# Valid ``rank_by`` modes — a Literal so the MCP tool schema advertises the enum and
+# the server rejects an unknown value (e.g. a typo, or "impact") instead of silently
+# falling back. "semantic" needs the optional [ml] extra (falls back to "relevance").
+RankBy = Literal["recency", "relevance", "semantic", "salience"]
 
 from .connectors.clinicaltrials import ClinicalTrialsConnector
 from .connectors.edgar import EdgarConnector, resolve_cik
@@ -427,7 +433,7 @@ def _semantic_pool_scores(items, query_terms):
 def search_clinical_trials(query: str, status: str | None = None, phase: str | None = None,
                            recent_days: int = 90, limit: int = 20, offset: int = 0,
                            since: str | None = None, require_match: bool = True,
-                           rank_by: str = "recency", verbose: bool = False) -> dict:
+                           rank_by: RankBy = "recency", verbose: bool = False) -> dict:
     """Search ClinicalTrials.gov for recent studies matching ``query``.
 
     ``status`` e.g. "RECRUITING" / "COMPLETED" / "TERMINATED"; ``phase`` e.g. "3".
@@ -454,6 +460,10 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
     # study updated outside the default recency window can still enter the pool.
     rd = max(recent_days, 1825) if rb == "salience" else recent_days
     cfg = {"recent_days": rd, "max_total": cap, "max_per_query": cap}
+    if rb == "salience":
+        # Let the connector add an enrollment-sorted candidate pass so a landmark
+        # (large, older-updated) trial can enter the pool before scoring.
+        cfg["salience"] = True
     if status:
         cfg["statuses"] = _as_list(status)
     if phase:
@@ -469,7 +479,7 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
 def search_fda_recalls(query: str = "", firm: str | None = None,
                        classification: str | None = None,
                        recent_days: int = 90, limit: int = 20, offset: int = 0,
-                       since: str | None = None, rank_by: str = "recency",
+                       since: str | None = None, rank_by: RankBy = "recency",
                        verbose: bool = False) -> dict:
     """Search openFDA drug recalls. ``query`` matches the product; ``firm`` the
     recalling company; ``classification`` e.g. "Class I". Empty query + no firm
@@ -492,7 +502,7 @@ def search_fda_recalls(query: str = "", firm: str | None = None,
 def search_fda_approvals(query: str = "", company: str | None = None,
                          include_supplements: bool = True,
                          recent_days: int = 90, limit: int = 20, offset: int = 0,
-                         since: str | None = None, rank_by: str = "recency",
+                         since: str | None = None, rank_by: RankBy = "recency",
                          verbose: bool = False) -> dict:
     """Search Drugs@FDA approvals (openFDA). ``query`` matches brand/generic name;
     ``company`` the sponsor. ``since``/``offset``/``rank_by`` and a ``relevance_score``
@@ -511,7 +521,7 @@ def search_fda_approvals(query: str = "", company: str | None = None,
 
 def search_fda_shortages(query: str = "", company: str | None = None,
                          status: str = "Current", limit: int = 20, offset: int = 0,
-                         rank_by: str = "recency", verbose: bool = False) -> dict:
+                         rank_by: RankBy = "recency", verbose: bool = False) -> dict:
     """Search FDA drug shortages (openFDA). ``query`` matches brand/generic name;
     ``status`` e.g. "Current" / "Resolved". A product not in shortage returns an
     explicit ``no_current_results`` status (a citable negative), not a bare 0.
@@ -549,7 +559,7 @@ def search_fda_labeling(query: str, limit: int = 10, verbose: bool = False) -> d
 
 def search_pubmed(query: str, recent_days: int = 365, limit: int = 10, offset: int = 0,
                   since: str | None = None, require_match: bool = True,
-                  rank_by: str = "recency", verbose: bool = False) -> dict:
+                  rank_by: RankBy = "recency", verbose: bool = False) -> dict:
     """Search PubMed (NCBI E-utilities) for recent biomedical literature matching
     ``query``. ``since``/``offset``/``require_match``/``rank_by`` and a per-result
     ``relevance_score`` work as on search_clinical_trials (``require_match`` defaults
@@ -565,7 +575,7 @@ def search_pubmed(query: str, recent_days: int = 365, limit: int = 10, offset: i
 
 def search_federal_register(query: str = "", recent_days: int = 30, limit: int = 20,
                             offset: int = 0, all_agencies: bool = False,
-                            since: str | None = None, rank_by: str = "recency",
+                            since: str | None = None, rank_by: RankBy = "recency",
                             verbose: bool = False) -> dict:
     """Search Federal Register documents (FDA guidances, advisory-committee notices,
     proposed/final rules). ``query`` is the search text; by default results are
@@ -583,7 +593,7 @@ def search_federal_register(query: str = "", recent_days: int = 30, limit: int =
 def search_sec_filings(query: str = "", company: str | None = None,
                        form: str | None = None, recent_days: int = 90, limit: int = 20,
                        offset: int = 0, own_filer_only: bool = False,
-                       since: str | None = None, rank_by: str = "recency",
+                       since: str | None = None, rank_by: RankBy = "recency",
                        verbose: bool = False) -> dict:
     """Search SEC EDGAR filings. Two modes, picked by what you pass:
 
@@ -676,7 +686,7 @@ _DIGEST_SALIENCE = {
 
 def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15,
                      sources=None, since: str | None = None,
-                     rank_by: str = "recency", verbose: bool = False) -> dict:
+                     rank_by: RankBy = "recency", verbose: bool = False) -> dict:
     """Pull recent primary-source records for ``terms`` across every source at once
     (the cross-agency watchlist). ``terms`` is a list of companies, drugs or topics.
     ``sources`` restricts to a subset by key (e.g. ["sec", "trials"]) so an SEC-only
