@@ -237,6 +237,45 @@ def test_rank_by_relevance_reorders_vs_recency():
         by_relevance["results"][1]["relevance_score"]
 
 
+# A large mature Phase-3 trial updated outside the 90-day window vs. a small recent
+# Phase-1 one: recency/relevance surface the small recent; salience surfaces the big one.
+CT_SALIENCE = {"studies": [
+    _ct_study("NCT_BIG", "Semaglutide cardiovascular outcomes", "2026-05-01",
+              phase="PHASE3", enrollment=1024),
+    _ct_study("NCT_SMALL", "Semaglutide pilot dose study", "2026-10-18",
+              phase="PHASE1", enrollment=40),
+]}
+
+
+def test_salience_surfaces_large_mature_trial():
+    with _patch(clinicaltrials, CT_SALIENCE):
+        sal = mcp_server.search_clinical_trials("semaglutide", rank_by="salience")
+        recent = mcp_server.search_clinical_trials("semaglutide")   # default recency, 90d
+    assert sal["ranked_by"] == "salience"
+    assert sal["results"][0]["source"]["id"] == "NCT_BIG"           # size/maturity wins
+    # the default 90-day window cuts the older landmark — salience's wide window is what
+    # lets it compete (fixes the "never enters the pool" problem)
+    assert "NCT_BIG" not in [r["source"]["id"] for r in recent["results"]]
+    assert "NCT_BIG" in [r["source"]["id"] for r in sal["results"]]
+
+
+def test_salience_widens_candidate_pool():
+    cap = {}
+    orig = clinicaltrials.get_json
+    clinicaltrials.get_json = lambda url, *a, **k: (cap.update(k.get("params") or {}) or {"studies": []})
+    try:
+        mcp_server.search_clinical_trials("x", rank_by="salience", require_match=False)
+    finally:
+        clinicaltrials.get_json = orig
+    assert int(cap.get("pageSize", 0)) >= 250, "salience should pull a wide candidate pool"
+
+
+def test_salience_falls_back_for_unsupported_source():
+    with _patch(pubmed, _pubmed_fake):
+        out = mcp_server.search_pubmed("base editing", rank_by="salience")
+    assert out["ranked_by"] == "relevance" and "salience" in out["ranking_note"]
+
+
 def test_rank_by_semantic_scores_or_falls_back():
     # Works whether or not the optional [ml] extra is installed: semantic ranking when
     # available, a clean fall back to lexical relevance (with a note) when not.

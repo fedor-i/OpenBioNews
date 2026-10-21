@@ -6,6 +6,26 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-10-21
+
+### Added / Fixed (MCP — `rank_by="salience"`, "what matters" vs "what's new")
+`rank_by="relevance"` could not surface the trials that matter: it only re-ranked a
+newest-first candidate page (so a landmark study outside the recency window never
+entered the pool) and its score was match-dominated (a small keyword-dense trial could
+outrank a large mature one). Fixed by splitting the intent into an explicit mode:
+
+- **`rank_by="salience"`** (new) orders by weighted signals — for trials, enrollment
+  and phase and results-posted and status dominate; keyword match barely counts — so a
+  large, mature study outranks a small keyword-dense one. It pulls a **wide candidate
+  pool** and, for trials, a **wide time window**, so a landmark older trial can compete
+  instead of being cut by the recency cap. Recalls/approvals/shortages get a
+  signal-weighted salience too; sources without a salience signal fall back to
+  `relevance` with a `ranking_note`. Available on every search tool and
+  `watchlist_digest`.
+- `rank_by="recency"` (default, what's new) and `rank_by="relevance"` (lexical match)
+  are unchanged; ranking modes now also pull a wider pool (100; salience 250) so a page
+  isn't scored against its recency-local neighbours only. Results report `ranked_by`.
+
 ## [0.8.0] — 2026-10-21
 
 ### Added (MCP — relevance ranking across all search tools; issue #12 phase 1)

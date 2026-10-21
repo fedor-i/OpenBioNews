@@ -331,15 +331,21 @@ The output is shaped for LLM callers:
 - **Monitoring + paging** — `since` (YYYY-MM-DD) filters to new records and flags each
   `is_new`; `limit`/`offset` page through results with a `truncated` flag;
   `watchlist_digest` takes `sources=[...]` to query only the agencies you need.
-- **Relevance ranking** — every search tool attaches a deterministic `relevance_score`
-  (0–1) to each result and takes `rank_by="relevance"` to order by it (over a wider
-  recent candidate pool); `rank_by="recency"` (default) keeps most-recent-first, and
-  `watchlist_digest` applies it within each source block. The score blends query match
-  with recency plus a per-source signal: trials weight phase / enrollment /
-  results-posted / status; recalls weight severity (Class I highest); approvals weight
-  priority review; shortages weight current-vs-resolved. The per-signal breakdown is in
-  `relevance_components` under `verbose`. This is classical scoring — it only orders
-  records that already cite themselves, and invents nothing.
+- **Relevance ranking** — every search tool attaches a deterministic score (0–1) to
+  each result, reports `ranked_by`, and takes `rank_by` to pick the intent:
+  - `recency` (default) — what's new, most recently updated first.
+  - `relevance` — lexical query match, over a wider recent candidate pool.
+  - `salience` — **what matters**: weighted by the signals (trials: enrollment / phase /
+    results-posted / status; recalls: severity; approvals: priority; shortages:
+    current-vs-resolved) so a large, mature record outranks a small keyword-dense one.
+    It searches a **wide window and pool**, so a landmark older study can surface
+    instead of being cut by the recency window. Sources without a salience signal fall
+    back to `relevance` with a `ranking_note`.
+
+  The per-signal breakdown is in `relevance_components` under `verbose`, and
+  `watchlist_digest` applies the chosen mode within each source block. This is
+  classical scoring — it only orders records that already cite themselves, and invents
+  nothing.
 - **Semantic ranking (optional `[ml]` extra)** — `rank_by="semantic"` ranks by meaning
   rather than keywords, using TF-IDF + LSA (`pip install "openbionews[ml]"`; classical,
   local, deterministic — no LLM). It surfaces an on-topic record whose wording differs

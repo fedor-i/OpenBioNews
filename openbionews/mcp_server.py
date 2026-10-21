@@ -162,6 +162,20 @@ def _trial_relevance(item: Item, query_terms) -> dict:
     return {"score": round(score, 4), "components": components}
 
 
+# "What matters" rather than "what matches": the same trial signals, reweighted so
+# size and maturity (enrollment, phase, results posted) dominate and keyword density
+# barely counts. Paired with a wide candidate pool (see the tool) so a landmark trial
+# isn't cut by the recency window before it can be scored.
+_TRIAL_SALIENCE_W = {"enrollment": 0.35, "phase": 0.30, "results_posted": 0.20,
+                     "status": 0.05, "recency": 0.07, "match": 0.03}
+
+
+def _trial_salience(item: Item, query_terms) -> dict:
+    components = _trial_relevance(item, query_terms)["components"]
+    score = sum(components[k] * w for k, w in _TRIAL_SALIENCE_W.items())
+    return {"score": round(score, 4), "components": components}
+
+
 def _item_to_dict(item: Item, *, verbose: bool = False,
                   query_terms=None, since_iso: str | None = None) -> dict:
     """A primary-source record as lean JSON (or the full payload if ``verbose``)."""
@@ -194,7 +208,8 @@ def _item_to_dict(item: Item, *, verbose: bool = False,
 
 
 def _search(connector_cls, *, cfg=None, query_terms=None, since_iso=None, verbose=False,
-            page=None, require_match=False, score_fn=None, rank_by=None, **watch) -> dict:
+            page=None, require_match=False, score_fn=None, salience_fn=None,
+            rank_by=None, **watch) -> dict:
     """Run one connector over a watch list built from ``watch`` and serialise.
 
     ``watch`` keys are the watch-list fields the connectors understand:
@@ -222,19 +237,27 @@ def _search(connector_cls, *, cfg=None, query_terms=None, since_iso=None, verbos
     # Score the whole candidate pool, then (optionally) rank by it — before paging, so
     # the top page is the most relevant, not the most relevant within a recency page.
     scores, ranked_by, note = {}, None, None
-    if score_fn is not None and query_terms:
-        if rank_by == "semantic":
+    if query_terms and (score_fn is not None or salience_fn is not None):
+        if rank_by == "salience":
+            if salience_fn is not None:
+                scores = {id(i): salience_fn(i, query_terms) for i in items}
+                ranked_by = "salience"
+            else:                         # this source has no salience signal
+                note = "salience ranking isn't available for this source; used relevance"
+        elif rank_by == "semantic":
             scores = _semantic_pool_scores(items, query_terms)
             if scores is None:            # optional [ml] extra not installed
-                scores, ranked_by = {}, "relevance"
+                scores = {}
                 note = ("semantic ranking needs the optional [ml] extra "
                         "(pip install \"openbionews[ml]\"); used lexical relevance")
             else:
                 ranked_by = "semantic"
-        if not scores:                    # lexical: default, or the semantic fallback
+        if not scores and score_fn is not None:   # lexical: default, or a fallback above
             scores = {id(i): score_fn(i, query_terms) for i in items}
-            ranked_by = ranked_by or (rank_by if rank_by == "relevance" else "recency")
-        if ranked_by in ("relevance", "semantic"):
+            ranked_by = ranked_by or (rank_by if rank_by in _RANK_MODES else "recency")
+            if ranked_by == "salience":   # fell back from an unsupported source
+                ranked_by = "relevance"
+        if ranked_by in _RANK_MODES:
             items.sort(key=lambda i: scores[id(i)]["score"], reverse=True)
     truncated = False
     if page is not None:
@@ -335,18 +358,39 @@ def _shortage_signal(item: Item) -> float:      # a current shortage outranks a 
     return 1.0 if "CURRENT" in (item.meta.get("status") or "").upper() else 0.4
 
 
+def _generic_salience(item: Item, query_terms, signal_fn=None) -> dict:
+    """Signal-first reweighting of the generic score for "what matters" ordering."""
+    comp = _generic_relevance(item, query_terms, signal_fn)["components"]
+    weights = ({"signal": 0.6, "recency": 0.3, "match": 0.1} if "signal" in comp
+               else {"recency": 0.6, "match": 0.4})
+    return {"score": round(sum(comp[k] * w for k, w in weights.items()), 4), "components": comp}
+
+
 def _scorer(signal_fn=None):
-    """Bind a per-source signal into a score_fn(item, query_terms)."""
+    """Bind a per-source signal into a relevance score_fn(item, query_terms)."""
     return lambda item, q: _generic_relevance(item, q, signal_fn)
 
 
+def _salience_scorer(signal_fn=None):
+    """Bind a per-source signal into a salience score_fn(item, query_terms)."""
+    return lambda item, q: _generic_salience(item, q, signal_fn)
+
+
+_RANK_MODES = ("relevance", "semantic", "salience")
+
+
 def _rank_cap(rank_by, span: int) -> tuple[bool, str, int]:
-    """(ranking?, canonical rank_by, candidate cap). "relevance"/"semantic" rank over a
-    wider recent pool so the top page is the most relevant, not the page's local best."""
+    """(ranking?, canonical rank_by, candidate cap). Ranking modes pull a wider pool so
+    a page isn't scored against its recency-local neighbours only; "salience" pulls the
+    widest, so a landmark (but older) record can still compete."""
     rb = str(rank_by).lower()
-    rb = rb if rb in ("relevance", "semantic") else "recency"
-    widen = rb != "recency"
-    return widen, rb, (max(span + 1, 50) if widen else span + 1)
+    rb = rb if rb in _RANK_MODES else "recency"
+    cap = span + 1
+    if rb == "salience":
+        cap = max(span + 1, 250)
+    elif rb in ("relevance", "semantic"):
+        cap = max(span + 1, 100)
+    return rb != "recency", rb, cap
 
 
 def _doc_text(item: Item) -> str:
@@ -393,18 +437,23 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
     field — the loose-keyword strays the registry's search leaks in; set it false to
     see everything and filter yourself via each result's ``match``.
 
-    Every result carries a deterministic ``relevance_score`` (0–1) blending query
-    match with phase, recency, enrollment, results-posted and status. ``rank_by``
-    orders results: "recency" (default), "relevance" (lexical score, over a wider
-    recent candidate pool), or "semantic" (LSA similarity — needs the optional
-    ``[ml]`` extra, and falls back to "relevance" with a ``ranking_note`` when it
-    isn't installed). The component breakdown is in each result's
-    ``relevance_components`` under ``verbose``. Each lean result also carries a
-    ``facts`` block (enrollment, start/primary-completion dates, primary endpoints,
-    phase, sponsor) cited to its NCT record.
+    Every result carries a deterministic score (0–1) and ``rank_by`` picks the intent:
+    "recency" (default — what's new, most recently updated first); "relevance" (lexical
+    query match, over a wider recent pool); "semantic" (LSA similarity — needs the
+    optional ``[ml]`` extra, falls back to "relevance" with a ``ranking_note``); or
+    "salience" (**what matters** — weighted by enrollment, phase, results-posted and
+    status, so a large mature trial outranks a small keyword-dense one; it searches a
+    wide window and pool so a landmark older study can surface). The component breakdown
+    is in each result's ``relevance_components`` under ``verbose``, and ``ranked_by``
+    reports the mode used. Each lean result also carries a ``facts`` block (enrollment,
+    start/primary-completion dates, primary endpoints, phase, sponsor) cited to its NCT
+    record.
     """
     _, rb, cap = _rank_cap(rank_by, offset + limit)
-    cfg = {"recent_days": recent_days, "max_total": cap, "max_per_query": cap}
+    # Salience is "what matters", not "what's recent" — widen the window so a landmark
+    # study updated outside the default recency window can still enter the pool.
+    rd = max(recent_days, 1825) if rb == "salience" else recent_days
+    cfg = {"recent_days": rd, "max_total": cap, "max_per_query": cap}
     if status:
         cfg["statuses"] = _as_list(status)
     if phase:
@@ -414,7 +463,7 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
     return _search(ClinicalTrialsConnector, terms=_as_list(query), cfg=cfg,
                    query_terms=_as_list(query), since_iso=since, verbose=verbose,
                    require_match=require_match, page=(offset, limit),
-                   score_fn=_trial_relevance, rank_by=rb)
+                   score_fn=_trial_relevance, salience_fn=_trial_salience, rank_by=rb)
 
 
 def search_fda_recalls(query: str = "", firm: str | None = None,
@@ -436,7 +485,8 @@ def search_fda_recalls(query: str = "", firm: str | None = None,
                    sponsors=_as_list(firm), cfg=cfg,
                    query_terms=_as_list(query) or _as_list(firm),
                    since_iso=since, verbose=verbose, page=(offset, limit),
-                   score_fn=_scorer(_recall_signal), rank_by=rb)
+                   score_fn=_scorer(_recall_signal),
+                   salience_fn=_salience_scorer(_recall_signal), rank_by=rb)
 
 
 def search_fda_approvals(query: str = "", company: str | None = None,
@@ -455,7 +505,8 @@ def search_fda_approvals(query: str = "", company: str | None = None,
                    sponsors=_as_list(company), cfg=cfg,
                    query_terms=_as_list(query) or _as_list(company),
                    since_iso=since, verbose=verbose, page=(offset, limit),
-                   score_fn=_scorer(_approval_signal), rank_by=rb)
+                   score_fn=_scorer(_approval_signal),
+                   salience_fn=_salience_scorer(_approval_signal), rank_by=rb)
 
 
 def search_fda_shortages(query: str = "", company: str | None = None,
@@ -472,7 +523,8 @@ def search_fda_shortages(query: str = "", company: str | None = None,
                    sponsors=_as_list(company), cfg=cfg,
                    query_terms=_as_list(query) or _as_list(company),
                    verbose=verbose, page=(offset, limit),
-                   score_fn=_scorer(_shortage_signal), rank_by=rb)
+                   score_fn=_scorer(_shortage_signal),
+                   salience_fn=_salience_scorer(_shortage_signal), rank_by=rb)
 
 
 def search_fda_adverse_events(query: str, top_reactions: int = 8, limit: int = 20,
@@ -612,6 +664,14 @@ _DIGEST_SCORERS = {
     "pubmed": _scorer(),
     "sec": _scorer(),
 }
+# Salience ("what matters") scorers for the digest; sources without one fall back to
+# relevance within that block.
+_DIGEST_SALIENCE = {
+    "trials": _trial_salience,
+    "recalls": _salience_scorer(_recall_signal),
+    "approvals": _salience_scorer(_approval_signal),
+    "shortages": _salience_scorer(_shortage_signal),
+}
 
 
 def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15,
@@ -637,7 +697,8 @@ def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15,
             continue
         cfg = _edgar_cfg(base) if connector_cls is EdgarConnector else dict(base)
         block = _search(connector_cls, cfg=cfg, query_terms=terms, since_iso=since,
-                        verbose=verbose, score_fn=_DIGEST_SCORERS.get(key), rank_by=rb,
+                        verbose=verbose, score_fn=_DIGEST_SCORERS.get(key),
+                        salience_fn=_DIGEST_SALIENCE.get(key), rank_by=rb,
                         **{field: terms})
         block["key"] = key
         blocks.append(block)
