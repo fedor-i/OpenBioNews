@@ -6,6 +6,21 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-10-21
+
+### Added (MCP — relevance ranking for trials; issue #12 phase 1)
+- **`relevance_score` + `rank_by` on `search_clinical_trials`.** Every result now
+  carries a deterministic `relevance_score` (0–1) blending the lexical query match
+  with signal features — phase, recency of last update, enrollment size, whether
+  results are posted, and whether the study was stopped. `rank_by="relevance"` orders
+  by that score (ranked over a wider recent candidate pool, so the top page is the
+  most relevant rather than the most relevant within one recency page);
+  `rank_by="recency"` (default) is unchanged. The per-signal breakdown is exposed as
+  `relevance_components` under `verbose`.
+- This is classical scoring (no LLM, no new dependencies): it only orders records
+  that already cite themselves and invents nothing. Semantic ranking via an optional
+  `[ml]` extra remains on the roadmap (issue #12, phases 2–3).
+
 ## [0.7.3] — 2026-10-20
 
 ### Fixed (MCP — `search_clinical_trials`)

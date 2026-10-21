@@ -331,6 +331,13 @@ The output is shaped for LLM callers:
 - **Monitoring + paging** — `since` (YYYY-MM-DD) filters to new records and flags each
   `is_new`; `limit`/`offset` page through results with a `truncated` flag;
   `watchlist_digest` takes `sources=[...]` to query only the agencies you need.
+- **Relevance ranking (trials)** — `search_clinical_trials` attaches a deterministic
+  `relevance_score` (0–1) to each result, blending query match with phase, recency,
+  enrollment, results-posted and status. `rank_by="relevance"` orders by it (over a
+  wider recent candidate pool); `rank_by="recency"` (default) keeps most-recent-first.
+  The per-signal breakdown is in `relevance_components` under `verbose`. This is
+  classical scoring — it only orders records that already cite themselves, and
+  invents nothing. (Semantic ranking via an optional `[ml]` extra is on the roadmap.)
 
 Register it with Claude Desktop (or Claude Code) — add to your MCP config
 (`claude_desktop_config.json`).

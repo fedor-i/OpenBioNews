@@ -209,6 +209,42 @@ CT_LEAK = {"studies": [
 ]}
 
 
+# A substantial phase-3 study (older) vs. a tiny phase-1 pilot (newer): recency and
+# relevance disagree, so ranking order is a real signal, not an artifact of dates.
+CT_RANK = {"studies": [
+    _ct_study("NCT_HI", "Aspirin cardiovascular outcomes", "2026-09-01",
+              phase="PHASE3", enrollment=2000),
+    _ct_study("NCT_LO", "Aspirin pilot study", "2026-10-18",
+              phase="PHASE1", enrollment=20),
+]}
+
+
+def test_relevance_score_present_and_bounded():
+    with _patch(clinicaltrials, CT_RANK):
+        out = mcp_server.search_clinical_trials("aspirin")
+    assert all(0.0 <= r["relevance_score"] <= 1.0 for r in out["results"])
+    assert len(out["results"]) == 2
+
+
+def test_rank_by_relevance_reorders_vs_recency():
+    with _patch(clinicaltrials, CT_RANK):
+        by_recency = mcp_server.search_clinical_trials("aspirin")              # default
+        by_relevance = mcp_server.search_clinical_trials("aspirin", rank_by="relevance")
+    # recency puts the newer phase-1 pilot first; relevance puts the phase-3 study first
+    assert by_recency["results"][0]["source"]["id"] == "NCT_LO"
+    assert by_relevance["results"][0]["source"]["id"] == "NCT_HI"
+    assert by_relevance["results"][0]["relevance_score"] > \
+        by_relevance["results"][1]["relevance_score"]
+
+
+def test_relevance_components_in_verbose():
+    with _patch(clinicaltrials, CT_RANK):
+        out = mcp_server.search_clinical_trials("aspirin", rank_by="relevance", verbose=True)
+    comp = out["results"][0]["relevance_components"]
+    assert set(comp) >= {"match", "phase", "recency", "enrollment",
+                         "results_posted", "status"}
+
+
 def test_require_match_drops_keyword_strays():
     # The registry leaks loosely-matched studies; require_match (default) removes
     # the one where the query term appears in no field.

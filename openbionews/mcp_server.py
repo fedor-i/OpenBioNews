@@ -28,6 +28,7 @@ them rather than invent them. Nothing is summarised or fabricated.
 
 from __future__ import annotations
 
+import math
 import os
 from datetime import datetime, timezone
 
@@ -114,6 +115,53 @@ def _match(item: Item, facts: dict, query_terms) -> dict:
     return {"terms": matched, "where": where}
 
 
+# Deterministic relevance scoring (classical ML/IR — no LLM, no new deps). The score
+# orders records that already exist and cite themselves; it invents nothing.
+_PHASE_WEIGHT = {"PHASE4": 1.0, "PHASE3": 0.85, "PHASE2": 0.6, "PHASE1": 0.35,
+                 "EARLY_PHASE1": 0.25, "NA": 0.3, "": 0.3}
+_TRIAL_WEIGHTS = {"match": 0.40, "phase": 0.20, "recency": 0.15,
+                  "enrollment": 0.15, "results_posted": 0.05, "status": 0.05}
+
+
+def _trial_relevance(item: Item, query_terms) -> dict:
+    """A transparent 0–1 relevance score for a trial and its component breakdown.
+
+    Blends lexical query match with signal features that proxy how substantial and
+    current a study is — phase, recency of the last update, enrollment size, whether
+    results are posted, and whether it was stopped. Deterministic and reproducible.
+    """
+    facts = _facts(item)
+    terms = [t for t in (query_terms or []) if str(t).strip()]
+    hit = _match(item, facts, terms)
+    frac = (len(hit["terms"]) / len(terms)) if terms else 0.0
+    match = min(1.0, frac + (0.25 if "title" in hit["where"] else 0.0))
+
+    phases = item.meta.get("phases") or []
+    phase = max((_PHASE_WEIGHT.get(str(p).upper(), 0.3) for p in phases), default=0.3)
+
+    recency = 0.0
+    if item.published:
+        age = (datetime.now(timezone.utc) - item.published).days
+        recency = max(0.0, 1.0 - age / 365.0)
+
+    enr = item.meta.get("enrollment")
+    enrollment = 0.0
+    if isinstance(enr, (int, float)) and enr > 0:
+        enrollment = min(1.0, math.log10(enr + 1) / math.log10(5001))  # ~0..1 up to 5k
+
+    results_posted = 1.0 if item.meta.get("has_results") else 0.0
+
+    status = (item.meta.get("status") or "").upper()
+    stopped = any(s in status for s in ("TERMINATED", "WITHDRAWN", "SUSPENDED"))
+    status_score = 0.3 if stopped else 1.0
+
+    components = {"match": round(match, 3), "phase": round(phase, 3),
+                  "recency": round(recency, 3), "enrollment": round(enrollment, 3),
+                  "results_posted": results_posted, "status": round(status_score, 3)}
+    score = sum(components[k] * w for k, w in _TRIAL_WEIGHTS.items())
+    return {"score": round(score, 4), "components": components}
+
+
 def _item_to_dict(item: Item, *, verbose: bool = False,
                   query_terms=None, since_iso: str | None = None) -> dict:
     """A primary-source record as lean JSON (or the full payload if ``verbose``)."""
@@ -145,8 +193,8 @@ def _item_to_dict(item: Item, *, verbose: bool = False,
     return rec
 
 
-def _search(connector_cls, *, cfg=None, query_terms=None,
-            since_iso=None, verbose=False, page=None, require_match=False, **watch) -> dict:
+def _search(connector_cls, *, cfg=None, query_terms=None, since_iso=None, verbose=False,
+            page=None, require_match=False, score_fn=None, rank_by=None, **watch) -> dict:
     """Run one connector over a watch list built from ``watch`` and serialise.
 
     ``watch`` keys are the watch-list fields the connectors understand:
@@ -171,13 +219,26 @@ def _search(connector_cls, *, cfg=None, query_terms=None,
         # Drop records where no query term appears in the title, summary or facts —
         # the loose-keyword strays (a different drug) that upstream search leaks in.
         items = [i for i in items if _match(i, _facts(i), query_terms)["terms"]]
+    # Score the whole candidate pool, then (optionally) rank by it — before paging, so
+    # the top page is the most relevant, not the most relevant within a recency page.
+    scores = {}
+    if score_fn is not None and query_terms:
+        scores = {id(i): score_fn(i, query_terms) for i in items}
+        if rank_by == "relevance":
+            items.sort(key=lambda i: scores[id(i)]["score"], reverse=True)
     truncated = False
     if page is not None:
         offset, count = page
         truncated = len(items) > offset + count
         items = items[offset:offset + count]
-    results = [_item_to_dict(i, verbose=verbose, query_terms=query_terms,
-                             since_iso=since_iso) for i in items]
+    results = []
+    for i in items:
+        rec = _item_to_dict(i, verbose=verbose, query_terms=query_terms, since_iso=since_iso)
+        if id(i) in scores:
+            rec["relevance_score"] = scores[id(i)]["score"]
+            if verbose:
+                rec["relevance_components"] = scores[id(i)]["components"]
+        results.append(rec)
     if not results:
         return {**base, "status": "no_current_results", "count": 0,
                 "query_used": watchlist, "results": []}
@@ -220,7 +281,7 @@ def _norm_phase(p) -> str:
 def search_clinical_trials(query: str, status: str | None = None, phase: str | None = None,
                            recent_days: int = 90, limit: int = 20, offset: int = 0,
                            since: str | None = None, require_match: bool = True,
-                           verbose: bool = False) -> dict:
+                           rank_by: str = "recency", verbose: bool = False) -> dict:
     """Search ClinicalTrials.gov for recent studies matching ``query``.
 
     ``status`` e.g. "RECRUITING" / "COMPLETED" / "TERMINATED"; ``phase`` e.g. "3".
@@ -228,12 +289,22 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
     ``is_new``; ``offset`` pages through results and sets a ``truncated`` flag.
     ``require_match`` (default true) drops studies where the query term appears in no
     field — the loose-keyword strays the registry's search leaks in; set it false to
-    see everything and filter yourself via each result's ``match``. Each lean result
-    carries a ``facts`` block (enrollment, start/primary-completion dates, primary
-    endpoints, phase, sponsor) cited to its NCT record.
+    see everything and filter yourself via each result's ``match``.
+
+    Every result carries a deterministic ``relevance_score`` (0–1) blending query
+    match with phase, recency, enrollment, results-posted and status. ``rank_by``
+    orders results: "recency" (default — most recently updated first) or "relevance"
+    (highest score first, ranked over a wider recent candidate pool). The component
+    breakdown is in each result's ``relevance_components`` under ``verbose``. Each
+    lean result also carries a ``facts`` block (enrollment, start/primary-completion
+    dates, primary endpoints, phase, sponsor) cited to its NCT record.
     """
+    by_relevance = str(rank_by).lower() == "relevance"
     span = offset + limit
-    cfg = {"recent_days": recent_days, "max_total": span + 1, "max_per_query": span + 1}
+    # Rank over a wider recent pool so the top page is genuinely the most relevant,
+    # not just the most relevant among one recency-ordered page.
+    cap = max(span + 1, 50) if by_relevance else span + 1
+    cfg = {"recent_days": recent_days, "max_total": cap, "max_per_query": cap}
     if status:
         cfg["statuses"] = _as_list(status)
     if phase:
@@ -242,7 +313,9 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
         cfg["phases"] = [_norm_phase(p) for p in _as_list(phase)]
     return _search(ClinicalTrialsConnector, terms=_as_list(query), cfg=cfg,
                    query_terms=_as_list(query), since_iso=since, verbose=verbose,
-                   require_match=require_match, page=(offset, limit))
+                   require_match=require_match, page=(offset, limit),
+                   score_fn=_trial_relevance,
+                   rank_by="relevance" if by_relevance else "recency")
 
 
 def search_fda_recalls(query: str = "", firm: str | None = None,
