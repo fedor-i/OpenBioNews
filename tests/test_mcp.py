@@ -281,10 +281,12 @@ def test_rank_by_semantic_scores_or_falls_back():
     # available, a clean fall back to lexical relevance (with a note) when not.
     with _patch(clinicaltrials, CT_RANK):
         out = mcp_server.search_clinical_trials("aspirin", rank_by="semantic")
-    assert out["ranked_by"] in ("semantic", "relevance")
     assert all("relevance_score" in r for r in out["results"])
-    if out["ranked_by"] == "relevance":
-        assert "[ml]" in out["ranking_note"]       # told the caller how to enable it
+    if "ranking_note" in out:
+        # fell back (no [ml]): must report the honest mode, not still claim "semantic"
+        assert out["ranked_by"] == "relevance" and "[ml]" in out["ranking_note"]
+    else:
+        assert out["ranked_by"] == "semantic"      # [ml] present, real semantic ran
 
 
 def test_relevance_components_in_verbose():

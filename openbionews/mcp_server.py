@@ -254,9 +254,9 @@ def _search(connector_cls, *, cfg=None, query_terms=None, since_iso=None, verbos
                 ranked_by = "semantic"
         if not scores and score_fn is not None:   # lexical: default, or a fallback above
             scores = {id(i): score_fn(i, query_terms) for i in items}
-            ranked_by = ranked_by or (rank_by if rank_by in _RANK_MODES else "recency")
-            if ranked_by == "salience":   # fell back from an unsupported source
-                ranked_by = "relevance"
+            # Any fall-back from a ranking mode (semantic w/o [ml], salience on an
+            # unsupported source) lands on lexical relevance — report it as such.
+            ranked_by = "relevance" if rank_by in _RANK_MODES else "recency"
         if ranked_by in _RANK_MODES:
             items.sort(key=lambda i: scores[id(i)]["score"], reverse=True)
     truncated = False
