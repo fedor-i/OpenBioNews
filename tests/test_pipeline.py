@@ -763,8 +763,6 @@ def test_demo_covers_all_primary_sources():
 
 
 if __name__ == "__main__":
-    import tempfile
-
     failures = 0
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

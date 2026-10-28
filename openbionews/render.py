@@ -57,10 +57,10 @@ def _dedup_citations(cluster: Cluster):
     seen: set[str] = set()
     out = []
     for item in cluster.items:
-        for cite in item.citations:
-            if cite.url and cite.url not in seen:
-                seen.add(cite.url)
-                out.append(cite)
+        for c in item.citations:          # not `cite`: that name is the imported module
+            if c.url and c.url not in seen:
+                seen.add(c.url)
+                out.append(c)
     return out
 
 

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openbionews"
-version = "0.8.5"
-description = "Free, self-hosted tool that turns biopharma primary sources (ClinicalTrials.gov, openFDA, SEC EDGAR) into a daily brief with per-sentence citations. Deterministic by default; bring your own LLM, or none."
+version = "0.8.6"
+description = "Free, self-hosted tool that turns biopharma primary sources (ClinicalTrials.gov, openFDA, Federal Register, PubMed, SEC EDGAR) into a cited daily brief, and an MCP server that gives AI assistants citable primary-source records. Deterministic by default; bring your own LLM, or none."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -13,6 +13,7 @@ authors = [{ name = "OpenBioNews contributors" }]
 keywords = [
     "biotech", "pharma", "fda", "clinical-trials", "sec-edgar", "regulatory",
     "news", "rss", "digest", "citations", "self-hosted", "ollama",
+    "mcp", "model-context-protocol", "pubmed",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

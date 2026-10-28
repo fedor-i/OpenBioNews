@@ -3,8 +3,9 @@
 This inverts the usual relationship: the OpenBioNews core has no LLM and invents
 nothing, but *any* MCP-speaking assistant (Claude Desktop, Claude Code, …) can
 call these tools to pull **primary-source** biomedical records — ClinicalTrials.gov,
-FDA recalls / approvals / shortages, and SEC EDGAR — each returned with the exact
-URL it traces to. The assistant gets grounded, citable facts, not our prose.
+openFDA recalls / approvals / shortages / adverse events (FAERS) / labeling, the
+Federal Register, PubMed, and SEC EDGAR — each returned with the exact URL it traces
+to. The assistant gets grounded, citable facts, not our prose.
 
 The tool *logic* here is pure standard library, so it imports and tests without
 the optional ``mcp`` dependency. Only :func:`serve` pulls in ``mcp`` (lazily), so
@@ -30,16 +31,11 @@ from __future__ import annotations
 
 import math
 import os
+import re
 from datetime import datetime, timezone
 from typing import Literal
 
 from . import __version__
-
-# Valid ``rank_by`` modes — a Literal so the MCP tool schema advertises the enum and
-# the server rejects an unknown value (e.g. a typo, or "impact") instead of silently
-# falling back. "semantic" needs the optional [ml] extra (falls back to "relevance").
-RankBy = Literal["recency", "relevance", "semantic", "salience"]
-
 from .connectors.clinicaltrials import ClinicalTrialsConnector
 from .connectors.edgar import EdgarConnector, resolve_cik
 from .connectors.openfda import OpenFDAConnector
@@ -53,6 +49,19 @@ from .httputil import HTTPJSONError
 from .models import Item
 
 SERVER_NAME = "openbionews"
+
+# Valid ``rank_by`` modes — a Literal so the MCP tool schema advertises the enum and
+# the server rejects an unknown value (e.g. a typo, or "impact") instead of silently
+# falling back. "semantic" needs the optional [ml] extra (falls back to "relevance").
+RankBy = Literal["recency", "relevance", "semantic", "salience"]
+# Valid ``watchlist_digest(sources=…)`` keys, advertised as an enum for the same reason.
+DigestSource = Literal["trials", "recalls", "approvals", "shortages", "adverse_events",
+                       "labeling", "federal_register", "pubmed", "sec"]
+
+# Upstream page-size ceilings (ClinicalTrials.gov pageSize and openFDA limit are both
+# capped at 1000); a larger request is rejected and would fail the whole call.
+_MAX_FETCH = 1000
+_MAX_LIMIT = 100
 
 # The reproducible endpoint each source traces back to (surfaced for provenance).
 _ENDPOINTS = {
@@ -96,6 +105,27 @@ def _facts(item: Item) -> dict:
     return out
 
 
+def _norm_text(text) -> str:
+    """Lowercase, with every run of non-alphanumerics collapsed to one space, so
+    "GLP-1"/"glp 1" and "base-editing"/"base editing" compare equal."""
+    return " " + re.sub(r"[^a-z0-9]+", " ", str(text).lower()).strip() + " "
+
+
+def _term_regex(term):
+    """A word-boundary pattern for one query term over ``_norm_text`` output.
+
+    The term must start at a word boundary (so "ALS" never matches inside "trials" or
+    "also"). A term whose last token is short (an acronym such as "ALS", "AI", the "1"
+    of "GLP-1") must also END at a boundary, allowing a plural "s"; a longer final
+    word may run on, so "statin" still matches "statins".
+    """
+    needle = _norm_text(term).strip()
+    if not needle:
+        return None
+    tail = r"s?(?= )" if len(needle.split(" ")[-1]) <= 3 else ""
+    return re.compile(" " + re.escape(needle) + tail)
+
+
 def _match(item: Item, facts: dict, query_terms) -> dict:
     """Which query terms actually appear, and where — a cheap relevance signal.
 
@@ -105,16 +135,16 @@ def _match(item: Item, facts: dict, query_terms) -> dict:
     nothing matched the record's own text — treat as a likely stray.
     """
     hay = {
-        "title": (item.title or "").lower(),
-        "summary": (item.summary or "").lower(),
-        "facts": " ".join(str(v) for v in facts.values()).lower(),
+        "title": _norm_text(item.title or ""),
+        "summary": _norm_text(item.summary or ""),
+        "facts": _norm_text(" ".join(str(v) for v in facts.values())),
     }
     matched, where = [], []
     for term in query_terms or []:
-        needle = str(term).lower().strip()
-        if not needle:
+        pattern = _term_regex(term)
+        if pattern is None:
             continue
-        hits = [field for field, text in hay.items() if needle in text]
+        hits = [field for field, text in hay.items() if pattern.search(text)]
         if hits:
             matched.append(term)
             where.extend(h for h in hits if h not in where)
@@ -139,19 +169,10 @@ def _trial_relevance(item: Item, query_terms) -> dict:
     current a study is — phase, recency of the last update, enrollment size, whether
     results are posted, and whether it was stopped. Deterministic and reproducible.
     """
-    facts = _facts(item)
-    terms = [t for t in (query_terms or []) if str(t).strip()]
-    hit = _match(item, facts, terms)
-    frac = (len(hit["terms"]) / len(terms)) if terms else 0.0
-    match = min(1.0, frac + (0.25 if "title" in hit["where"] else 0.0))
+    match, recency = _match_recency(item, query_terms)
 
     phases = item.meta.get("phases") or []
     phase = max((_PHASE_WEIGHT.get(str(p).upper(), 0.3) for p in phases), default=0.3)
-
-    recency = 0.0
-    if item.published:
-        age = (datetime.now(timezone.utc) - item.published).days
-        recency = max(0.0, 1.0 - age / 365.0)
 
     enr = item.meta.get("enrollment")
     enrollment = 0.0
@@ -196,9 +217,12 @@ def _trial_maturity(item: Item) -> float:
 
 
 def _trial_salience(item: Item, query_terms) -> dict:
-    comp = _trial_relevance(item, query_terms)["components"]   # match/phase/recency/enrollment/results/status
-    comp["maturity"] = round(_trial_maturity(item), 3)
-    score = sum(comp[k] for k in _SALIENCE_FEATURES) / len(_SALIENCE_FEATURES)
+    base = _trial_relevance(item, query_terms)["components"]
+    base["maturity"] = round(_trial_maturity(item), 3)
+    # Report only the signals that actually feed the score, so a caller reading the
+    # breakdown isn't misled into thinking recency or keyword match count here.
+    comp = {k: base[k] for k in _SALIENCE_FEATURES}
+    score = sum(comp.values()) / len(comp)
     return {"score": round(score, 4), "components": comp}
 
 
@@ -249,6 +273,11 @@ def _search(connector_cls, *, cfg=None, query_terms=None, since_iso=None, verbos
     base = {"source": connector_cls.name,
             "endpoint": _ENDPOINTS.get(connector_cls.name, ""),
             "retrieved_at": _now(), "as_of": _today()}
+    if since_iso is not None and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(since_iso)):
+        # A malformed date would silently filter everything out and read as a
+        # trustworthy "no results" — reject it instead.
+        return {**base, "error": f"since must be YYYY-MM-DD (got {since_iso!r})",
+                "count": 0, "results": []}
     try:
         items = connector_cls(cfg or {}, watchlist).fetch()
     except HTTPJSONError as exc:
@@ -263,7 +292,11 @@ def _search(connector_cls, *, cfg=None, query_terms=None, since_iso=None, verbos
     # Score the whole candidate pool, then (optionally) rank by it — before paging, so
     # the top page is the most relevant, not the most relevant within a recency page.
     scores, ranked_by, note = {}, None, None
-    if query_terms and (score_fn is not None or salience_fn is not None):
+    # Salience is query-independent ("which matter most"), so it runs even with no
+    # query — e.g. the most severe of all recent recalls. The other modes need terms.
+    wants_scores = bool(query_terms) or rank_by == "salience"
+    if wants_scores and (score_fn is not None or salience_fn is not None):
+        query_terms = query_terms or []
         if rank_by == "salience":
             if salience_fn is not None:
                 scores = {id(i): salience_fn(i, query_terms) for i in items}
@@ -285,10 +318,20 @@ def _search(connector_cls, *, cfg=None, query_terms=None, since_iso=None, verbos
             ranked_by = "relevance" if rank_by in _RANK_MODES else "recency"
         if ranked_by in _RANK_MODES:
             items.sort(key=lambda i: scores[id(i)]["score"], reverse=True)
+    if not items:
+        # The search genuinely matched nothing — a citable negative. (Decided BEFORE
+        # paging: an offset past the end is not "no results", see below.)
+        return {**base, "status": "no_current_results", "count": 0,
+                "query_used": watchlist, "results": []}
     truncated = False
+    page_note = None
     if page is not None:
         offset, count = page
+        offset = max(0, int(offset))                    # sanitize agent-supplied paging
+        count = max(1, min(int(count), _MAX_LIMIT))
         truncated = len(items) > offset + count
+        if offset >= len(items):
+            page_note = f"offset {offset} is past the last result ({len(items)} available)"
         items = items[offset:offset + count]
     results = []
     for i in items:
@@ -298,10 +341,9 @@ def _search(connector_cls, *, cfg=None, query_terms=None, since_iso=None, verbos
             if verbose:
                 rec["relevance_components"] = scores[id(i)]["components"]
         results.append(rec)
-    if not results:
-        return {**base, "status": "no_current_results", "count": 0,
-                "query_used": watchlist, "results": []}
     out = {**base, "count": len(results), "results": results}
+    if page_note:
+        out["page_note"] = page_note
     if ranked_by:
         out["ranked_by"] = ranked_by
     if note:
@@ -336,6 +378,20 @@ def _norm_phase(p) -> str:
         if d in s:
             return "PHASE" + d
     return s
+
+
+def _phase_list(phase) -> list[str]:
+    """Expand a phase argument into ct.gov tokens. Accepts a list or a combined string:
+    "2/3", "Phase 2/Phase 3" and "2,3" all mean Phase 2 OR Phase 3 (a phase-2/3 trial
+    carries both tokens), rather than silently keeping only the first digit."""
+    out: list[str] = []
+    for raw in _as_list(phase) or []:
+        for part in re.split(r"[/,|]|\band\b", str(raw), flags=re.I):
+            if part.strip():
+                tok = _norm_phase(part)
+                if tok not in out:
+                    out.append(tok)
+    return out
 
 
 # Generic relevance for non-trial sources: lexical match + recency, plus an optional
@@ -411,12 +467,13 @@ def _rank_cap(rank_by, span: int) -> tuple[bool, str, int]:
     widest, so a landmark (but older) record can still compete."""
     rb = str(rank_by).lower()
     rb = rb if rb in _RANK_MODES else "recency"
+    span = max(0, int(span))
     cap = span + 1
     if rb == "salience":
         cap = max(span + 1, 500)   # widest, so every landmark trial for a drug can enter
     elif rb in ("relevance", "semantic"):
         cap = max(span + 1, 100)
-    return rb != "recency", rb, cap
+    return rb != "recency", rb, min(cap, _MAX_FETCH)   # never above the upstream page max
 
 
 def _doc_text(item: Item) -> str:
@@ -490,7 +547,7 @@ def search_clinical_trials(query: str, status: str | None = None, phase: str | N
     if phase:
         # Filtered server-side (see the connector) so the limit applies to matching
         # studies, not to an all-phase page that is then truncated.
-        cfg["phases"] = [_norm_phase(p) for p in _as_list(phase)]
+        cfg["phases"] = _phase_list(phase)
     return _search(ClinicalTrialsConnector, terms=_as_list(query), cfg=cfg,
                    query_terms=_as_list(query), since_iso=since, verbose=verbose,
                    require_match=require_match, page=(offset, limit),
@@ -504,10 +561,10 @@ def search_fda_recalls(query: str = "", firm: str | None = None,
                        verbose: bool = False) -> dict:
     """Search openFDA drug recalls. ``query`` matches the product; ``firm`` the
     recalling company; ``classification`` e.g. "Class I". Empty query + no firm
-    returns all recent recalls. ``since``/``offset`` work as on search_clinical_trials;
-    ``rank_by`` ("recency" default or "relevance") and a per-result ``relevance_score``
-    work the same way — here the signal weights recall severity (Class I highest).
-    Each result cites its openFDA record."""
+    returns all recent recalls. ``since``/``offset``/``rank_by`` and a per-result
+    ``relevance_score`` work as on search_clinical_trials — here the signal weights
+    recall severity (Class I highest), so ``rank_by="salience"`` (no query needed)
+    surfaces the most serious recalls first. Each result cites its openFDA record."""
     _, rb, cap = _rank_cap(rank_by, offset + limit)
     cfg = {"recent_days": recent_days, "max_total": cap, "max_per_query": cap}
     if classification:
@@ -705,32 +762,47 @@ _DIGEST_SALIENCE = {
 }
 
 
-def watchlist_digest(terms, recent_days: int = 90, limit_per_source: int = 15,
-                     sources=None, since: str | None = None,
-                     rank_by: RankBy = "recency", verbose: bool = False) -> dict:
+def watchlist_digest(terms: list[str] | str, recent_days: int = 90,
+                     limit_per_source: int = 15, sources: list[DigestSource] | None = None,
+                     since: str | None = None, rank_by: RankBy = "recency",
+                     verbose: bool = False) -> dict:
     """Pull recent primary-source records for ``terms`` across every source at once
     (the cross-agency watchlist). ``terms`` is a list of companies, drugs or topics.
     ``sources`` restricts to a subset by key (e.g. ["sec", "trials"]) so an SEC-only
     intent doesn't spend tokens on PubMed and FAERS; valid keys are: trials, recalls,
-    approvals, shortages, adverse_events, labeling, federal_register, pubmed, sec.
-    ``since`` (YYYY-MM-DD) keeps only records on/after that date and flags each
-    ``is_new``. ``rank_by`` ("recency" default or "relevance") orders the records
-    within each source block and adds a ``relevance_score``. Returns one grouped block
-    per source, each record cited."""
+    approvals, shortages, adverse_events, labeling, federal_register, pubmed, sec (an
+    unknown key is an error, not silently skipped). ``since`` (YYYY-MM-DD) keeps only
+    records on/after that date and flags each ``is_new``. ``rank_by`` ("recency"
+    default, "relevance", "semantic" or "salience") orders the records within each
+    source block and adds a ``relevance_score``; "salience" also widens the trials
+    pool so landmark studies can surface. Returns one grouped block per source, each
+    record cited, each capped at ``limit_per_source``."""
     terms = _as_list(terms) or []
-    want = set(_as_list(sources) or _DIGEST_KEYS)
-    _, rb, _ = _rank_cap(rank_by, 0)
-    base = {"recent_days": recent_days, "max_total": limit_per_source,
-            "max_per_query": limit_per_source}
+    requested = _as_list(sources)
+    unknown = sorted(set(requested or []) - set(_DIGEST_KEYS))
+    if unknown:
+        return {"terms": terms, "error": f"unknown source key(s): {', '.join(unknown)}; "
+                f"valid: {', '.join(_DIGEST_KEYS)}", "total": 0, "sources": [],
+                "generated_at": _now()}
+    want = set(requested or _DIGEST_KEYS)
+    limit = max(1, min(int(limit_per_source), _MAX_LIMIT))
+    _, rb, cap = _rank_cap(rank_by, limit)
+    cap = min(cap, 100)          # a ranking pool per source, kept modest across 9 sources
+    base = {"recent_days": recent_days, "max_total": cap, "max_per_query": cap}
     blocks = []
     for key, connector_cls, field in _DIGEST_SPEC:
         if key not in want:
             continue
         cfg = _edgar_cfg(base) if connector_cls is EdgarConnector else dict(base)
+        if key == "trials" and rb == "salience":
+            # Same as search_clinical_trials: an enrollment-sorted pass over a wide
+            # window, so a landmark trial can enter before the block is ranked.
+            cfg["salience"] = True
+            cfg["recent_days"] = max(recent_days, 1825)
         block = _search(connector_cls, cfg=cfg, query_terms=terms, since_iso=since,
                         verbose=verbose, score_fn=_DIGEST_SCORERS.get(key),
                         salience_fn=_DIGEST_SALIENCE.get(key), rank_by=rb,
-                        **{field: terms})
+                        page=(0, limit), **{field: terms})
         block["key"] = key
         blocks.append(block)
     total = sum(s.get("count", 0) for s in blocks)

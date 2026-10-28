@@ -6,6 +6,54 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.6] — 2026-10-28
+
+A full revision pass over the MCP tools and the hosted page. Every fix below was
+reproduced first and is pinned by a regression test that fails on 0.8.5.
+
+### Fixed (MCP)
+- **Keyword matching used raw substrings**, so a short term matched inside unrelated
+  words ("ALS" in "trials" and "also"). Since `require_match` and every relevance
+  score build on it, strays could pass the filter. Matching is now word-boundary and
+  punctuation-insensitive: acronyms must match a whole word (plural "s" allowed),
+  longer words may run on ("statin" → "statins"), and "GLP-1" / "glp 1" or
+  "base-editing" / "base editing" compare equal.
+- **Paging past the end reported `no_current_results`** — the "trustworthy negative" —
+  even though results existed on earlier pages (as did `limit=0`). It's now returned
+  only when the search truly matched nothing; past-the-end pages come back empty with
+  a `page_note`.
+- **`rank_by="salience"` did nothing without a query.** Salience is query-independent,
+  so it now ranks even with no terms (e.g. the most serious recent recalls first).
+- **`watchlist_digest(rank_by="salience")` still couldn't reach landmark trials** — it
+  never enabled the enrollment-sorted candidate pass or the wide window that
+  `search_clinical_trials` uses. It now does, and every digest block is capped at
+  `limit_per_source` with an accurate `truncated` flag.
+- **Unknown `watchlist_digest` source keys were silently ignored** (a typo returned zero
+  blocks and no error). `sources` is now a typed enum in the MCP schema (rejected at
+  the protocol boundary) and an unknown key is an explicit error in direct calls.
+- **Oversized `limit`** could request more than ClinicalTrials.gov / openFDA allow per
+  page (max 1000), failing the call upstream; fetches are now capped at 1000 and
+  `limit` at 100 per page (`offset` clamped at 0).
+- **A malformed `since`** silently filtered everything out (read as "no results"); it
+  is now an error naming the expected `YYYY-MM-DD` format.
+- **Combined phases** such as `phase="2/3"` filtered to Phase 2 only; they now mean
+  Phase 2 OR Phase 3.
+- Salience's `relevance_components` now lists only the four signals that feed the
+  score (enrollment, phase, results-posted, maturity), not unweighted ones.
+
+### Fixed (website)
+- **Research mode corrupted Update mode's "new since your last visit" baseline**: the
+  landmark trials it pulls from beyond the window were counted as new and written into
+  the baseline (evicting real entries). Research mode now neither flags nor records
+  "new", and its header says Research mode is active.
+
+### Internal / docs
+- Trial relevance reuses the shared match/recency helper (no duplicated maths); lint
+  (pyflakes) is clean across the package and tests.
+- ROADMAP marks shipped items (per-CIK SEC filings, PyPI, ranking) and lists the open
+  MCP follow-ups; ARCHITECTURE documents `mlrank.py`, the ranking modes, and the
+  "request every field your parser reads" lesson from 0.8.4.
+
 ## [0.8.5] — 2026-10-21
 
 ### Changed (MCP + website — pivotal phase weighting)

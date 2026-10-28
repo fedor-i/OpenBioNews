@@ -594,6 +594,15 @@ def test_update_vs_research_mode_toggle():
     assert "iModeVal()" in js and "iSalienceScore(recs[i])" in js, "sources list not wired to research mode"
 
 
+def test_research_mode_does_not_pollute_the_whats_new_baseline():
+    # Research mode pulls landmark trials from outside the window; they must not be
+    # counted as "new since your last visit" nor saved into Update mode's baseline.
+    js = _script()
+    assert "(baseHas && !_research)" in js, "research mode still marks records as new"
+    assert "if(!_research) iSaveSeen(" in js, "research mode still writes the seen baseline"
+    assert "Research mode</b>" in js, "header no longer says research mode is active"
+
+
 def test_getjson_retries_transient_and_errors_are_deduped():
     # openFDA returns transient 500s under burst; the fetch helper retries 429/5xx and
     # the Insights error list collapses duplicate per-term failures.

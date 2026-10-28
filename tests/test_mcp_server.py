@@ -21,11 +21,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-try:
-    import mcp  # noqa: F401
-    HAVE_MCP = True
-except ImportError:
-    HAVE_MCP = False
+import importlib.util
+
+HAVE_MCP = importlib.util.find_spec("mcp") is not None   # availability probe, no import
 
 from openbionews import mcp_server
 from openbionews.connectors import clinicaltrials

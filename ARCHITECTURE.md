@@ -27,7 +27,8 @@ same pipeline.
 | `openbionews/httputil.py` | Shared stdlib JSON-over-HTTP GET used by connectors. |
 | `openbionews/cite.py` | Per-sentence source citation of digest text. |
 | `openbionews/history.py` | Track seen items across runs → "what changed since last time". |
-| `openbionews/mcp_server.py` | Model Context Protocol server exposing the connectors as tools (optional `mcp` extra). |
+| `openbionews/mcp_server.py` | Model Context Protocol server exposing the connectors as ten tools (optional `mcp` extra): lean cited records with a `facts` block, provenance, `no_current_results` negatives, and deterministic `rank_by` ranking (`recency` / `relevance` / `salience` / `semantic`). |
+| `openbionews/mlrank.py` | Optional semantic ranking (TF-IDF + LSA via scikit-learn, the `[ml]` extra), imported lazily; ranking falls back to lexical relevance without it. |
 | `openbionews/models.py` | `Item`, `Cluster`, `Digest`, `Citation` dataclasses. |
 | `openbionews/pipeline.py` | Deterministic filtering, de-duplication, clustering, and importance ranking (`importance_score`). |
 | `openbionews/llm/` | Pluggable summarizer backends (`none`, `openai`, `ollama`) behind one interface; optional "why it matters" prompt. |
@@ -69,9 +70,13 @@ same pipeline.
 3. Add its config block in `config.py` and a wizard step in `setup_wizard.py`.
 4. Split parsing from fetching (a `parse_*` function) so it can be unit-tested
    with a fixture and no network.
+5. If the upstream API takes a field allowlist (ClinicalTrials.gov's `fields`),
+   request **every** leaf your parser reads — the API prunes the rest, and fixture
+   tests won't notice (they ignore the allowlist). Add a test that pins the list.
 
 Shipped connectors: `clinicaltrials`, `openfda` (drug recalls),
 `openfda_approvals`, `openfda_shortages`, `openfda_events` (FAERS),
-`openfda_labels`, `federalregister`, `pubmed` and `edgar` (SEC full-text
-search). Running server-side, they set the `User-Agent` SEC requires and avoid
+`openfda_labels`, `federalregister`, `pubmed` and `edgar` (SEC full-text search,
+plus per-company filings via `data.sec.gov` submissions once a name/ticker is
+resolved to its CIK). Running server-side, they set the `User-Agent` SEC requires and avoid
 the browser CORS limits that constrain the hosted page.

@@ -623,6 +623,87 @@ def test_watchlist_digest_sources_filter_restricts_blocks():
     assert out["sources_requested"] == ["sec", "trials"]
 
 
+# --- revision regressions ---------------------------------------------------- #
+def test_match_uses_word_boundaries_not_substrings():
+    it = Item(title="Long-term trials of statins", link="x",
+              summary="Also recruiting adults with GLP-1 base-editing", source="s")
+    hits = lambda q: mcp_server._match(it, {}, [q])["terms"]
+    assert hits("ALS") == []            # not inside "trials" / "also"
+    assert hits("statin") == ["statin"]  # a longer word may run on (plural)
+    assert hits("GLP-1") == ["GLP-1"]    # punctuation-insensitive
+    assert hits("base editing") == ["base editing"]
+    assert hits("adult") == ["adult"]
+
+
+def test_paging_past_end_is_not_a_false_negative():
+    with _patch(clinicaltrials, CT_MANY):
+        out = mcp_server.search_clinical_trials("study", limit=2, offset=10)
+    assert out.get("status") != "no_current_results"    # results exist, just not here
+    assert out["count"] == 0 and "page_note" in out
+
+
+def test_salience_works_without_a_query():
+    with _patch(openfda, RECALLS_SEV):
+        out = mcp_server.search_fda_recalls(rank_by="salience")
+    assert out["ranked_by"] == "salience"
+    assert out["results"][0]["facts"]["classification"] == "Class I"
+
+
+def test_salience_components_report_only_scored_signals():
+    with _patch(clinicaltrials, CT_SALIENCE):
+        out = mcp_server.search_clinical_trials("semaglutide", rank_by="salience", verbose=True)
+    comp = out["results"][0]["relevance_components"]
+    assert set(comp) == {"enrollment", "phase", "results_posted", "maturity"}
+
+
+def test_digest_salience_reaches_landmark_and_respects_limit():
+    sorts = []
+    def router(url, *a, **k):
+        sorts.append((k.get("params") or {}).get("sort"))
+        return _ct_sort_router(url, *a, **k)
+    with _patch(clinicaltrials, router):
+        out = mcp_server.watchlist_digest(["semaglutide"], sources=["trials"],
+                                          rank_by="salience", limit_per_source=2)
+    blk = out["sources"][0]
+    assert "EnrollmentCount:desc" in sorts                 # enrollment pass ran
+    assert blk["results"][0]["source"]["id"] == "NCT_SELECT"
+    assert blk["count"] == 2 and blk["truncated"] is True  # capped at limit_per_source
+
+
+def test_digest_rejects_unknown_source_keys():
+    out = mcp_server.watchlist_digest(["x"], sources=["trial"])
+    assert "unknown source key(s): trial" in out["error"] and out["sources"] == []
+
+
+def test_paging_inputs_are_sanitised():
+    cap = {}
+    orig = clinicaltrials.get_json
+    clinicaltrials.get_json = lambda url, *a, **k: (cap.update(k.get("params") or {}) or CT_MANY)
+    try:
+        out = mcp_server.search_clinical_trials("study", limit=5000, offset=-3)
+    finally:
+        clinicaltrials.get_json = orig
+    assert int(cap["pageSize"]) <= 1000                    # never above the API maximum
+    assert out["count"] == 3                               # negative offset treated as 0
+
+
+def test_invalid_since_is_an_error_not_an_empty_result():
+    with _patch(clinicaltrials, CT):
+        out = mcp_server.search_clinical_trials("crispr", since="last week")
+    assert "YYYY-MM-DD" in out["error"] and "status" not in out
+
+
+def test_combined_phase_string_filters_both_phases():
+    cap = {}
+    orig = clinicaltrials.get_json
+    clinicaltrials.get_json = lambda url, *a, **k: (cap.update(k.get("params") or {}) or CT)
+    try:
+        mcp_server.search_clinical_trials("crispr", phase="Phase 2/Phase 3")
+    finally:
+        clinicaltrials.get_json = orig
+    assert cap["filter.advanced"] == "AREA[Phase](PHASE2 OR PHASE3)"
+
+
 def test_upstream_failure_is_returned_as_data():
     with _patch(clinicaltrials, raise_exc=HTTPJSONError("boom")):
         out = mcp_server.search_clinical_trials("x")

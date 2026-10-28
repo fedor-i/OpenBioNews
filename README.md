@@ -315,6 +315,9 @@ The output is shaped for LLM callers:
 - **A trustworthy negative** — a successful-but-empty search returns
   `status: "no_current_results"` with the `query_used` and `as_of` date, so "not in
   shortage as of 2026-10-20" is a citable fact, not an inference from a bare `0`.
+  It's only ever returned when the search truly matched nothing — paging past the
+  end gives an empty page with a `page_note` instead, and a malformed `since` is an
+  error, so the negative stays trustworthy.
 - **Provenance on every block** — `endpoint`, `retrieved_at`, `as_of`.
 - **A relevance signal, and a filter** — each result carries `match: {terms, where}`
   showing which query terms actually hit and where. `search_clinical_trials` and
@@ -329,8 +332,10 @@ The output is shaped for LLM callers:
   `entity_not_found`). Give only `query` for a document full-text search;
   `own_filer_only=true` applies the same entity scoping to a bare `query`.
 - **Monitoring + paging** — `since` (YYYY-MM-DD) filters to new records and flags each
-  `is_new`; `limit`/`offset` page through results with a `truncated` flag;
-  `watchlist_digest` takes `sources=[...]` to query only the agencies you need.
+  `is_new`; `limit` (max 100) / `offset` page through results with a `truncated` flag;
+  `watchlist_digest` takes `sources=[...]` to query only the agencies you need (an
+  unknown key is rejected, not silently skipped). Trial `phase` accepts combined
+  values such as `"2/3"` (Phase 2 or 3).
 - **Relevance ranking** — every search tool attaches a deterministic score (0–1) to
   each result, reports `ranked_by`, and takes `rank_by` to pick the intent:
   - `recency` (default) — what's new, most recently updated first.
@@ -344,7 +349,8 @@ The output is shaped for LLM callers:
     severity; approvals priority; shortages current-vs-resolved.) It searches a **wide
     window and pool**, so a landmark older study can surface instead of being cut by the
     recency window. Sources without a salience signal fall back to `relevance` with a
-    `ranking_note`.
+    `ranking_note`. Salience needs no query — e.g. `search_fda_recalls(rank_by="salience")`
+    lists the most serious recent recalls first.
 
   The per-signal breakdown is in `relevance_components` under `verbose`, and
   `watchlist_digest` applies the chosen mode within each source block. This is
