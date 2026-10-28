@@ -25,9 +25,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # SEC asks for a contact in the User-Agent. Set a repository variable EDGAR_UA
-  # (Settings → Secrets and variables → Actions → Variables) to use your own.
-  OPENBIONEWS_EDGAR_UA: ${{ vars.EDGAR_UA || 'OpenBioNews-CI (+https://github.com/fedor-i/OpenBioNews)' }}
+  # SEC asks for a contact email in the User-Agent. Store it as a repository SECRET
+  # named EDGAR_UA (Settings → Secrets and variables → Actions → Secrets), e.g.
+  # "OpenBioNews-CI you@example.com". A secret, not a variable: variables are printed
+  # in the (public) run logs; secrets are masked.
+  OPENBIONEWS_EDGAR_UA: ${{ secrets.EDGAR_UA || 'OpenBioNews-CI (+https://github.com/fedor-i/OpenBioNews)' }}
 
 jobs:
   contract:

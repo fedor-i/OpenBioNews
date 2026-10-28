@@ -200,8 +200,8 @@ def check_sec_entity_scoping():
         out = call(ms.search_sec_filings, company="LLY", recent_days=180, limit=10)
     except AssertionError as exc:
         if "HTTP 403" in str(exc):   # SEC wants a contact User-Agent — configuration, not a break
-            raise Skipped("SEC refused the request; set the EDGAR_UA repository variable "
-                          "to 'Name email@example.com'") from exc
+            raise Skipped("SEC refused the request; add a repository secret EDGAR_UA "
+                          "like 'OpenBioNews-CI you@example.com'") from exc
         raise
     res = out["results"]
     need(res, f"no Eli Lilly filings in 180 days (status={out.get('status')!r}, "
