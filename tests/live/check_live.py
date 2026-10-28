@@ -20,7 +20,6 @@ Exit code 1 if any contract check fails. An API that can't be reached (timeouts,
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import sys
@@ -30,7 +29,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
-from openbionews import fetch  # noqa: E402
 from openbionews import mcp_server as ms  # noqa: E402
 
 SELECT = "NCT03574597"   # semaglutide SELECT: 17,604 patients, Phase 3, results posted
@@ -211,22 +209,6 @@ def check_sec_entity_scoping():
     return f"{len(res)} filings, all Lilly's own"
 
 
-# --------------------------------------------------------------------------- #
-# RSS feeds (warnings only — news feeds move often; see issue #5)
-# --------------------------------------------------------------------------- #
-def feed_report() -> tuple[list[str], int, int]:
-    feeds = json.loads((ROOT / "config.example.json").read_text("utf-8")).get("feeds", [])
-    lines, ok = [], 0
-    for feed in feeds:
-        try:
-            n = len(fetch.fetch_feed(feed, timeout=20))
-            ok += n > 0
-            lines.append(f"{feed['name']}: {n} items" if n else f"{feed['name']}: 0 items")
-        except fetch.FetchError as exc:
-            lines.append(f"{feed['name']}: {exc}"[:160])
-    return lines, ok, len(feeds)
-
-
 CHECKS = [
     ("ClinicalTrials.gov: fields + salience", check_trials_fields_and_salience),
     ("ClinicalTrials.gov: recency window", check_trials_recency_window),
@@ -246,7 +228,6 @@ CHECKS = [
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--strict", action="store_true", help="treat unreachable APIs as failures")
-    ap.add_argument("--no-feeds", action="store_true", help="skip the RSS feed report")
     args = ap.parse_args(argv)
 
     rows, failed, unreachable = [], 0, 0
@@ -267,14 +248,6 @@ def main(argv=None) -> int:
     for status, name, detail in rows:
         print(f"{status:<12} {name}: {detail}")
 
-    feed_lines, feeds_ok, feeds_total = ([], 0, 0) if args.no_feeds else feed_report()
-    if feed_lines:
-        print(f"\nRSS feeds ({feeds_ok}/{feeds_total} returning items)")
-        for line in feed_lines:
-            print(f"  {line}")
-            if ": 0 items" in line or "items" not in line:
-                print(f"::warning title=RSS feed::{line}")
-
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a", encoding="utf-8") as fh:
@@ -282,9 +255,6 @@ def main(argv=None) -> int:
             for status, name, detail in rows:
                 icon = {"PASS": "✅", "FAIL": "❌"}.get(status, "⚠️")
                 fh.write(f"| {icon} {status} | {name} | {detail.replace('|', '/')} |\n")
-            if feed_lines:
-                fh.write(f"\n**RSS feeds:** {feeds_ok}/{feeds_total} returning items\n\n")
-                fh.writelines(f"- {line}\n" for line in feed_lines)
 
     passed = sum(1 for r in rows if r[0] == "PASS")
     print(f"\n{passed} passed, {failed} failed, {unreachable} unreachable, "

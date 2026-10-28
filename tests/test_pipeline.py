@@ -285,45 +285,121 @@ def test_config_roundtrip(tmp_path=None):
     assert config.validate_config(loaded) == []
 
 
-def test_wizard_writes_config(tmp_path=None):
-    """Drive the interactive wizard with scripted answers."""
+def _drive_wizard(answers, path):
     import builtins
-    import tempfile
     from openbionews import setup_wizard
-
-    d = tmp_path or Path(tempfile.mkdtemp())
-    p = d / "wiz.json"
-
-    answers = iter([
-        "My Test Brief",   # title
-        "A subtitle",       # intro
-        "1",                # bundles -> biotech
-        "n",                # add own feed?
-        "n",                # track ClinicalTrials.gov? -> no
-        "cancer",           # include keywords
-        "",                 # exclude keywords
-        "24",               # max age
-        "1",                # summaries -> none (no why-it-matters prompt follows)
-        "1",                # output format -> markdown
-        "digest",           # output folder
-        "n",                # email the digest? -> no
-    ])
-
-    orig_input = builtins.input
-    orig_isatty = sys.stdin.isatty
+    answers = iter(answers)
+    orig_input, orig_isatty = builtins.input, sys.stdin.isatty
     builtins.input = lambda *a: next(answers)
     sys.stdin.isatty = lambda: True
     try:
-        cfg = setup_wizard.run_wizard(path=p)
+        return setup_wizard.run_wizard(path=path)
     finally:
         builtins.input = orig_input
         sys.stdin.isatty = orig_isatty
 
-    assert p.exists()
-    assert cfg["profile"]["title"] == "My Test Brief"
+
+def test_wizard_defaults_to_primary_sources_without_feeds(tmp_path=None):
+    """Pressing Enter through setup gives an official-records brief, no news feeds."""
+    import tempfile
+    p = (tmp_path or Path(tempfile.mkdtemp())) / "wiz.json"
+    cfg = _drive_wizard([
+        "My Test Brief", "A subtitle",      # title, intro
+        "", "",                             # area presets, thematic groups
+        "", "", "", "", "",                 # sponsors, conditions, drugs, terms, days
+        "", "", "", "", "", "", "",         # trials, recalls, approvals, shortages, FR, PubMed, SEC
+        "",                                 # news feeds? -> default no
+        "cancer", "",                       # include / exclude keywords
+        "1", "1", "digest", "n",            # no LLM, markdown, folder, no email
+    ], p)
+    assert p.exists() and cfg["profile"]["title"] == "My Test Brief"
+    assert cfg["feeds"] == [] and cfg["profile"]["bundles"] == []
+    on = {k for k, c in cfg["connectors"].items() if c.get("enabled")}
+    # The FDA sources work without a watch list; trials/PubMed/SEC need one.
+    assert on == {"openfda", "openfda_approvals", "openfda_shortages", "federalregister"}
     assert cfg["filters"]["include_keywords"] == ["cancer"]
-    assert cfg["filters"]["max_age_hours"] == 24
     assert cfg["llm"]["backend"] == "none"
+
+
+def test_wizard_watchlist_and_opt_in_feeds(tmp_path=None):
+    import tempfile
+    p = (tmp_path or Path(tempfile.mkdtemp())) / "wiz.json"
+    cfg = _drive_wizard([
+        "Brief", "",                         # title, intro
+        "", "",                              # presets
+        "Moderna", "", "", "", "",           # sponsors=Moderna, rest blank, days
+        "", "", "", "", "", "", "",          # accept every source default
+        "y", "1", "n", "24",                 # news feeds: yes, biotech bundle, no custom, 24h
+        "", "",                              # keywords
+        "1", "1", "digest", "n",
+    ], p)
+    on = {k for k, c in cfg["connectors"].items() if c.get("enabled")}
+    assert {"clinicaltrials", "pubmed"} <= on       # a watch list turns the searches on
+    assert cfg["watchlist"]["sponsors"] == ["Moderna"]
+    assert cfg["feeds"] and all(f["topic"] == "biotech" for f in cfg["feeds"])
+    assert cfg["filters"]["max_age_hours"] == 24
+
+
+def test_default_config_reads_primary_sources_not_feeds():
+    cfg = config.default_config()
+    assert cfg["feeds"] == []
+    on = {k for k, c in cfg["connectors"].items() if c.get("enabled")}
+    assert on == {"openfda", "openfda_approvals", "openfda_shortages", "federalregister"}
+    assert config.validate_config(cfg) == []      # no feeds is not a problem
+
+
+def test_example_config_matches_the_defaults():
+    # config.example.json is the documented reference; it had drifted (four sources
+    # and the history section missing) before this guard.
+    import json
+    root = Path(__file__).resolve().parent.parent
+    example = json.loads((root / "config.example.json").read_text("utf-8"))
+    assert example == config.default_config(), "regenerate config.example.json from default_config()"
+
+
+def test_validate_flags_a_config_with_nothing_to_read():
+    cfg = config.default_config()
+    for c in cfg["connectors"].values():
+        c["enabled"] = False
+    assert any("Nothing to read" in p for p in config.validate_config(cfg))
+    cfg["feeds"] = [{"name": "X", "url": "https://x/f"}]
+    assert config.validate_config(cfg) == []      # feeds alone are still fine
+
+
+def test_upgrade_keeps_existing_feeds_and_new_sources_stay_off():
+    """An existing config must read the same things after an upgrade."""
+    import json
+    import tempfile
+    p = Path(tempfile.mkdtemp()) / "old.json"
+    p.write_text(json.dumps({
+        "feeds": [{"name": "Mine", "url": "https://x/f", "topic": "biotech"}],
+        "connectors": {"clinicaltrials": {"enabled": True}},
+    }))
+    cfg = config.load_config(p)
+    assert cfg["feeds"] == [{"name": "Mine", "url": "https://x/f", "topic": "biotech"}]
+    on = {k for k, c in cfg["connectors"].items() if c.get("enabled")}
+    assert on == {"clinicaltrials"}               # defaults filled in, but switched off
+    # An even older config, from before connectors existed, still reads only its feeds.
+    p.write_text(json.dumps({"feeds": [{"name": "Mine", "url": "https://x/f"}]}))
+    cfg = config.load_config(p)
+    assert not any(c.get("enabled") for c in cfg["connectors"].values())
+    assert set(cfg["connectors"]) == set(config.default_config()["connectors"])
+
+
+def test_doctor_without_feeds_is_not_a_problem():
+    import io
+    from contextlib import redirect_stdout
+    from openbionews import doctor
+    cfg = config.default_config()
+    for c in cfg["connectors"].values():
+        c["enabled"] = False
+    cfg["connectors"]["openfda"]["enabled"] = True
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        code = doctor.run_doctor(cfg, check_feeds=True)
+    out = buf.getvalue()
+    assert "News feeds: none (optional" in out and "No feeds configured" not in out
+    assert code == 0, out
 
 
 def test_importance_ranking():
@@ -425,7 +501,9 @@ def test_clinicaltrials_query_building():
 def test_connector_registry_and_age_exempt():
     from openbionews.connectors import get_connectors
     cfg = config.default_config()
-    assert get_connectors(cfg) == []  # disabled by default
+    for c in cfg["connectors"].values():
+        c["enabled"] = False
+    assert get_connectors(cfg) == []
     cfg["connectors"]["clinicaltrials"]["enabled"] = True
     cfg["watchlist"]["sponsors"] = ["Acme Bio"]
     assert len(get_connectors(cfg)) == 1
@@ -697,8 +775,8 @@ def test_edgar_params_and_ua():
 def test_registry_three_connectors():
     from openbionews.connectors import get_connectors
     cfg = config.default_config()
-    for key in ("clinicaltrials", "openfda", "edgar"):
-        cfg["connectors"][key]["enabled"] = True
+    for key, c in cfg["connectors"].items():
+        c["enabled"] = key in ("clinicaltrials", "openfda", "edgar")
     cfg["watchlist"]["sponsors"] = ["Moderna"]
     assert len(get_connectors(cfg)) == 3
 
@@ -782,10 +860,9 @@ def test_end_to_end_demo():
 
     rendered, digest = build_demo_digest("markdown")
     assert digest.clusters, "demo should produce stories"
-    # The two sample wires share one CRISPR story; it should cluster.
-    multi = [c for c in digest.clusters if len(c.sources) > 1]
-    assert multi, "expected at least one multi-source cluster"
     assert "OpenBioNews" in rendered
+    # Like the default config, the demo is official records only — no trade press.
+    assert all(c.topic != "biotech" for c in digest.clusters)
 
 
 def test_demo_covers_all_primary_sources():

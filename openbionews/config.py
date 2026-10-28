@@ -13,22 +13,29 @@ import os
 from pathlib import Path
 from typing import Any
 
-from . import sources
 
 CONFIG_VERSION = 1
 DEFAULT_CONFIG_NAME = "openbionews.config.json"
 
 
 def default_config() -> dict[str, Any]:
-    """A ready-to-run configuration for the OpenBioNews life-sciences profile."""
+    """A ready-to-run configuration: primary sources on, news feeds off.
+
+    Out of the box it reads the FDA sources that need no watch list (recalls,
+    approvals, shortages, FDA notices in the Federal Register). Trials, PubMed and
+    SEC need something to watch, so `openbionews setup` turns them on once you add
+    one. Trade-press RSS feeds are opt-in (`openbionews sources` lists bundles).
+    """
     return {
         "version": CONFIG_VERSION,
         "profile": {
             "title": "Daily Bio Brief",
-            "intro": "Your automated life-sciences news digest.",
-            "bundles": list(sources.DEFAULT_BUNDLES),
+            "intro": "Your daily brief from official primary sources.",
+            "bundles": [],          # optional news-feed bundles (see `openbionews sources`)
         },
-        "feeds": sources.bundle_feeds(sources.DEFAULT_BUNDLES),
+        # Optional trade-press RSS/Atom feeds. Off by default: the brief is built
+        # from official records. Add bundles with `openbionews setup`.
+        "feeds": [],
         "filters": {
             "max_age_hours": 48,
             "max_items": 40,
@@ -92,21 +99,21 @@ def default_config() -> dict[str, Any]:
                 "statuses": [],       # e.g. ["RECRUITING", "COMPLETED"]; empty = any
             },
             "openfda": {
-                "enabled": False,
+                "enabled": True,  # works without a watch list
                 "recent_days": 30,       # recalls reported within N days
                 "max_per_query": 20,
                 "max_total": 40,
                 "classifications": [],    # e.g. ["Class I"]; empty = any severity
             },
             "openfda_approvals": {
-                "enabled": False,
+                "enabled": True,  # works without a watch list
                 "recent_days": 90,        # approvals are less frequent; wider window
                 "max_per_query": 20,
                 "max_total": 40,
                 "include_supplements": True,  # also include new-indication supplements
             },
             "openfda_shortages": {
-                "enabled": False,
+                "enabled": True,  # works without a watch list
                 "recent_days": 60,        # shortage updates within N days
                 "max_per_query": 20,
                 "max_total": 40,
@@ -123,7 +130,7 @@ def default_config() -> dict[str, Any]:
                 "max_total": 20,          # at most N watched drug labels
             },
             "federalregister": {
-                "enabled": False,
+                "enabled": True,  # works without a watch list
                 "recent_days": 30,        # documents published within N days
                 "max_per_query": 20,
                 "max_total": 40,
@@ -181,11 +188,19 @@ def config_exists(path: Path | None = None) -> bool:
 def _merge_defaults(data: dict[str, Any]) -> dict[str, Any]:
     """Fill any missing top-level sections/keys from defaults (forward-compat)."""
     base = default_config()
+    if "connectors" not in data:
+        # An older config with no connectors section read no primary sources; keep
+        # it that way rather than switching on the new defaults behind its back.
+        data["connectors"] = {}
     for section, value in base.items():
         if section not in data:
             data[section] = value
         elif isinstance(value, dict) and isinstance(data.get(section), dict):
             for key, sub in value.items():
+                if section == "connectors" and key not in data[section] and isinstance(sub, dict):
+                    # A source added in a later release stays off for an existing
+                    # config — upgrading must not change what someone's brief reads.
+                    sub = {**sub, "enabled": False}
                 data[section].setdefault(key, sub)
     return data
 
@@ -194,8 +209,12 @@ def validate_config(cfg: dict[str, Any]) -> list[str]:
     """Return a list of human-readable problems; empty means valid."""
     problems: list[str] = []
     feeds = cfg.get("feeds") or []
-    if not feeds:
-        problems.append("No feeds configured — run `openbionews setup`.")
+    # News feeds are optional; a config only needs *something* to read.
+    enabled = [k for k, c in (cfg.get("connectors") or {}).items()
+               if isinstance(c, dict) and c.get("enabled")]
+    if not feeds and not enabled:
+        problems.append("Nothing to read: no primary source is enabled and no news "
+                        "feeds are configured — run `openbionews setup`.")
     for i, feed in enumerate(feeds):
         if not feed.get("url"):
             problems.append(f"Feed #{i + 1} is missing a URL.")

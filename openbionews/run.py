@@ -35,7 +35,8 @@ def build_digest(cfg: dict[str, Any], log: Callable[[str], None] | None = None) 
     output = cfg.get("output", {})
     profile = cfg.get("profile", {})
 
-    log(f"Fetching {len(feeds)} feed(s)…")
+    if feeds:
+        log(f"Fetching {len(feeds)} news feed(s)…")
 
     def _status(name, count, error):
         if error:

@@ -37,8 +37,31 @@ is listed under 0.8.6 (not yet released).
 
 ## [0.8.6] — 2026-10-28
 
-A full revision pass over the MCP tools and the hosted page. Every fix below was
-reproduced first and is pinned by a regression test that fails on 0.8.5.
+A full revision pass over the MCP tools and the hosted page, and a change of default
+for the CLI brief. Every fix below was reproduced first and is pinned by a regression
+test that fails on 0.8.5.
+
+### Changed (CLI brief) — primary sources by default, news feeds opt-in
+The point of OpenBioNews is official records, but the CLI still shipped as a news
+digest: 13 trade-press feeds on by default, every primary source off, and
+`doctor` reporting "No feeds configured" as a problem.
+
+- **The default config reads official records and no feeds.** Out of the box it
+  enables the sources that need no watch list (FDA recalls, approvals, shortages,
+  and FDA notices in the Federal Register). Trials, PubMed and SEC turn on once you
+  add something to watch.
+- **`openbionews setup` starts with the watch list and primary sources** (now
+  including Federal Register and PubMed). News feeds are an optional last step that
+  defaults to no.
+- **A config with no feeds is valid.** `doctor` reports news feeds as "none
+  (optional)", and only flags a config that has nothing to read at all.
+- **The offline demo (`run --demo`) shows official records only**, matching the
+  default. `openbionews sources` lists the feed bundles as optional extras.
+- **Existing configs read exactly what they did before.** Your feeds are kept, and
+  a source missing from an older config is filled in switched *off*, so upgrading
+  doesn't quietly add sources to your brief.
+- `config.example.json` was regenerated. It had drifted (four sources and the
+  history section were missing), and a test now keeps it equal to the defaults.
 
 ### Fixed (MCP)
 - **SEC entity lookups reported a real company as `entity_not_found` when SEC's

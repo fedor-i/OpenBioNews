@@ -1,4 +1,4 @@
-"""`openbionews doctor` — check that the config, feeds and LLM are healthy."""
+"""`openbionews doctor` — check that the config, sources, feeds and LLM are healthy."""
 
 from __future__ import annotations
 
@@ -61,9 +61,11 @@ def run_doctor(cfg: dict, check_feeds: bool = True) -> int:
             if not ok:
                 problems += 1
 
-    if check_feeds:
-        feeds = cfg.get("feeds", [])
-        print(f"\nFeeds ({len(feeds)})")
+    feeds = cfg.get("feeds", [])
+    if not feeds:
+        print("\nNews feeds: none (optional — add trade-press feeds with `openbionews setup`)")
+    elif check_feeds:
+        print(f"\nNews feeds ({len(feeds)})")
         for feed in feeds:
             name = feed.get("name") or feed.get("url", "?")
             try:

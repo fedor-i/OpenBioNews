@@ -60,9 +60,11 @@ short:
    and a step in `setup_wizard.py`.
 5. Add fixture-based tests.
 
-## Adding feeds
+## Adding news feeds
 
-Edit the bundles in `openbionews/sources.py`. Prefer official or well-known
+News feeds are optional extras (off by default) — official primary sources are
+the core, so a new connector is usually the more valuable contribution. To
+improve a bundle, edit `openbionews/sources.py`. Prefer official or well-known
 RSS/Atom feeds, and run `openbionews doctor` to confirm the URL resolves.
 
 ## Style

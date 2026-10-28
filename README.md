@@ -5,20 +5,22 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](pyproject.toml)
 
-**A free, self-hosted news digest you run on your own computer.**
+**A free, self-hosted daily brief built from official biopharma records — every line cited.**
 
-OpenBioNews gathers stories from the sources you choose, groups the same story
-reported by different outlets into one entry, ranks them by importance, and
-writes a clean daily digest — as Markdown, a web page, or plain text, and
-optionally straight to your inbox. It ships tuned for **biotech and life
-sciences**, but you can point it at any topic.
+OpenBioNews reads primary sources — **ClinicalTrials.gov**, the **FDA** (recalls,
+approvals, shortages, adverse events, labels), the **Federal Register**, **PubMed**
+and **SEC EDGAR** — for the companies, drugs and conditions you watch. It ranks
+what changed and writes a clean daily brief — as Markdown, a web page, plain text
+or RSS, optionally straight to your inbox — where every sentence links back to
+the official record. The same sources are available to AI assistants through
+its **MCP server**. Trade-press news feeds are optional and off by default.
 
 - 🆓 **Free and open** (MIT). No account, no subscription, no server to rent.
 - 🔬 **Primary sources, cited to the sentence.** Track **ClinicalTrials.gov**,
   **FDA** (recalls, approvals, shortages) and **SEC EDGAR** by company, drug or
   condition — and *every sentence* of every brief carries a numbered citation back
   to the exact source record. It's deterministic (verbatim from the record), so
-  there's nothing to hallucinate — **no LLM required**. Plus any RSS/Atom feed.
+  there's nothing to hallucinate — **no LLM required**.
 - 🔔 **Tells you what *changed*.** Remembers each trial/filing/record between runs
   and surfaces the diff — a trial gone to *Terminated*, results posted, a recall
   reclassified — so you read the change, not the same snapshot twice.
@@ -32,18 +34,20 @@ sciences**, but you can point it at any topic.
   record, and there's nothing to hallucinate into it. Runs fully offline.
 - 🧩 **Zero dependencies.** The core runs on the Python standard library. If you
   have Python, you can run it.
-- 🥇 **Curated, not a firehose.** Stories are de-duplicated across outlets and
-  ranked by importance, with a read-time estimate.
+- 🥇 **Curated, not a firehose.** Records are de-duplicated and ranked by
+  importance, with a read-time estimate.
+- 📰 **News feeds if you want them.** Add trade-press RSS/Atom bundles (STAT,
+  Endpoints, FDA press releases…) alongside the records — opt-in, never required.
 - 📬 **Optional email delivery.** Have it mail you the digest every morning via
   any SMTP server.
-- 🔒 **Private.** Your feeds and reading habits stay on your machine. With the
+- 🔒 **Private.** Your watch list and reading habits stay on your machine. With the
   local or no-LLM modes, nothing is sent anywhere.
 - 🪄 **One-minute onboarding.** `openbionews setup` walks you through it and
   writes a config customized to you.
 
-> Gathering news into a post is deterministic — grouping and de-duplicating
-> stories needs no AI. An LLM is optional and only used to polish the one-line
-> summaries, so even a small local model is plenty.
+> Building the brief is deterministic — fetching, ranking and citing official
+> records needs no AI. An LLM is optional and only adds a clearly labelled
+> interpretation on top, so the cited facts never pass through a model.
 
 ---
 
@@ -60,10 +64,14 @@ pipx install "openbionews[mcp]"    # optional: + MCP server for AI assistants (P
 
 openbionews run --demo             # try it offline with bundled sample data
 openbionews setup                  # personalize (interactive, ~1 minute)
-openbionews run                    # build today's digest
+openbionews run                    # build today's brief
 ```
 
-That's it — your digest is written to the `digest/` folder as
+With no setup at all, `openbionews run` reads the FDA sources that need no watch
+list (recalls, approvals, shortages, Federal Register notices). Add companies,
+drugs or conditions in `setup` to bring in trials, PubMed and SEC filings.
+
+That's it — your brief is written to the `digest/` folder as
 `digest-YYYY-MM-DD.md` (plus a `latest.md` you can always point to).
 
 Prefer to run from source (or hack on it)? Clone and skip the install:
@@ -103,21 +111,23 @@ The setup wizard is the heart of OpenBioNews. It asks a handful of questions —
 each with a sensible default you can accept by pressing **Enter** — and writes a
 config file customized to you:
 
-1. **Name your digest** (e.g. *"My Morning Bio Brief"*).
-2. **Pick topics.** Choose from built-in bundles (Biotech & Pharma, Regulatory
-   (FDA/EMA), Preprints (bioRxiv/medRxiv), Life Science & Research, Health,
-   Science, Tech, World) or add your own RSS URLs.
-3. **Track primary sources.** Optionally watch **ClinicalTrials.gov**, **FDA**
-   recalls/approvals, and **SEC** filings by company, condition, or drug —
-   official developments, cited to their source record. Start from a
+1. **Name your brief** (e.g. *"My Morning Bio Brief"*).
+2. **Build a watch list** — companies, conditions, drugs, terms. Start from a
    **therapeutic-area preset** (oncology, cardiometabolic, rare disease,
-   neurology, immunology, infectious disease) to seed the watch list, then
-   tweak (see below).
-4. **Focus it.** Optionally keep only stories mentioning certain keywords, or
+   neurology, immunology, infectious disease) or a **thematic group** (AI, NAM,
+   gene/cell therapy…), then tweak. Optional: without one you still get all
+   recent FDA recalls, approvals, shortages and notices.
+3. **Pick the primary sources** — ClinicalTrials.gov, FDA recalls / approvals /
+   shortages, Federal Register, PubMed, SEC EDGAR — each cited to its record
+   (see below).
+4. **Optionally add news feeds.** Trade-press bundles (Biotech & Pharma,
+   Regulatory (FDA/EMA), Preprints (bioRxiv/medRxiv), Life Science & Research,
+   Health, Science, Tech, World) or your own RSS URLs. Off unless you say yes.
+5. **Focus it.** Optionally keep only items mentioning certain keywords, or
    always drop others.
-5. **Choose how summaries are written** — no LLM, local Ollama, or an
+6. **Choose how summaries are written** — no LLM, local Ollama, or an
    OpenAI-compatible API.
-6. **Pick an output format** — Markdown, HTML, text, or an **RSS feed** you can
+7. **Pick an output format** — Markdown, HTML, text, or an **RSS feed** you can
    subscribe to in any reader.
 
 The result is `openbionews.config.json` in the current folder. Re-run `setup`
@@ -131,7 +141,7 @@ any time to change it, or edit the file directly (see
 OpenBioNews works three ways. You choose during setup; you can switch any time.
 
 ### 1. No LLM (default) — free, instant, offline
-Summaries are the article's own opening sentences. No model, no network, no
+Summaries are the record's own opening sentences. No model, no network, no
 setup. Great for a fast, private digest.
 
 ### 2. Local model via Ollama — free and private
@@ -161,8 +171,8 @@ falls back to the no-LLM summary — the run never aborts.
 
 ## Primary sources — traced to the document
 
-Beyond RSS (which is *secondary* trade press), OpenBioNews can read **official
-primary records** and trace every development back to its source document.
+OpenBioNews reads **official primary records** — not trade press — and traces
+every development back to its source document.
 
 Nine connectors are built in. You keep **one watch list** (companies,
 conditions, drugs, terms) and switch on whichever official sources you want:
@@ -420,8 +430,8 @@ Then ask your assistant things like *"any Class I drug recalls for Moderna in th
 | `openbionews run --format html` | Override the output format for one run. |
 | `openbionews run --no-summaries` | Headlines and links only. |
 | `openbionews run --email` | Also email the digest (uses your email config). |
-| `openbionews doctor` | Check your config, feeds, LLM, and email. |
-| `openbionews sources` | List the built-in topic bundles and their feeds. |
+| `openbionews doctor` | Check your config, sources, feeds, LLM, and email. |
+| `openbionews sources` | List the optional news-feed bundles. |
 
 Use `-c path/to/config.json` to use a config file somewhere other than the
 current directory (or set `OPENBIONEWS_CONFIG`).
@@ -482,10 +492,10 @@ The email is sent as both a formatted HTML version and a plain-text fallback.
 
 OpenBioNews doesn't just dump every headline. Stories are:
 
-1. **De-duplicated** across outlets (the same story from five sites becomes one
-   entry that lists all five).
+1. **De-duplicated** (the same development from several sources — or, with news
+   feeds on, five outlets — becomes one entry that lists them all).
 2. **Ranked by importance** — a transparent, deterministic score combining how
-   many outlets carried a story, how fresh it is, and whether the headline
+   many sources carried it, how fresh it is, and whether the headline
    contains high-signal words (approval, acquires, phase, recall…).
 3. **Capped** to the top `max_items` (and `max_per_topic`), so you get a
    focused read with a **read-time estimate** in the header.
@@ -508,25 +518,25 @@ mistaken for a sourced claim.
 ## How it works
 
 ```
-feeds ─▶ fetch ─▶ filter ─▶ cluster ─▶ rank ─▶ summarize ─▶ render ─▶ digest
-        (RSS/Atom) (age &   (group the  (biggest  (LLM or   (md/html/
-                    keywords) same story  first)   no-LLM)   text)
-                              across
-                              outlets)
+primary sources ─┐
+ (trials, FDA,   ├─▶ filter ─▶ cluster ─▶ rank ─▶ summarize ─▶ render ─▶ brief
+  PubMed, SEC…)  │  (keywords) (group     (biggest  (LLM or   (md/html/
+news feeds ──────┘              duplicates) first)  no-LLM)   text/rss)
+ (optional RSS)
 ```
 
-Everything except the optional summary step is **deterministic**: stories are
+Everything except the optional summary step is **deterministic**: items are
 grouped by how much their headlines overlap (Jaccard similarity of title
 tokens), so results are reproducible and need no AI. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) for a module-by-module tour.
 
 ---
 
-## Customizing sources
+## Optional news feeds
 
-Run `openbionews sources` to see the built-in bundles. To add your own, either
-choose *"Add your own RSS feed"* during setup, or edit the `feeds` list in your
-config:
+The brief doesn't need them, and they're off by default. If you also want trade
+press next to the records, say yes to news feeds in `openbionews setup` (run
+`openbionews sources` to see the bundles), or edit the `feeds` list in your config:
 
 ```json
 {
@@ -544,8 +554,8 @@ is reachable.
 ## Privacy
 
 - **No-LLM and Ollama modes send nothing off your machine.** OpenBioNews only
-  fetches the feeds you list.
-- **API mode** sends article titles and feed-provided descriptions to the
+  queries the official sources (and any feeds) you enable.
+- **API mode** sends record titles and descriptions to the
   endpoint you configured, only to write summaries. Your API key stays in your
   environment, never in the config file.
 - No telemetry, ever.

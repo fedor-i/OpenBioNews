@@ -1,9 +1,10 @@
 """Interactive onboarding: turn defaults into a user's personalized config.
 
-This is the ``openbionews setup`` command. It walks a new user through picking
-topics, focus keywords, an LLM backend and an output format, then writes a
+This is the ``openbionews setup`` command. It walks a new user through a watch
+list and the primary sources to read (trials, FDA, Federal Register, PubMed, SEC),
+optional news feeds, an LLM backend and an output format, then writes a
 ready-to-run config file. Everything has a sensible default, so pressing Enter
-through the whole thing produces a working life-sciences digest.
+through the whole thing produces a working brief from official FDA records.
 """
 
 from __future__ import annotations
@@ -108,7 +109,7 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
 
     print(RULE)
     print("  OpenBioNews — setup")
-    print("  A free, self-hosted news digest, customized to you.")
+    print("  A free, self-hosted brief from official primary sources.")
     print(RULE)
     print("Press Enter to accept the default shown in [brackets] at any step.\n")
 
@@ -122,121 +123,138 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
         cfg["profile"].get("intro", ""),
     )
 
-    # 2. Topics / sources
-    bundle_options = [(k, f"{v['label']} — {v['description']}") for k, v in sources.BUNDLES.items()]
-    chosen_bundles = ask_multi(
-        "Which topics should your digest cover?",
-        bundle_options,
-        cfg["profile"].get("bundles", sources.DEFAULT_BUNDLES),
-    )
-    cfg["profile"]["bundles"] = chosen_bundles
-    cfg["feeds"] = sources.bundle_feeds(chosen_bundles)
-    total_feeds = len(cfg["feeds"])
-    print(f"  → {total_feeds} source feed(s) selected.")
-
-    if ask_yes_no("Add your own RSS/Atom feed URL now?", default=False):
-        while True:
-            url = ask_text("Feed URL (blank to finish)", "")
-            if not url:
-                break
-            name = ask_text("A short name for it", url.split("/")[2] if "//" in url else url)
-            cfg["feeds"].append({"name": name, "url": url, "topic": chosen_bundles[0] if chosen_bundles else "custom"})
-            print(f"  → added {name}")
-
-    # 2b. Primary sources (official records, traced to their documents)
-    print("\nPrimary sources read official records — trial registries, regulators, "
-          "SEC filings — instead of trade press, and cite the source document.")
+    # 2. Primary sources (official records, traced to their documents) — the core.
+    print("\nOpenBioNews reads official records — trial registries, the FDA, the "
+          "Federal Register, PubMed and SEC filings — and cites the source document.")
     conns = cfg.setdefault("connectors", {})
     ct = conns.setdefault("clinicaltrials", {})
     fda = conns.setdefault("openfda", {})
     apr = conns.setdefault("openfda_approvals", {})
     shr = conns.setdefault("openfda_shortages", {})
+    frg = conns.setdefault("federalregister", {})
+    pub = conns.setdefault("pubmed", {})
     edg = conns.setdefault("edgar", {})
-    already = any(c.get("enabled") for c in (ct, fda, apr, shr, edg))
-    if ask_yes_no("Track official primary sources (trials, FDA recalls, SEC filings)?",
-                  default=already):
-        wl = cfg.setdefault("watchlist", {})
-        # Optional therapeutic-area presets seed the conditions list.
-        area_opts = [(k, v["label"]) for k, v in sources.THERAPEUTIC_AREAS.items()]
-        picked_areas = ask_multi(
-            "Start from therapeutic-area presets? (optional)", area_opts, [])
-        preset_conditions = sources.area_conditions(picked_areas)
-        if preset_conditions:
-            print(f"  → seeded conditions: {', '.join(preset_conditions)}")
+    wl = cfg.setdefault("watchlist", {})
 
-        # Optional thematic groups (AI, NAM, modalities…) seed terms + companies.
-        theme_opts = [(k, v["label"]) for k, v in sources.THEMES.items()]
-        picked_themes = ask_multi(
-            "Start from thematic groups (AI, NAM, modalities)? (optional)", theme_opts, [])
-        preset_terms = sources.theme_terms(picked_themes)
-        preset_sponsors = sources.theme_sponsors(picked_themes)
-        if picked_themes:
-            print(f"  → seeded terms: {', '.join(preset_terms)}")
-            if preset_sponsors:
-                print(f"  → seeded companies: {', '.join(preset_sponsors)}")
+    # Optional therapeutic-area presets seed the conditions list.
+    area_opts = [(k, v["label"]) for k, v in sources.THERAPEUTIC_AREAS.items()]
+    picked_areas = ask_multi(
+        "Start from therapeutic-area presets? (optional)", area_opts, [])
+    preset_conditions = sources.area_conditions(picked_areas)
+    if preset_conditions:
+        print(f"  → seeded conditions: {', '.join(preset_conditions)}")
 
-        print("Build a watch list (comma-separated; leave blank to skip a line):")
-        existing_sponsors = wl.get("sponsors", [])
-        merged_sponsors = preset_sponsors + [s for s in existing_sponsors if s not in preset_sponsors]
-        wl["sponsors"] = _csv(ask_text("  Companies / sponsors",
-                                        ", ".join(merged_sponsors)))
-        existing_conditions = wl.get("conditions", [])
-        # Merge presets with anything already configured, presets first.
-        merged = preset_conditions + [c for c in existing_conditions if c not in preset_conditions]
-        wl["conditions"] = _csv(ask_text("  Conditions / indications",
-                                         ", ".join(merged)))
-        wl["interventions"] = _csv(ask_text("  Drugs / interventions",
-                                            ", ".join(wl.get("interventions", []))))
-        existing_terms = wl.get("terms", [])
-        merged_terms = preset_terms + [t for t in existing_terms if t not in preset_terms]
-        wl["terms"] = _csv(ask_text("  Other search terms",
-                                    ", ".join(merged_terms)))
-        days = ask_text("  Only developments within how many days?",
-                        str(ct.get("recent_days", 30)))
-        recent = int(days) if days.isdigit() else 30
+    # Optional thematic groups (AI, NAM, modalities…) seed terms + companies.
+    theme_opts = [(k, v["label"]) for k, v in sources.THEMES.items()]
+    picked_themes = ask_multi(
+        "Start from thematic groups (AI, NAM, modalities)? (optional)", theme_opts, [])
+    preset_terms = sources.theme_terms(picked_themes)
+    preset_sponsors = sources.theme_sponsors(picked_themes)
+    if picked_themes:
+        print(f"  → seeded terms: {', '.join(preset_terms)}")
+        if preset_sponsors:
+            print(f"  → seeded companies: {', '.join(preset_sponsors)}")
 
-        ct["enabled"] = ask_yes_no("  Include ClinicalTrials.gov (trial developments)?",
-                                   default=ct.get("enabled", True))
-        fda["enabled"] = ask_yes_no("  Include FDA drug recalls (openFDA)?",
-                                    default=fda.get("enabled", False))
-        apr["enabled"] = ask_yes_no("  Include FDA drug approvals (openFDA)?",
-                                    default=apr.get("enabled", False))
-        shr["enabled"] = ask_yes_no("  Include FDA drug shortages (openFDA)?",
-                                    default=shr.get("enabled", False))
-        edg["enabled"] = ask_yes_no("  Include SEC filings (EDGAR)?",
-                                    default=edg.get("enabled", False))
-        for c in (ct, fda, apr, shr, edg):
-            c["recent_days"] = recent
-        if apr["enabled"]:
-            # Approvals are less frequent — widen the window unless the user set one.
-            apr["recent_days"] = max(recent, 90)
-        if edg["enabled"]:
-            edg["user_agent"] = ask_text(
-                "  SEC asks for a contact — your name and email",
-                edg.get("user_agent") or "")
-            edg["forms"] = _csv(ask_text("  SEC form types (comma-separated)",
-                                         ", ".join(edg.get("forms", ["8-K"]))))
-        enabled = [n for n, c in (("ClinicalTrials.gov", ct), ("FDA recalls", fda),
-                                  ("FDA approvals", apr), ("FDA shortages", shr),
-                                  ("SEC EDGAR", edg)) if c.get("enabled")]
-        print(f"  → primary sources: {', '.join(enabled) or 'none selected'}")
+    print("Build a watch list (comma-separated; leave blank to skip a line).")
+    print("Without one you still get all recent FDA recalls, approvals, shortages and notices.")
+    existing_sponsors = wl.get("sponsors", [])
+    merged_sponsors = preset_sponsors + [s for s in existing_sponsors if s not in preset_sponsors]
+    wl["sponsors"] = _csv(ask_text("  Companies / sponsors",
+                                    ", ".join(merged_sponsors)))
+    existing_conditions = wl.get("conditions", [])
+    # Merge presets with anything already configured, presets first.
+    merged = preset_conditions + [c for c in existing_conditions if c not in preset_conditions]
+    wl["conditions"] = _csv(ask_text("  Conditions / indications",
+                                     ", ".join(merged)))
+    wl["interventions"] = _csv(ask_text("  Drugs / interventions",
+                                        ", ".join(wl.get("interventions", []))))
+    existing_terms = wl.get("terms", [])
+    merged_terms = preset_terms + [t for t in existing_terms if t not in preset_terms]
+    wl["terms"] = _csv(ask_text("  Other search terms",
+                                ", ".join(merged_terms)))
+    watching = any(wl.get(k) for k in ("sponsors", "conditions", "interventions", "terms"))
+    days = ask_text("  Only developments within how many days?",
+                    str(ct.get("recent_days", 30)))
+    recent = int(days) if days.isdigit() else 30
+
+    # Trials, PubMed and SEC search the watch list, so they default on only when there is one.
+    ct["enabled"] = ask_yes_no("  Include ClinicalTrials.gov (trial developments)?",
+                               default=ct.get("enabled") or watching)
+    fda["enabled"] = ask_yes_no("  Include FDA drug recalls (openFDA)?",
+                                default=fda.get("enabled", True))
+    apr["enabled"] = ask_yes_no("  Include FDA drug approvals (openFDA)?",
+                                default=apr.get("enabled", True))
+    shr["enabled"] = ask_yes_no("  Include FDA drug shortages (openFDA)?",
+                                default=shr.get("enabled", True))
+    frg["enabled"] = ask_yes_no("  Include FDA notices in the Federal Register (guidances, rules)?",
+                                default=frg.get("enabled", True))
+    pub["enabled"] = ask_yes_no("  Include PubMed publications?",
+                                default=pub.get("enabled") or watching)
+    edg["enabled"] = ask_yes_no("  Include SEC filings (EDGAR)?",
+                                default=edg.get("enabled", False))
+    for c in (ct, fda, apr, shr, frg, edg):
+        c["recent_days"] = recent
+    if apr["enabled"]:
+        # Approvals are less frequent — widen the window unless the user set one.
+        apr["recent_days"] = max(recent, 90)
+    if edg["enabled"]:
+        edg["user_agent"] = ask_text(
+            "  SEC asks for a contact — your name and email",
+            edg.get("user_agent") or "")
+        edg["forms"] = _csv(ask_text("  SEC form types (comma-separated)",
+                                     ", ".join(edg.get("forms", ["8-K"]))))
+    if not watching:
+        needs_watch = [n for n, c in (("ClinicalTrials.gov", ct), ("PubMed", pub),
+                                      ("SEC EDGAR", edg)) if c.get("enabled")]
+        if needs_watch:
+            print(f"  ! {', '.join(needs_watch)} need a watch list to search — "
+                  "they'll return nothing until you add one.")
+    enabled = [n for n, c in (("ClinicalTrials.gov", ct), ("FDA recalls", fda),
+                              ("FDA approvals", apr), ("FDA shortages", shr),
+                              ("Federal Register", frg), ("PubMed", pub),
+                              ("SEC EDGAR", edg)) if c.get("enabled")]
+    print(f"  → primary sources: {', '.join(enabled) or 'none selected'}")
+
+    # 3. Optional trade-press news feeds, alongside the official records.
+    if ask_yes_no("\nAlso include trade-press news feeds (RSS)? Optional — the brief "
+                  "doesn't need them", default=bool(cfg.get("feeds"))):
+        bundle_options = [(k, f"{v['label']} — {v['description']}") for k, v in sources.BUNDLES.items()]
+        chosen_bundles = ask_multi(
+            "Which news topics?",
+            bundle_options,
+            cfg["profile"].get("bundles") or sources.DEFAULT_BUNDLES,
+        )
+        cfg["profile"]["bundles"] = chosen_bundles
+        cfg["feeds"] = sources.bundle_feeds(chosen_bundles)
+        print(f"  → {len(cfg['feeds'])} news feed(s) selected.")
+        if ask_yes_no("Add your own RSS/Atom feed URL now?", default=False):
+            while True:
+                url = ask_text("Feed URL (blank to finish)", "")
+                if not url:
+                    break
+                name = ask_text("A short name for it", url.split("/")[2] if "//" in url else url)
+                cfg["feeds"].append({"name": name, "url": url, "topic": chosen_bundles[0] if chosen_bundles else "custom"})
+                print(f"  → added {name}")
+        age = ask_text("How many hours back should news stories be considered?",
+                       str(cfg["filters"].get("max_age_hours", 48)))
+        try:
+            cfg["filters"]["max_age_hours"] = int(age)
+        except ValueError:
+            pass
     else:
-        for c in (ct, fda, apr, shr, edg):
-            c["enabled"] = False
+        cfg["profile"]["bundles"] = []
+        cfg["feeds"] = []
+    if not enabled and not cfg["feeds"]:
+        print("  ! Nothing selected — your brief will be empty. Run `openbionews setup` again "
+              "to pick a source.")
 
-    # 3. Focus
+    # Focus filters apply to everything in the brief, records and news alike.
     focus = ask_text(
-        "Only keep stories mentioning these keywords (comma-separated, optional)", ""
+        "Only keep items mentioning these keywords (comma-separated, optional)", ""
     )
     cfg["filters"]["include_keywords"] = [k.strip() for k in focus.split(",") if k.strip()]
-    mute = ask_text("Always drop stories mentioning these keywords (optional)", "")
+    mute = ask_text("Always drop items mentioning these keywords (optional)", "")
     cfg["filters"]["exclude_keywords"] = [k.strip() for k in mute.split(",") if k.strip()]
-
-    age = ask_text("How many hours back should stories be considered?", str(cfg["filters"].get("max_age_hours", 48)))
-    try:
-        cfg["filters"]["max_age_hours"] = int(age)
-    except ValueError:
-        pass
 
     # 4. LLM backend
     backend = ask_choice(
@@ -314,19 +332,21 @@ def run_wizard(path: Path | None = None, existing: dict | None = None) -> dict:
 
 
 def _print_summary(cfg: dict) -> None:
-    print("\nYour digest:")
+    print("\nYour brief:")
     print(f"  Title    : {cfg['profile']['title']}")
-    print(f"  Topics   : {', '.join(cfg['profile'].get('bundles', [])) or '(custom feeds)'}")
-    print(f"  Feeds    : {len(cfg['feeds'])}")
     conns = cfg.get("connectors", {})
     labels = {"clinicaltrials": "ClinicalTrials.gov", "openfda": "FDA recalls",
               "openfda_approvals": "FDA approvals", "openfda_shortages": "FDA shortages",
-              "edgar": "SEC EDGAR"}
+              "openfda_events": "FDA adverse events", "openfda_labels": "FDA labels",
+              "federalregister": "Federal Register", "pubmed": "PubMed", "edgar": "SEC EDGAR"}
     enabled = [labels[k] for k in labels if conns.get(k, {}).get("enabled")]
     if enabled:
         wl = cfg.get("watchlist", {})
         watched = sum(len(wl.get(k, [])) for k in ("sponsors", "conditions", "interventions", "terms"))
-        print(f"  Primary  : {', '.join(enabled)} ({watched} watched)")
+        print(f"  Sources  : {', '.join(enabled)} ({watched} watched)")
+    feeds = cfg.get("feeds") or []
+    bundles = ", ".join(cfg["profile"].get("bundles", []))
+    print(f"  News     : {f'{len(feeds)} feed(s)' + (f' ({bundles})' if bundles else '') if feeds else 'none (optional)'}")
     summaries = cfg["llm"]["backend"]
     if cfg["output"].get("why_it_matters"):
         summaries += " + why-it-matters"
@@ -335,6 +355,6 @@ def _print_summary(cfg: dict) -> None:
     if cfg.get("email", {}).get("enabled"):
         print(f"  Email    : → {', '.join(cfg['email'].get('to_addrs', []))}")
     print("\nNext:")
-    print("  openbionews run          # build your digest now")
-    print("  openbionews doctor       # check feeds and LLM connectivity")
+    print("  openbionews run          # build your brief now")
+    print("  openbionews doctor       # check sources and LLM connectivity")
     print("  openbionews run --demo   # try it offline with bundled sample data")

@@ -6,23 +6,24 @@ hidden state, so it is easy to read, test, and extend.
 ## Data flow
 
 ```
-        ┌─ fetch (RSS/Atom feeds) ────────┐
+        ┌─ connectors (primary sources) ──┐
 config ─┤                                 ├─▶ filter ─▶ cluster ─▶ rank/limit ─▶ compose ─▶ render ─▶ write / email
-        └─ connectors (primary sources) ──┘
+        └─ fetch (optional RSS/Atom) ─────┘
 ```
 
-RSS feeds are secondary (trade press). **Connectors** read official primary
-records — trial registries, regulators, filings — and attach a `Citation` to
-each development, tracing it to its source document. Both streams merge into the
-same pipeline.
+**Connectors** are the core: they read official primary records — trial
+registries, regulators, filings, the literature — and attach a `Citation` to each
+development, tracing it to its source document. The default config enables the
+FDA connectors that need no watch list. Trade-press RSS/Atom feeds are secondary
+and opt-in (off by default); when enabled, both streams merge into the same pipeline.
 
 ## Modules
 
 | Module | Responsibility |
 | --- | --- |
 | `openbionews/config.py` | Load/save/validate the JSON config; ship sensible defaults. |
-| `openbionews/sources.py` | Curated topic bundles of RSS/Atom feeds. |
-| `openbionews/fetch.py` | Download and parse RSS/Atom feeds (stdlib parser). Failures are collected, never fatal. |
+| `openbionews/sources.py` | Optional news-feed bundles (off by default), plus the therapeutic-area and thematic watch-list presets. |
+| `openbionews/fetch.py` | Download and parse optional RSS/Atom feeds (stdlib parser). Failures are collected, never fatal. |
 | `openbionews/connectors/` | Primary-source connectors (ClinicalTrials.gov; openFDA recalls / approvals / shortages / adverse events / labeling; Federal Register; PubMed; SEC EDGAR) that emit cited `Item`s from a watch list. |
 | `openbionews/httputil.py` | Shared stdlib JSON-over-HTTP GET used by connectors. |
 | `openbionews/cite.py` | Per-sentence source citation of digest text. |

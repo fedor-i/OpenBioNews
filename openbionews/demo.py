@@ -1,7 +1,8 @@
 """Offline demo digest.
 
-Builds a mixed digest — trade-press RSS plus primary sources (ClinicalTrials.gov,
-FDA recalls, SEC filings) — entirely from bundled fixtures, with no network. It
+Builds a brief from primary sources (ClinicalTrials.gov, FDA recalls, approvals and
+shortages, SEC filings) entirely from bundled fixtures, with no network. Like the
+default configuration it has no trade-press feeds — those are opt-in. It
 runs the real pipeline (filter → cluster → rank → compose → render), so
 ``openbionews run --demo`` is an honest preview of what the tool produces,
 including source citations, on any machine.
@@ -13,7 +14,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import fetch, pipeline, render
+from . import pipeline, render
 from .compose import compose
 from .connectors.clinicaltrials import parse_studies
 from .connectors.edgar import parse_hits
@@ -29,13 +30,6 @@ DATA = Path(__file__).parent / "data"
 def demo_items() -> list:
     """Collect Items from every bundled sample source (offline)."""
     items = []
-    # Trade-press RSS samples (read from local files, no network).
-    feeds = [
-        {"name": "Sample Wire A", "url": str(DATA / "sample_feed_a.xml"), "topic": "biotech"},
-        {"name": "Sample Wire B", "url": str(DATA / "sample_feed_b.xml"), "topic": "biotech"},
-    ]
-    rss_items, _ = fetch.fetch_all(feeds)
-    items.extend(rss_items)
     # Primary-source fixtures, parsed by the real connector parsers.
     trials = parse_studies(json.loads((DATA / "demo_clinicaltrials.json").read_text("utf-8")))
     # Showcase change detection: on a live install, this line is produced by
@@ -62,9 +56,10 @@ def build_demo_digest(fmt: str = "markdown", group_by: str = "topic") -> tuple[s
     clusters = pipeline.rank_clusters(clusters)
     clusters = pipeline.limit_clusters(clusters, max_items=40, max_per_topic=0)
     profile = {
-        "title": "OpenBioNews — Demo Digest",
-        "intro": "Built offline from bundled samples: trade-press RSS plus primary "
-                 "sources (ClinicalTrials.gov, FDA recalls, SEC filings), each cited.",
+        "title": "OpenBioNews — Demo Brief",
+        "intro": "Built offline from bundled samples of official records "
+                 "(ClinicalTrials.gov, FDA, SEC filings), each cited. Trade-press "
+                 "news feeds are optional and off by default.",
     }
     digest, _ = compose(clusters, NoLLMBackend(), profile, want_summaries=True)
     digest.generated_at = datetime.now(timezone.utc)

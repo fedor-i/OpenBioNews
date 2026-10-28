@@ -101,7 +101,7 @@ BUNDLES: dict[str, dict] = {
     },
 }
 
-# Bundles pre-selected for the OpenBioNews default profile.
+# Bundles pre-selected when someone opts into news feeds (feeds are off by default).
 DEFAULT_BUNDLES = ["biotech", "regulatory", "life_science"]
 
 

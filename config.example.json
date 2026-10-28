@@ -2,80 +2,10 @@
   "version": 1,
   "profile": {
     "title": "Daily Bio Brief",
-    "intro": "Your automated life-sciences news digest.",
-    "bundles": [
-      "biotech",
-      "regulatory",
-      "life_science"
-    ]
+    "intro": "Your daily brief from official primary sources.",
+    "bundles": []
   },
-  "feeds": [
-    {
-      "name": "STAT News",
-      "url": "https://www.statnews.com/feed/",
-      "topic": "biotech"
-    },
-    {
-      "name": "Fierce Biotech",
-      "url": "https://www.fiercebiotech.com/rss/xml",
-      "topic": "biotech"
-    },
-    {
-      "name": "Fierce Pharma",
-      "url": "https://www.fiercepharma.com/rss/xml",
-      "topic": "biotech"
-    },
-    {
-      "name": "Endpoints News",
-      "url": "https://endpts.com/feed/",
-      "topic": "biotech"
-    },
-    {
-      "name": "BioPharma Dive",
-      "url": "https://www.biopharmadive.com/feeds/news/",
-      "topic": "biotech"
-    },
-    {
-      "name": "BioSpace",
-      "url": "https://www.biospace.com/rss/news/",
-      "topic": "biotech"
-    },
-    {
-      "name": "FDA Press Releases",
-      "url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml",
-      "topic": "regulatory"
-    },
-    {
-      "name": "FDA Drug Approvals & Safety",
-      "url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/drugs/rss.xml",
-      "topic": "regulatory"
-    },
-    {
-      "name": "EMA News",
-      "url": "https://www.ema.europa.eu/en/rss.xml",
-      "topic": "regulatory"
-    },
-    {
-      "name": "ScienceDaily Biotechnology",
-      "url": "https://www.sciencedaily.com/rss/plants_animals/biotechnology.xml",
-      "topic": "life_science"
-    },
-    {
-      "name": "ScienceDaily Genetics",
-      "url": "https://www.sciencedaily.com/rss/plants_animals/genetics.xml",
-      "topic": "life_science"
-    },
-    {
-      "name": "Phys.org Biology",
-      "url": "https://phys.org/rss-feed/biology-news/",
-      "topic": "life_science"
-    },
-    {
-      "name": "Nature — Latest",
-      "url": "https://www.nature.com/nature.rss",
-      "topic": "life_science"
-    }
-  ],
+  "feeds": [],
   "filters": {
     "max_age_hours": 48,
     "max_items": 40,
@@ -100,6 +30,10 @@
     "write_file": true,
     "summaries": true,
     "why_it_matters": false
+  },
+  "history": {
+    "enabled": true,
+    "path": "digest/state.json"
   },
   "email": {
     "enabled": false,
@@ -126,27 +60,53 @@
       "statuses": []
     },
     "openfda": {
-      "enabled": false,
+      "enabled": true,
       "recent_days": 30,
       "max_per_query": 20,
       "max_total": 40,
       "classifications": []
     },
     "openfda_approvals": {
-      "enabled": false,
+      "enabled": true,
       "recent_days": 90,
       "max_per_query": 20,
       "max_total": 40,
       "include_supplements": true
     },
     "openfda_shortages": {
-      "enabled": false,
+      "enabled": true,
       "recent_days": 60,
       "max_per_query": 20,
       "max_total": 40,
       "statuses": [
         "Current"
       ]
+    },
+    "openfda_events": {
+      "enabled": false,
+      "top_reactions": 8,
+      "max_total": 20
+    },
+    "openfda_labels": {
+      "enabled": false,
+      "summary_chars": 600,
+      "max_total": 20
+    },
+    "federalregister": {
+      "enabled": true,
+      "recent_days": 30,
+      "max_per_query": 20,
+      "max_total": 40,
+      "agencies": [
+        "food-and-drug-administration"
+      ]
+    },
+    "pubmed": {
+      "enabled": false,
+      "recent_days": 365,
+      "max_per_query": 10,
+      "max_total": 30,
+      "api_key": ""
     },
     "edgar": {
       "enabled": false,

@@ -38,7 +38,7 @@ def cmd_setup(args) -> int:
 
 def cmd_run(args) -> int:
     if args.demo:
-        # Offline showcase: mixed RSS + primary-source digest from bundled data.
+        # Offline showcase: a primary-source brief from bundled data.
         from .demo import build_demo_digest
         rendered, _ = build_demo_digest(fmt=(args.format or "markdown"))
         sys.stdout.write(rendered)
@@ -61,7 +61,7 @@ def cmd_run(args) -> int:
     if result.email_status:
         print(f"Email: {result.email_status}", file=sys.stderr)
     if result.fetch_errors and not args.quiet:
-        print(f"({len(result.fetch_errors)} feed(s) failed — run `openbionews doctor`)", file=sys.stderr)
+        print(f"({len(result.fetch_errors)} source(s) failed — run `openbionews doctor`)", file=sys.stderr)
     return 0
 
 
@@ -82,9 +82,10 @@ def cmd_mcp(args) -> int:
 
 
 def cmd_sources(args) -> int:
-    print("Available topic bundles:\n")
+    print("Optional news-feed bundles (off by default; add them with `openbionews setup`).")
+    print("The brief itself is built from official primary sources — these add trade press.\n")
     for key, bundle in sources.BUNDLES.items():
-        default = " (default)" if key in sources.DEFAULT_BUNDLES else ""
+        default = " (suggested)" if key in sources.DEFAULT_BUNDLES else ""
         print(f"  {key}{default}: {bundle['label']}")
         print(f"      {bundle['description']}")
         for feed in bundle["feeds"]:
@@ -125,11 +126,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("-q", "--quiet", action="store_true", help="suppress progress output")
     p_run.set_defaults(func=cmd_run)
 
-    p_doctor = sub.add_parser("doctor", help="check config, feeds and LLM connectivity")
+    p_doctor = sub.add_parser("doctor", help="check config, sources, feeds and LLM connectivity")
     p_doctor.add_argument("--no-feeds", action="store_true", help="skip network feed checks")
     p_doctor.set_defaults(func=cmd_doctor)
 
-    p_sources = sub.add_parser("sources", help="list the built-in topic bundles and feeds")
+    p_sources = sub.add_parser("sources", help="list the optional news-feed bundles")
     p_sources.set_defaults(func=cmd_sources)
 
     p_mcp = sub.add_parser("mcp", help="run the MCP server so an AI can call the primary-source connectors")

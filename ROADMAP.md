@@ -1,7 +1,7 @@
 # Roadmap
 
 OpenBioNews aims to be the free, self-hosted way to turn official primary
-sources and feeds into a clean, cited daily brief. This is a living list —
+sources into a clean, cited daily brief (trade-press feeds are an optional extra). This is a living list —
 [open an issue](https://github.com/fedor-i/OpenBioNews/issues) to propose or
 claim something.
 
@@ -19,7 +19,7 @@ or ranking modes. Feature ideas are still welcome as issues.
 - [x] Recall floor set (0.70; first live run scored 0.79 vs 0.05 for recency).
 - [ ] Benchmark misses: most never reach the candidate pool (MELODY, KEYNOTE-189/-024); one is
       dropped by the keyword filter (a code-named osimertinib trial) — [#13](https://github.com/fedor-i/OpenBioNews/issues/13).
-- [ ] Fix the 5 dead default feeds the live check found — [#5](https://github.com/fedor-i/OpenBioNews/issues/5).
+- [x] Primary sources by default; news feeds opt-in (0.8.6).
 - [ ] Align the two remaining differences: the approvals signal and Update-mode relevance.
 
 ## Primary sources (highest value)
@@ -66,7 +66,7 @@ or ranking modes. Feature ideas are still welcome as issues.
 - [x] Cross-platform CI (Linux/macOS/Windows).
 - [x] PyPI release workflow (Trusted Publishing).
 - [x] Published on PyPI — `pip install openbionews` (MCP server: `openbionews[mcp]`).
-- [ ] More default feeds and periodic dead-feed sweeps.
+- [ ] Optional news-feed bundles: replace the dead feeds — [#5](https://github.com/fedor-i/OpenBioNews/issues/5) (low priority; feeds are opt-in).
 
 ## Non-goals
 - No telemetry or analytics, ever.
