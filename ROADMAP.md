@@ -17,8 +17,9 @@ or ranking modes. Feature ideas are still welcome as issues.
 - [x] **One ranking spec for Python and the website** — shared test cases both must pass
       (`tests/fixtures/ranking_vectors.json`).
 - [x] Recall floor set (0.70; first live run scored 0.79 vs 0.05 for recency).
-- [ ] Investigate benchmark misses: osimertinib, nirsevimab (registered under code names?) and
-      pembrolizumab (thousands of trials — do landmarks reach the candidate pool?).
+- [ ] Benchmark misses: most never reach the candidate pool (MELODY, KEYNOTE-189/-024); one is
+      dropped by the keyword filter (a code-named osimertinib trial) — [#13](https://github.com/fedor-i/OpenBioNews/issues/13).
+- [ ] Fix the 5 dead default feeds the live check found — [#5](https://github.com/fedor-i/OpenBioNews/issues/5).
 - [ ] Align the two remaining differences: the approvals signal and Update-mode relevance.
 
 ## Primary sources (highest value)
