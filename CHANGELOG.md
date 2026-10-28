@@ -6,7 +6,8 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No package changes — this is about knowing when results go wrong.
+Mostly about knowing when results go wrong; the one package fix the live checks found
+is listed under 0.8.6 (not yet released).
 
 ### Added
 - **Daily live API checks** (`.github/workflows/live.yml`). The unit tests use saved
@@ -20,7 +21,9 @@ No package changes — this is about knowing when results go wrong.
 - **Landmark benchmark** (`benchmarks/`): 43 landmark trials for 20 drugs across 10
   therapeutic areas, scored as salience Recall@7 against the recency baseline, daily
   and on every release. The gold set verifies itself against the registry first, so a
-  wrong NCT ID is reported as a data error, not a ranking miss.
+  wrong NCT ID is reported as a data error, not a ranking miss. First run: **0.79**
+  (recency 0.05); the floor is set at 0.70. A diagnostic column scores salience without
+  the keyword filter, to show landmarks dropped because the record uses a code name.
 - **Shared ranking spec** (`tests/fixtures/ranking_vectors.json`,
   `tests/test_ranking_parity.py`): the same cases are scored by the MCP server and by
   the website's JavaScript (via Node, in CI), so the two can't drift apart.
@@ -38,6 +41,11 @@ A full revision pass over the MCP tools and the hosted page. Every fix below was
 reproduced first and is pinned by a regression test that fails on 0.8.5.
 
 ### Fixed (MCP)
+- **SEC entity lookups reported a real company as `entity_not_found` when SEC's
+  company directory couldn't be fetched** (an outage, or a 403 for a missing contact
+  User-Agent). That's a false negative presented as a trustworthy answer. It's now an
+  `error` that says what failed, with the User-Agent fix when SEC returned 403. Found
+  by the new live checks (`company="LLY"`).
 - **Keyword matching used raw substrings**, so a short term matched inside unrelated
   words ("ALS" in "trials" and "also"). Since `require_match` and every relevance
   score build on it, strays could pass the filter. Matching is now word-boundary and

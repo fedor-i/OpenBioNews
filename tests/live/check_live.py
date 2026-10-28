@@ -41,6 +41,10 @@ class Unreachable(Exception):
     """The upstream API couldn't be reached — an outage, not a contract break."""
 
 
+class Skipped(Exception):
+    """The check can't run in this environment (e.g. missing credentials)."""
+
+
 def _transient(err: str) -> bool:
     if "could not reach" in err or "timed out" in err.lower():
         return True
@@ -192,9 +196,16 @@ def check_pubmed():
 
 
 def check_sec_entity_scoping():
-    out = call(ms.search_sec_filings, company="LLY", recent_days=180, limit=10)
+    try:
+        out = call(ms.search_sec_filings, company="LLY", recent_days=180, limit=10)
+    except AssertionError as exc:
+        if "HTTP 403" in str(exc):   # SEC wants a contact User-Agent — configuration, not a break
+            raise Skipped("SEC refused the request; set the EDGAR_UA repository variable "
+                          "to 'Name email@example.com'") from exc
+        raise
     res = out["results"]
-    need(res, "no Eli Lilly filings in 180 days")
+    need(res, f"no Eli Lilly filings in 180 days (status={out.get('status')!r}, "
+              f"resolved_cik={out.get('resolved_cik')!r})")
     stray = [r["facts"].get("filer") for r in res if LILLY_CIK not in (r["facts"].get("ciks") or [])]
     need(not stray, f"entity mode returned other filers: {stray[:3]}")
     return f"{len(res)} filings, all Lilly's own"
@@ -245,6 +256,8 @@ def main(argv=None) -> int:
         except Unreachable as exc:
             unreachable += 1
             rows.append(("UNREACHABLE", name, str(exc)[:200]))
+        except Skipped as exc:
+            rows.append(("SKIPPED", name, str(exc)[:200]))
         except AssertionError as exc:
             failed += 1
             rows.append(("FAIL", name, str(exc)[:300]))
@@ -273,10 +286,14 @@ def main(argv=None) -> int:
                 fh.write(f"\n**RSS feeds:** {feeds_ok}/{feeds_total} returning items\n\n")
                 fh.writelines(f"- {line}\n" for line in feed_lines)
 
-    print(f"\n{len(rows) - failed - unreachable} passed, {failed} failed, {unreachable} unreachable")
-    for status, name, detail in rows:
-        if status == "UNREACHABLE":
-            print(f"::warning title={name}::unreachable: {detail}")
+    passed = sum(1 for r in rows if r[0] == "PASS")
+    print(f"\n{passed} passed, {failed} failed, {unreachable} unreachable, "
+          f"{len(rows) - passed - failed - unreachable} skipped")
+    for status, name, detail in rows:   # annotations show on the run page without opening logs
+        if status == "FAIL":
+            print(f"::error title={name}::{detail}")
+        elif status in ("UNREACHABLE", "SKIPPED"):
+            print(f"::warning title={name}::{status.lower()}: {detail}")
     return 1 if failed or (args.strict and unreachable) else 0
 
 

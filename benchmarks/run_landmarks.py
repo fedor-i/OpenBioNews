@@ -35,7 +35,10 @@ from openbionews.httputil import HTTPJSONError, get_json  # noqa: E402
 
 GOLD = ROOT / "benchmarks" / "landmarks.json"
 STUDY_URL = "https://clinicaltrials.gov/api/v2/studies/{}"
-MODES = ("salience", "recency")
+# "salience_unfiltered" is a diagnostic: salience without require_match. A landmark it
+# finds but plain salience doesn't was dropped by the keyword filter — typically a trial
+# registered under a code name (AZD9291, MEDI8897) that never spells out the drug name.
+MODES = ("salience", "recency", "salience_unfiltered")
 DEPTH = 20          # how deep we look, to report where a miss actually ranked
 
 
@@ -69,8 +72,11 @@ def verify_gold(drugs) -> list[str]:
 
 
 def rank_ids(drug: str, mode: str) -> list[str]:
+    unfiltered = mode == "salience_unfiltered"
+    rank_by = "salience" if unfiltered else mode
     for attempt in range(3):
-        out = ms.search_clinical_trials(query=drug, rank_by=mode, limit=DEPTH, verbose=True)
+        out = ms.search_clinical_trials(query=drug, rank_by=rank_by, limit=DEPTH, verbose=True,
+                                        require_match=not unfiltered)
         if not out.get("error"):
             return [(r.get("meta") or {}).get("nct_id") for r in out["results"]]
         if attempt < 2:
@@ -112,11 +118,16 @@ def report(res: dict) -> str:
              f"{res['macro_recall']['recency']:.2f} (macro average; micro "
              f"{res['micro_recall']['salience']:.2f} vs {res['micro_recall']['recency']:.2f}).",
              "",
-             f"| Drug | Area | Salience R@{k} | Recency R@{k} | Missed by salience (rank) |",
-             "|---|---|---|---|---|"]
+             f"Without the keyword filter (`require_match=false`) salience scores "
+             f"{res['macro_recall']['salience_unfiltered']:.2f} — the gap is landmarks the "
+             f"filter drops because the record never names the drug.",
+             "",
+             f"| Drug | Area | Salience R@{k} | Recency R@{k} | Unfiltered R@{k} | Missed by salience (rank) |",
+             "|---|---|---|---|---|---|"]
     for r in res["per_drug"]:
         lines.append(f"| {r['drug']} | {r['area']} | {r['salience']['recall']:.2f} | "
-                     f"{r['recency']['recall']:.2f} | {_miss_text(r['salience']['misses'])} |")
+                     f"{r['recency']['recall']:.2f} | {r['salience_unfiltered']['recall']:.2f} | "
+                     f"{_miss_text(r['salience']['misses'])} |")
     return "\n".join(lines) + "\n"
 
 

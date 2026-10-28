@@ -707,7 +707,15 @@ def search_sec_filings(query: str = "", company: str | None = None,
     # Entity mode: scope to the subject's own filings by resolving it to a CIK.
     subject = company or (query if own_filer_only else None)
     if subject:
-        cik = resolve_cik(subject, cfg.get("user_agent"))
+        try:
+            cik = resolve_cik(subject, cfg.get("user_agent"))
+        except HTTPJSONError as exc:
+            # Couldn't reach SEC's directory — say so, rather than "not found".
+            hint = (" SEC requires a descriptive User-Agent with a contact: set the "
+                    "OPENBIONEWS_EDGAR_UA environment variable to e.g. "
+                    "'YourName your@email.com'." if "HTTP 403" in str(exc) else "")
+            return {**base, "error": f"could not look up {subject!r} in SEC's company "
+                    f"directory: {exc}.{hint}", "count": 0, "results": []}
         if not cik:
             return {**base, "status": "entity_not_found", "entity": subject,
                     "count": 0, "results": []}

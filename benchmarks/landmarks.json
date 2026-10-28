@@ -1,7 +1,7 @@
 {
   "about": "Landmark-trial benchmark for rank_by=\"salience\". For each drug, the trials an informed reader would expect near the top: pivotal Phase 3 / outcomes trials that changed practice or led to approval. Each entry's `expect` tokens must appear in the registry record's acronym or title — run_landmarks.py checks that first, so a wrong NCT ID is reported instead of silently counting as a miss. Spread across therapeutic areas on purpose, so weights tuned to one area don't look better than they are.",
   "k": 7,
-  "min_recall_at_k": null,
+  "min_recall_at_k": 0.7,
   "drugs": [
     {"drug": "semaglutide", "area": "cardiometabolic", "trials": [
       {"nct": "NCT03574597", "name": "SELECT", "expect": ["SELECT"]},

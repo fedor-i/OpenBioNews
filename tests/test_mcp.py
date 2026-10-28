@@ -567,6 +567,21 @@ def test_resolve_cik_handles_names_tickers_and_raw_ciks():
         assert edgar.resolve_cik("No Such Biotech") is None               # miss
 
 
+def test_sec_directory_outage_is_an_error_not_entity_not_found():
+    # If SEC's ticker directory can't be fetched (outage, or a 403 for a missing
+    # contact User-Agent), the company may well exist: reporting "entity_not_found"
+    # would be a false negative. Found by the live checks (company="LLY").
+    edgar._TICKERS_CACHE = None
+    with _patch(edgar, raise_exc=HTTPJSONError(
+            "HTTP 403 from https://www.sec.gov/files/company_tickers.json: Forbidden")):
+        out = mcp_server.search_sec_filings(company="LLY")
+    assert out.get("status") != "entity_not_found"
+    assert "error" in out and "OPENBIONEWS_EDGAR_UA" in out["error"]
+    edgar._TICKERS_CACHE = None
+    with _patch(edgar, _edgar_router):                  # a real miss is still a miss
+        assert mcp_server.search_sec_filings(company="No Such Biotech")["status"] == "entity_not_found"
+
+
 # --- D. a successful-but-empty search is an explicit, citable negative -------- #
 def test_empty_search_returns_no_current_results():
     with _patch(openfda_shortages, {"results": []}):

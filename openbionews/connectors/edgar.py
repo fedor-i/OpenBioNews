@@ -64,16 +64,17 @@ def resolve_cik(name: str, user_agent: str | None = None) -> str | None:
     Returns None if nothing matches confidently — the caller then reports the
     entity as not found rather than silently falling back to a noisy full-text
     search (which is what let third-party filings leak in before).
+
+    Raises HTTPJSONError if SEC's registrant directory can't be fetched: an outage
+    or a refused request is not evidence that the company doesn't exist, so it must
+    not be reported as ``entity_not_found``.
     """
     if not name or not name.strip():
         return None
     raw = name.strip()
     if raw.isdigit():                                  # already a CIK
         return raw.zfill(10)
-    try:
-        rows = _load_tickers(user_agent)
-    except HTTPJSONError:
-        return None
+    rows = _load_tickers(user_agent)
     upper = raw.upper()
     for r in rows:                                     # exact ticker (e.g. VKTX)
         if r["ticker"] and r["ticker"] == upper:

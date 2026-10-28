@@ -16,7 +16,9 @@ or ranking modes. Feature ideas are still welcome as issues.
       salience Recall@7 reported daily and on every release (`benchmarks/`).
 - [x] **One ranking spec for Python and the website** — shared test cases both must pass
       (`tests/fixtures/ranking_vectors.json`).
-- [ ] Set a recall floor in `benchmarks/landmarks.json` once a baseline is established.
+- [x] Recall floor set (0.70; first live run scored 0.79 vs 0.05 for recency).
+- [ ] Investigate benchmark misses: osimertinib, nirsevimab (registered under code names?) and
+      pembrolizumab (thousands of trials — do landmarks reach the candidate pool?).
 - [ ] Align the two remaining differences: the approvals signal and Update-mode relevance.
 
 ## Primary sources (highest value)
