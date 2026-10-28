@@ -69,11 +69,16 @@ def parse_feed(content: bytes | str, source_name: str = "", topic: str = "") -> 
         default_title = _text(root.find("./{*}title")) or source_name
         for entry in root.findall("./{*}entry"):
             items.append(_atom_entry(entry, source_name or default_title, topic))
-    else:  # RSS (rss/channel/item, or rdf)
+    else:  # RSS 2.0 (rss/channel/item) or RSS 1.0 (rdf:RDF/item)
         channel = root.find("./{*}channel")
-        default_title = _text((channel or root).find("./{*}title")) or source_name
-        search_root = channel if channel is not None else root
-        for entry in search_root.findall(".//{*}item"):
+        # Not `channel or root`: an Element's truthiness is its child count (deprecated).
+        title_parent = channel if channel is not None else root
+        default_title = _text(title_parent.find("./{*}title")) or source_name
+        # Search the WHOLE document: RSS 1.0 (bioRxiv, medRxiv) puts <item> elements
+        # beside <channel> at the root, so a channel-scoped search finds none. Its
+        # channel holds only an <items> table of contents (rdf:Seq/rdf:li) — a
+        # different tag name, so nothing is double-counted.
+        for entry in root.findall(".//{*}item"):
             items.append(_rss_item(entry, source_name or default_title, topic))
     return [i for i in items if i.title and i.link]
 

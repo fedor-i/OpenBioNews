@@ -41,6 +41,16 @@ reproduced first and is pinned by a regression test that fails on 0.8.5.
 - Salience's `relevance_components` now lists only the four signals that feed the
   score (enrollment, phase, results-posted, maturity), not unweighted ones.
 
+### Fixed (feeds — issue #7)
+- **bioRxiv and medRxiv returned zero items.** Both are RSS 1.0 (`rdf:RDF`), where
+  `<item>` elements sit beside `<channel>` at the root; the parser only searched inside
+  `<channel>`, so the whole preprints bundle produced no stories. Items are now found
+  anywhere in the document (RSS 2.0 is unaffected). Also dropped a deprecated
+  ElementTree truth-test on the same line.
+- **`openbionews doctor` showed a reachable-but-empty feed as healthy** (green ✓ with
+  "0 items"), which is how #7 went unnoticed. A feed that parses to zero items is now
+  flagged as a problem.
+
 ### Fixed (website)
 - **Research mode corrupted Update mode's "new since your last visit" baseline**: the
   landmark trials it pulls from beyond the window were counted as new and written into

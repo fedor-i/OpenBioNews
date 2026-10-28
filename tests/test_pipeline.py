@@ -61,6 +61,51 @@ def test_parse_rss():
     assert it.topic == "biotech"
 
 
+# RSS 1.0 (RDF) as served by bioRxiv / medRxiv: <item>s are root children beside
+# <channel>, whose <items> holds only an rdf:Seq table of contents (issue #7).
+RSS1_SAMPLE = """<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel rdf:about="https://www.biorxiv.org">
+    <title>bioRxiv</title><link>https://www.biorxiv.org</link>
+    <items><rdf:Seq>
+      <rdf:li rdf:resource="https://www.biorxiv.org/content/1"/>
+      <rdf:li rdf:resource="https://www.biorxiv.org/content/2"/>
+    </rdf:Seq></items>
+  </channel>
+  <item rdf:about="https://www.biorxiv.org/content/1">
+    <title>Base editing restores HbF</title><link>https://www.biorxiv.org/content/1</link>
+    <dc:date>2026-09-30</dc:date>
+  </item>
+  <item rdf:about="https://www.biorxiv.org/content/2">
+    <title>A new CRISPR delivery vector</title><link>https://www.biorxiv.org/content/2</link>
+    <dc:date>2026-09-29</dc:date>
+  </item>
+</rdf:RDF>"""
+
+
+def test_parse_rss1_rdf_items_beside_channel():
+    items = fetch.parse_feed(RSS1_SAMPLE, "", "preprints")
+    assert [i.title for i in items] == ["Base editing restores HbF", "A new CRISPR delivery vector"]
+    assert items[0].source == "bioRxiv"                  # channel title used as default
+    assert items[0].published is not None              # dc:date parsed
+
+
+def test_doctor_flags_reachable_feed_with_zero_items():
+    import io
+    from contextlib import redirect_stdout
+    from openbionews import doctor
+    orig = fetch.fetch_feed
+    fetch.fetch_feed = lambda feed, timeout=15: []       # reachable, nothing parsed
+    try:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = doctor.run_doctor({"feeds": [{"name": "Empty", "url": "https://x/f"}]})
+    finally:
+        fetch.fetch_feed = orig
+    assert code == 1 and "0 items parsed" in buf.getvalue()
+
+
 def test_parse_atom():
     items = fetch.parse_feed(ATOM_SAMPLE, "Src", "science")
     assert len(items) == 1

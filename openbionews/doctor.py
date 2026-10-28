@@ -68,7 +68,14 @@ def run_doctor(cfg: dict, check_feeds: bool = True) -> int:
             name = feed.get("name") or feed.get("url", "?")
             try:
                 items = fetch.fetch_feed(feed, timeout=15)
-                print(f"  {OK} {name}: {len(items)} items")
+                if items:
+                    print(f"  {OK} {name}: {len(items)} items")
+                else:
+                    # Reachable but nothing parsed — almost always an unrecognised feed
+                    # format or a dead/moved feed, not a healthy one (see issue #7).
+                    print(f"  {BAD} {name}: reachable but 0 items parsed "
+                          "(unrecognised format, or the feed is empty/moved)")
+                    problems += 1
             except fetch.FetchError as exc:
                 print(f"  {BAD} {name}: {exc}")
                 problems += 1
