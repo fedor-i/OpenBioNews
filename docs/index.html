@@ -3084,47 +3084,65 @@ const I_AGENCIES=Object.keys(I_AG);   // every source the Insights digest gather
 // as the MCP tools: lexical match (normalised BM25) + recency + a per-source signal
 // (trial phase/status, recall severity, original vs supplemental approval, current
 // shortage). It only reorders records that already cite themselves; it invents nothing.
+// Shared scoring primitives. These must stay numerically identical to the MCP server
+// (openbionews/mcp_server.py) — tests/fixtures/ranking_vectors.json pins both sides.
+// Pivotal weighting: Phase 3 (registrational) > Phase 4 (post-marketing); a study
+// listing several phases takes its highest weight.
+const I_PHASE_W={PHASE3:1.0,PHASE4:0.8,PHASE2:0.6,PHASE1:0.35,EARLY_PHASE1:0.25,NA:0.3};
+function iPhaseWeight(phases){
+  const ws=(phases||[]).map(p=>I_PHASE_W[String(p).toUpperCase()]??0.3);
+  return ws.length?Math.max(...ws):0.3;
+}
+// 1 today, falling linearly to 0 at a year old; whole days, as the MCP server counts them.
+function iRecency(date){
+  if(!date) return 0;
+  const age=Math.floor((Date.now()-Date.parse(date))/864e5);
+  return age>=0?Math.max(0,1-age/365):0;
+}
+// Per-source "signal": recall severity, original vs supplemental approval, current shortage.
+// null = this source has no signal (Federal Register, PubMed, SEC).
+function iSignal(rec){
+  if(rec.agency==="recalls"){                  // Class I most serious (check III/II before I — substring)
+    const c=(rec.cls||"").toUpperCase();
+    return /CLASS III/.test(c)?0.3:/CLASS II/.test(c)?0.6:/CLASS I/.test(c)?1.0:0.5;
+  }
+  if(rec.agency==="approvals") return /—\s*FDA approval/.test(rec.title)?1.0:0.6;   // original approval > supplemental
+  if(rec.agency==="shortages") return /\(current\)/i.test(rec.title)?1.0:0.4;
+  return null;
+}
+// Deterministic relevance score for a record (0–1) — the same classical, no-LLM basis
+// as the MCP tools: lexical match (normalised BM25) + recency + a per-source signal
+// (trial phase/status, recall severity, original vs supplemental approval, current
+// shortage). It only reorders records that already cite themselves; it invents nothing.
 function iRelevanceScore(rec, bm, maxBm){
   const match = maxBm>0 ? Math.max(0,bm)/maxBm : 0;
-  let recency = 0;
-  if(rec.date){ const age=(Date.now()-Date.parse(rec.date))/864e5; if(age>=0) recency=Math.max(0,1-age/365); }
-  let signal = 0.5;
+  const recency = iRecency(rec.date);
+  let signal = iSignal(rec) ?? 0.5;
   if(rec.agency==="trials"){
-    const ph=(rec.phase||[]).map(p=>String(p).toUpperCase());
-    signal = ph.includes("PHASE3")?1.0:ph.includes("PHASE4")?0.8:ph.includes("PHASE2")?0.6:ph.includes("PHASE1")?0.35:0.3;  // pivotal: Phase 3 > Phase 4
+    signal = iPhaseWeight(rec.phase);
     if(/TERMINATED|WITHDRAWN|SUSPENDED/.test((rec.status||"").toUpperCase())) signal*=0.5;
-  } else if(rec.agency==="recalls"){           // Class I most serious (check III/II before I — substring)
-    const c=(rec.cls||"").toUpperCase();
-    signal = /CLASS III/.test(c)?0.3:/CLASS II/.test(c)?0.6:/CLASS I/.test(c)?1.0:0.5;
-  } else if(rec.agency==="approvals"){
-    signal = /—\s*FDA approval/.test(rec.title)?1.0:0.6;   // original approval > supplemental
-  } else if(rec.agency==="shortages"){
-    signal = /\(current\)/i.test(rec.title)?1.0:0.4;
   }
   return 0.5*match + 0.3*recency + 0.2*signal;
 }
 // Research mode: "what matters", not "what's new". Mirrors the MCP salience ranker —
 // for trials an equal blend of enrollment, phase, results-posted and maturity (recency
 // and keyword match dropped), validated against landmark-trial recall. Other sources
-// fall back to a signal-first blend. Deterministic, no LLM; only reorders cited records.
+// use the MCP's signal-first blend (signal .6 / recency .3 / match .1; recency .6 /
+// match .4 where a source has no signal). ``match`` is the record's normalised BM25
+// (0–1). Deterministic, no LLM; only reorders cited records.
 const I_MATURITY={COMPLETED:1.0,ACTIVE_NOT_RECRUITING:0.85,ENROLLING_BY_INVITATION:0.6,
   RECRUITING:0.6,NOT_YET_RECRUITING:0.3,SUSPENDED:0.3,TERMINATED:0.2,WITHDRAWN:0.1};
-function iSalienceScore(rec){
+function iSalienceScore(rec, match=0){
   if(rec.agency==="trials"){
-    const ph=(rec.phase||[]).map(p=>String(p).toUpperCase());
-    const phase=ph.includes("PHASE3")?1.0:ph.includes("PHASE4")?0.8:ph.includes("PHASE2")?0.6:ph.includes("PHASE1")?0.35:0.3;  // pivotal: Phase 3 > Phase 4
+    const phase=iPhaseWeight(rec.phase);
     const enr=Number(rec.enrollment)||0;
     const enrollment=enr>0?Math.min(1,Math.log10(enr+1)/Math.log10(5001)):0;
     const results=rec.hasResults?1:0;
     const maturity=I_MATURITY[(rec.status||"").toUpperCase()]??0.5;
     return (enrollment+phase+results+maturity)/4;
   }
-  let recency=0; if(rec.date){ const age=(Date.now()-Date.parse(rec.date))/864e5; if(age>=0) recency=Math.max(0,1-age/365); }
-  let signal=0.5;
-  if(rec.agency==="recalls"){ const c=(rec.cls||"").toUpperCase(); signal=/CLASS III/.test(c)?0.3:/CLASS II/.test(c)?0.6:/CLASS I/.test(c)?1.0:0.5; }
-  else if(rec.agency==="approvals"){ signal=/—\s*FDA approval/.test(rec.title)?1.0:0.6; }
-  else if(rec.agency==="shortages"){ signal=/\(current\)/i.test(rec.title)?1.0:0.4; }
-  return 0.7*signal + 0.3*recency;
+  const recency=iRecency(rec.date), signal=iSignal(rec);
+  return signal===null ? 0.6*recency+0.4*match : 0.6*signal+0.3*recency+0.1*match;
 }
 function renderInsights(){
   const box=$("insights"); box.innerHTML="";
@@ -3400,7 +3418,7 @@ function renderInsights(){
   // Research mode orders by importance (salience) alone; Update mode keeps new-first,
   // then relevance. aux "also tracked" cards sort to the end in both.
   const scoreOf = _research
-    ? i=>(recs[i].aux?-Infinity:iSalienceScore(recs[i]))
+    ? i=>(recs[i].aux?-Infinity:iSalienceScore(recs[i], maxBm>0?Math.max(0,bmScore.get(i))/maxBm:0))
     : i=>{ const bm=bmScore.get(i); return bm===-Infinity?-Infinity:iRelevanceScore(recs[i], bm, maxBm); };
   const cmp = _research
     ? (a,b)=>(scoreOf(b.i)-scoreOf(a.i)) || (b.r.date||"").localeCompare(a.r.date||"")

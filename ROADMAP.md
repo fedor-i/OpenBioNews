@@ -5,6 +5,20 @@ sources and feeds into a clean, cited daily brief. This is a living list —
 [open an issue](https://github.com/fedor-i/OpenBioNews/issues) to propose or
 claim something.
 
+## Current focus: stabilise 0.8.x
+Most 0.8.x patch releases fixed results that were quietly wrong rather than
+adding features. Until the daily live checks and the landmark benchmark have been
+green for a few weeks, releases are **correctness-only** — no new tools, sources
+or ranking modes. Feature ideas are still welcome as issues.
+
+- [x] Daily **live API contract checks** for every MCP tool (`tests/live/check_live.py`).
+- [x] **Landmark-trial benchmark** in the repo — 20 drugs, 43 trials, 10 therapeutic areas;
+      salience Recall@7 reported daily and on every release (`benchmarks/`).
+- [x] **One ranking spec for Python and the website** — shared test cases both must pass
+      (`tests/fixtures/ranking_vectors.json`).
+- [ ] Set a recall floor in `benchmarks/landmarks.json` once a baseline is established.
+- [ ] Align the two remaining differences: the approvals signal and Update-mode relevance.
+
 ## Primary sources (highest value)
 - [x] **openFDA drug approvals** (Drugs@FDA) — new + supplemental approvals.
 - [x] **openFDA drug shortages** — current/resolved shortages.

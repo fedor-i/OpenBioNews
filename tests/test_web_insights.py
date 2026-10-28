@@ -591,7 +591,7 @@ def test_update_vs_research_mode_toggle():
     assert "hasResults:!!st.hasResults" in js, "normTrial no longer captures hasResults"
     assert "EnrollmentCount" in js and "HasResults" in js, "CT fetch doesn't request the salience fields"
     # the Sources list must switch comparator by mode
-    assert "iModeVal()" in js and "iSalienceScore(recs[i])" in js, "sources list not wired to research mode"
+    assert "iModeVal()" in js and "iSalienceScore(recs[i]," in js, "sources list not wired to research mode"
 
 
 def test_research_mode_does_not_pollute_the_whats_new_baseline():

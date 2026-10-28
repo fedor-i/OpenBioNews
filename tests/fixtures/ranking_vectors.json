@@ -1,0 +1,35 @@
+{
+  "about": "Shared scoring spec for the MCP server (openbionews/mcp_server.py) and the website (docs/index.html). tests/test_ranking_parity.py feeds every case to BOTH implementations and checks each against `expected`, so the two can't drift apart. Change a weight on purpose -> update the expected values here, and both implementations must follow.",
+  "tolerance": 0.0005,
+  "trial_salience": {
+    "formula": "mean(enrollment, phase, results_posted, maturity); enrollment = min(1, log10(n+1)/log10(5001)); phase = max over listed phases",
+    "cases": [
+      {"name": "large completed Phase 3 with results (SELECT-like)", "phases": ["PHASE3"], "enrollment": 17604, "status": "COMPLETED", "has_results": true, "expected": 1.0},
+      {"name": "small recruiting Phase 4", "phases": ["PHASE4"], "enrollment": 120, "status": "RECRUITING", "has_results": false, "expected": 0.4908},
+      {"name": "combined Phase 2/3 takes the higher weight", "phases": ["PHASE2", "PHASE3"], "enrollment": 600, "status": "ACTIVE_NOT_RECRUITING", "has_results": false, "expected": 0.6503},
+      {"name": "early Phase 1 is below Phase 1", "phases": ["EARLY_PHASE1"], "enrollment": 20, "status": "NOT_YET_RECRUITING", "has_results": false, "expected": 0.2269},
+      {"name": "no phase, no enrollment, unknown status", "phases": ["NA"], "enrollment": 0, "status": "UNKNOWN", "has_results": false, "expected": 0.2},
+      {"name": "terminated Phase 3 with results", "phases": ["PHASE3"], "enrollment": 900, "status": "TERMINATED", "has_results": true, "expected": 0.7497}
+    ]
+  },
+  "generic_salience": {
+    "formula": "with a source signal: 0.6*signal + 0.3*recency + 0.1*match; without: 0.6*recency + 0.4*match. recency = max(0, 1 - whole_days_old/365)",
+    "cases": [
+      {"name": "Class I recall, 30 days old", "source": "recalls", "classification": "Class I", "age_days": 30, "match": 0, "expected": 0.8753},
+      {"name": "Class III recall, 30 days old", "source": "recalls", "classification": "Class III", "age_days": 30, "match": 0, "expected": 0.4553},
+      {"name": "Class II recall, over a year old", "source": "recalls", "classification": "Class II", "age_days": 400, "match": 0, "expected": 0.36},
+      {"name": "unclassified recall, today", "source": "recalls", "classification": "", "age_days": 0, "match": 0, "expected": 0.6},
+      {"name": "Class I recall with a full query match", "source": "recalls", "classification": "Class I", "age_days": 30, "match": 1, "expected": 0.9753},
+      {"name": "current shortage", "source": "shortages", "status": "Current", "age_days": 10, "match": 0, "expected": 0.8918},
+      {"name": "resolved shortage", "source": "shortages", "status": "Resolved", "age_days": 10, "match": 0, "expected": 0.5318},
+      {"name": "publication, no query match", "source": "pubmed", "age_days": 100, "match": 0, "expected": 0.4356},
+      {"name": "publication, half the query terms", "source": "pubmed", "age_days": 100, "match": 0.5, "expected": 0.6356},
+      {"name": "publication, full query match", "source": "pubmed", "age_days": 100, "match": 1, "expected": 0.8356},
+      {"name": "Federal Register notice over a year old", "source": "federal_register", "age_days": 500, "match": 0, "expected": 0.0}
+    ]
+  },
+  "known_divergences": [
+    "Approvals signal: the MCP server scores priority review (1.0 vs 0.5) from openFDA's submission data; the website scores original approval vs supplement (1.0 vs 0.6) from its card title. Different inputs, so approvals are not in these cases.",
+    "Relevance mode (rank_by=relevance / the website's Update mode): the MCP server measures match as the share of query terms a record contains; the website uses BM25 normalised across the records on the page. Only the salience blends are pinned here."
+  ]
+}

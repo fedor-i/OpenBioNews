@@ -34,6 +34,17 @@ pytest
 CI runs these on Linux, macOS and Windows across Python 3.9–3.12. Please make
 sure `python3 tests/test_pipeline.py` passes before opening a PR.
 
+**Changing a ranking weight?** The MCP server (Python) and the website
+(JavaScript) implement the same scores. `tests/fixtures/ranking_vectors.json` is
+the shared spec: update its expected values, change both implementations, and
+run `python3 tests/test_ranking_parity.py` (needs Node for the website half).
+
+**Live checks.** `python3 tests/live/check_live.py` calls the real APIs and checks
+that every tool still gets the fields it relies on; `python3 benchmarks/run_landmarks.py`
+scores salience ranking against known landmark trials. Both need the network and
+run daily in CI (`.github/workflows/live.yml`), so you don't have to run them for
+every PR — but do if you touch a connector or the ranking.
+
 ## Adding a primary-source connector
 
 Connectors are the highest-value contributions. See

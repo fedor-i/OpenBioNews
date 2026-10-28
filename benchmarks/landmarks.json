@@ -1,0 +1,70 @@
+{
+  "about": "Landmark-trial benchmark for rank_by=\"salience\". For each drug, the trials an informed reader would expect near the top: pivotal Phase 3 / outcomes trials that changed practice or led to approval. Each entry's `expect` tokens must appear in the registry record's acronym or title — run_landmarks.py checks that first, so a wrong NCT ID is reported instead of silently counting as a miss. Spread across therapeutic areas on purpose, so weights tuned to one area don't look better than they are.",
+  "k": 7,
+  "min_recall_at_k": null,
+  "drugs": [
+    {"drug": "semaglutide", "area": "cardiometabolic", "trials": [
+      {"nct": "NCT03574597", "name": "SELECT", "expect": ["SELECT"]},
+      {"nct": "NCT01720446", "name": "SUSTAIN-6", "expect": ["SUSTAIN"]},
+      {"nct": "NCT03548935", "name": "STEP 1", "expect": ["STEP"]},
+      {"nct": "NCT03819153", "name": "FLOW", "expect": ["FLOW"]}]},
+    {"drug": "tirzepatide", "area": "cardiometabolic", "trials": [
+      {"nct": "NCT04184622", "name": "SURMOUNT-1", "expect": ["SURMOUNT"]},
+      {"nct": "NCT03987919", "name": "SURPASS-2", "expect": ["SURPASS"]},
+      {"nct": "NCT04255433", "name": "SURPASS-CVOT", "expect": ["SURPASS"]}]},
+    {"drug": "inclisiran", "area": "cardiometabolic", "trials": [
+      {"nct": "NCT03399370", "name": "ORION-10", "expect": ["ORION"]},
+      {"nct": "NCT03400800", "name": "ORION-11", "expect": ["ORION"]},
+      {"nct": "NCT03705234", "name": "ORION-4", "expect": ["ORION"]}]},
+    {"drug": "dapagliflozin", "area": "cardiorenal", "trials": [
+      {"nct": "NCT03036124", "name": "DAPA-HF", "expect": ["DAPA-HF", "heart failure"]},
+      {"nct": "NCT01730534", "name": "DECLARE-TIMI 58", "expect": ["DECLARE"]},
+      {"nct": "NCT03036150", "name": "DAPA-CKD", "expect": ["DAPA-CKD", "kidney"]},
+      {"nct": "NCT03619213", "name": "DELIVER", "expect": ["DELIVER"]}]},
+    {"drug": "empagliflozin", "area": "cardiorenal", "trials": [
+      {"nct": "NCT01131676", "name": "EMPA-REG OUTCOME", "expect": ["EMPA-REG", "cardiovascular outcome"]},
+      {"nct": "NCT03057977", "name": "EMPEROR-Reduced", "expect": ["EMPEROR"]},
+      {"nct": "NCT03057951", "name": "EMPEROR-Preserved", "expect": ["EMPEROR"]},
+      {"nct": "NCT03594110", "name": "EMPA-KIDNEY", "expect": ["EMPA-KIDNEY", "kidney"]}]},
+    {"drug": "finerenone", "area": "cardiorenal", "trials": [
+      {"nct": "NCT02540993", "name": "FIDELIO-DKD", "expect": ["FIDELIO"]},
+      {"nct": "NCT02545049", "name": "FIGARO-DKD", "expect": ["FIGARO"]}]},
+    {"drug": "evolocumab", "area": "cardiometabolic", "trials": [
+      {"nct": "NCT01764633", "name": "FOURIER", "expect": ["FOURIER"]}]},
+    {"drug": "bempedoic acid", "area": "cardiometabolic", "trials": [
+      {"nct": "NCT02993406", "name": "CLEAR Outcomes", "expect": ["CLEAR"]}]},
+    {"drug": "mavacamten", "area": "cardiology", "trials": [
+      {"nct": "NCT03470545", "name": "EXPLORER-HCM", "expect": ["EXPLORER"]},
+      {"nct": "NCT04349072", "name": "VALOR-HCM", "expect": ["VALOR"]}]},
+    {"drug": "tafamidis", "area": "rare disease", "trials": [
+      {"nct": "NCT01994889", "name": "ATTR-ACT", "expect": ["ATTR-ACT", "cardiomyopathy"]}]},
+    {"drug": "sotatercept", "area": "pulmonary hypertension", "trials": [
+      {"nct": "NCT04576988", "name": "STELLAR", "expect": ["STELLAR"]}]},
+    {"drug": "lecanemab", "area": "neurology", "trials": [
+      {"nct": "NCT03887455", "name": "Clarity AD", "expect": ["Clarity"]}]},
+    {"drug": "donanemab", "area": "neurology", "trials": [
+      {"nct": "NCT04437511", "name": "TRAILBLAZER-ALZ 2", "expect": ["TRAILBLAZER"]},
+      {"nct": "NCT03367403", "name": "TRAILBLAZER-ALZ", "expect": ["TRAILBLAZER"]}]},
+    {"drug": "nusinersen", "area": "rare disease", "trials": [
+      {"nct": "NCT02193074", "name": "ENDEAR", "expect": ["ENDEAR", "infantile"]},
+      {"nct": "NCT02292537", "name": "CHERISH", "expect": ["CHERISH", "later-onset"]}]},
+    {"drug": "osimertinib", "area": "oncology", "trials": [
+      {"nct": "NCT02296125", "name": "FLAURA", "expect": ["FLAURA"]},
+      {"nct": "NCT02511106", "name": "ADAURA", "expect": ["ADAURA"]}]},
+    {"drug": "trastuzumab deruxtecan", "area": "oncology", "trials": [
+      {"nct": "NCT03529110", "name": "DESTINY-Breast03", "expect": ["DESTINY-Breast03"]},
+      {"nct": "NCT03734029", "name": "DESTINY-Breast04", "expect": ["DESTINY-Breast04"]}]},
+    {"drug": "pembrolizumab", "area": "oncology", "trials": [
+      {"nct": "NCT02578680", "name": "KEYNOTE-189", "expect": ["KEYNOTE-189"]},
+      {"nct": "NCT02142738", "name": "KEYNOTE-024", "expect": ["KEYNOTE-024"]},
+      {"nct": "NCT03036488", "name": "KEYNOTE-522", "expect": ["KEYNOTE-522"]}]},
+    {"drug": "dupilumab", "area": "immunology", "trials": [
+      {"nct": "NCT02277743", "name": "SOLO 1", "expect": ["SOLO"]},
+      {"nct": "NCT02277769", "name": "SOLO 2", "expect": ["SOLO"]},
+      {"nct": "NCT02414854", "name": "LIBERTY ASTHMA QUEST", "expect": ["QUEST"]}]},
+    {"drug": "resmetirom", "area": "hepatology", "trials": [
+      {"nct": "NCT03900429", "name": "MAESTRO-NASH", "expect": ["MAESTRO"]}]},
+    {"drug": "nirsevimab", "area": "infectious disease", "trials": [
+      {"nct": "NCT03979313", "name": "MELODY", "expect": ["MELODY"]}]}
+  ]
+}

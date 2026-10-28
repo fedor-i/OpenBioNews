@@ -1,0 +1,89 @@
+name: Live API checks
+
+# The main CI runs on saved sample payloads, so it can't see an agency changing its
+# API under us. This workflow calls the real APIs: a contract check of every MCP tool
+# and the landmark-trial benchmark for salience ranking. It runs daily, on every
+# release, and whenever the checks themselves change.
+on:
+  schedule:
+    - cron: "17 5 * * *"        # daily, 05:17 UTC
+  release:
+    types: [published]
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tests/live/**"
+      - "benchmarks/**"
+      - ".github/workflows/live.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # SEC asks for a contact in the User-Agent. Set a repository variable EDGAR_UA
+  # (Settings → Secrets and variables → Actions → Variables) to use your own.
+  OPENBIONEWS_EDGAR_UA: ${{ vars.EDGAR_UA || 'OpenBioNews-CI (+https://github.com/fedor-i/OpenBioNews)' }}
+
+jobs:
+  contract:
+    name: API contract checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check every MCP tool against the live APIs
+        run: python tests/live/check_live.py
+
+  landmarks:
+    name: Landmark benchmark (salience Recall@k)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Score salience ranking against the landmark trials
+        run: python benchmarks/run_landmarks.py --out landmark-results.json
+      - name: Keep the per-drug results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: landmark-results
+          path: landmark-results.json
+          if-no-files-found: ignore
+
+  # A failed scheduled run opens (or comments on) one tracking issue, so a broken
+  # upstream contract is noticed even when nobody is watching the Actions tab.
+  report:
+    name: Report scheduled failure
+    needs: [contract, landmarks]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Live API check failing"
+          num=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          body="The scheduled live check failed: $RUN_URL
+
+          See the run summary for which check broke. A FAIL means an upstream API no longer returns what OpenBioNews relies on; UNREACHABLE alone does not fail the run."
+          if [ -n "$num" ]; then
+            gh issue comment "$num" --body "Still failing: $RUN_URL"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

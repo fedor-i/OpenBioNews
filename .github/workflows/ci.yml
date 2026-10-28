@@ -32,6 +32,10 @@ jobs:
         run: python tests/test_web_insights.py
       - name: Run the MCP server tool tests (standard library only)
         run: python tests/test_mcp.py
+      - name: Check the MCP and website rankings agree (shared spec, needs Node)
+        env:
+          OBN_REQUIRE_NODE: "1"
+        run: python tests/test_ranking_parity.py
       - name: Verify the package installs and the CLI runs
         run: |
           pip install .

@@ -52,6 +52,22 @@ same pipeline.
 - **One backend interface.** Adding a new LLM provider means writing one class
   with a `summarize(cluster)` method and registering it in `llm/__init__.py`.
 
+## How correctness is checked
+
+Three layers, because the failures that matter here are quiet ones — a search that
+returns fewer or worse results without raising an error:
+
+1. **Unit tests on saved payloads** (`tests/`) — fast, offline, run on every push
+   across Linux/macOS/Windows. They pin parsing, filtering, paging and scoring.
+2. **Ranking parity** (`tests/test_ranking_parity.py`) — the MCP server and the
+   website each implement salience scoring; one set of expected values in
+   `tests/fixtures/ranking_vectors.json` is checked against both, so they can't drift.
+3. **Live checks** (`.github/workflows/live.yml`, daily and on release) — the
+   contract checks (`tests/live/check_live.py`) call every tool against the real
+   APIs and verify the fields we depend on are still filled in; the landmark
+   benchmark (`benchmarks/run_landmarks.py`) measures salience Recall@7 over 43
+   landmark trials in 10 therapeutic areas. A failed scheduled run opens an issue.
+
 ## Adding an LLM backend
 
 1. Create `openbionews/llm/mybackend.py` with a class extending

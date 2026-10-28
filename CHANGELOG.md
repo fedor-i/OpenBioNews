@@ -6,6 +6,32 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+No package changes — this is about knowing when results go wrong.
+
+### Added
+- **Daily live API checks** (`.github/workflows/live.yml`). The unit tests use saved
+  payloads, so they can't see an agency changing its API — the failure mode behind the
+  0.8.4 enrollment bug. `tests/live/check_live.py` calls every MCP tool for real and
+  checks that the fields each relies on are still filled in, that filters (phase,
+  recency window, SEC entity scoping) are honoured, that an unknown product is still a
+  citable negative, and that SELECT is still in semaglutide's salience top 20. An outage
+  is reported as UNREACHABLE without failing; a broken contract fails, and a failed
+  scheduled run opens a tracking issue.
+- **Landmark benchmark** (`benchmarks/`): 43 landmark trials for 20 drugs across 10
+  therapeutic areas, scored as salience Recall@7 against the recency baseline, daily
+  and on every release. The gold set verifies itself against the registry first, so a
+  wrong NCT ID is reported as a data error, not a ranking miss.
+- **Shared ranking spec** (`tests/fixtures/ranking_vectors.json`,
+  `tests/test_ranking_parity.py`): the same cases are scored by the MCP server and by
+  the website's JavaScript (via Node, in CI), so the two can't drift apart.
+
+### Fixed (website)
+- The parity check found three places the website's Research mode didn't match the MCP
+  server: Early Phase 1 trials scored as an unknown phase (0.3, not 0.25); non-trial
+  sources used a different blend (0.7·signal + 0.3·recency, ignoring keyword match,
+  instead of the MCP's 0.6/0.3/0.1, and 0.6·recency + 0.4·match where a source has no
+  signal); and record age was counted in fractional days rather than whole days.
+
 ## [0.8.6] — 2026-10-28
 
 A full revision pass over the MCP tools and the hosted page. Every fix below was
