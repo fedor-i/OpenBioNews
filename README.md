@@ -330,11 +330,12 @@ The output is shaped for LLM callers:
   error, so the negative stays trustworthy.
 - **Provenance on every block** — `endpoint`, `retrieved_at`, `as_of`.
 - **A relevance signal, and a filter** — each result carries `match: {terms, where}`
-  showing which query terms actually hit and where. `search_clinical_trials` and
-  `search_pubmed` go further and **drop** strays by default (`require_match=true`):
-  a study the registry returns for a different drug, where the query term appears in
-  no field, is removed. Set `require_match=false` to see everything and filter
-  yourself via `match`.
+  showing which query terms actually hit and where. `search_clinical_trials` goes
+  further and **drops** strays by default (`require_match=true`): a study the registry
+  returns for a different drug, where the query term appears in no field, is removed.
+  Set `require_match=false` to see everything and filter yourself via `match`.
+  `search_pubmed` has the option too but leaves it **off** by default: PubMed matches
+  on abstracts and MeSH terms the tool doesn't fetch, so its `match` only sees titles.
 - **SEC entity scoping** — `search_sec_filings` has two modes. Give `company` (a name,
   ticker, or raw CIK; `query` optional) and it resolves the subject to its CIK and
   returns only that registrant's *own* filings — so a fund's 13F or an NPORT-P that

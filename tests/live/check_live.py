@@ -187,7 +187,10 @@ def check_federal_register():
 def check_pubmed():
     out = call(ms.search_pubmed, query="semaglutide", recent_days=90, limit=10)
     res = out["results"]
-    need(res, "no semaglutide papers in 90 days")
+    # Hundreds of semaglutide papers appear every 90 days, so a short page means
+    # results are being dropped (as when require_match filtered on titles only).
+    need(len(res) == 10, f"only {len(res)} of 10 semaglutide papers in 90 days "
+                         f"(status={out.get('status')!r})")
     need(share(res, lambda r: r["facts"].get("pmid")) == 1.0, "PMID missing")
     need(share(res, lambda r: "pubmed.ncbi.nlm.nih.gov" in r["source"]["url"]) == 1.0, "citation is not a PubMed URL")
     return f"{len(res)} papers"

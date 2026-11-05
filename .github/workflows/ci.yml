@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Weekly, so a test that depends on today's date fails here instead of
+  # surprising the next contributor (two did, unnoticed, in 0.8.6).
+  schedule:
+    - cron: "41 6 * * 1"
 
 permissions:
   contents: read

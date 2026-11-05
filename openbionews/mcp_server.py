@@ -636,13 +636,18 @@ def search_fda_labeling(query: str, limit: int = 10, verbose: bool = False) -> d
 
 
 def search_pubmed(query: str, recent_days: int = 365, limit: int = 10, offset: int = 0,
-                  since: str | None = None, require_match: bool = True,
+                  since: str | None = None, require_match: bool = False,
                   rank_by: RankBy = "recency", verbose: bool = False) -> dict:
     """Search PubMed (NCBI E-utilities) for recent biomedical literature matching
-    ``query``. ``since``/``offset``/``require_match``/``rank_by`` and a per-result
-    ``relevance_score`` work as on search_clinical_trials (``require_match`` defaults
-    true to drop loose-keyword strays). Each result cites its PubMed record (and DOI
-    when present)."""
+    ``query``. ``since``/``offset``/``rank_by`` and a per-result ``relevance_score``
+    work as on search_clinical_trials. Each result cites its PubMed record (and DOI
+    when present).
+
+    ``require_match`` defaults to **false** here, unlike the trials tool: PubMed
+    matches on the abstract and MeSH index terms, which this tool doesn't fetch, so a
+    local keyword check would wrongly drop genuine hits whose title doesn't name the
+    query (once it dropped every result and reported "no current results"). Set it
+    true to keep only papers whose title names the query term."""
     _, rb, cap = _rank_cap(rank_by, offset + limit)
     cfg = {"recent_days": recent_days, "max_total": cap, "max_per_query": cap}
     return _search(PubMedConnector, terms=_as_list(query), cfg=cfg,

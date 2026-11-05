@@ -568,9 +568,10 @@ APPROVAL_FIXTURE = {"results": [{
 
 
 def test_openfda_approvals_parse():
-    from datetime import timedelta
     from openbionews.connectors.openfda_approvals import parse_approvals
-    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    # A fixed cutoff (not "90 days ago"): the fixture's dates are fixed too, and a
+    # moving cutoff made this test start failing on its own once they aged out.
+    cutoff = datetime(2026, 6, 1, tzinfo=timezone.utc)
     items = parse_approvals(APPROVAL_FIXTURE, cutoff=cutoff)
     assert len(items) == 1                      # only the recent approved ORIG
     it = items[0]

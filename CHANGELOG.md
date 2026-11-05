@@ -6,6 +6,26 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.7] — 2026-11-05
+
+### Fixed (MCP)
+- **`search_pubmed` dropped most real results, and once reported a false
+  `no_current_results`.** PubMed matches a query against the abstract and MeSH index
+  terms, but the tool fetches only the title, authors and journal. Its keyword check
+  (`require_match`, on by default) therefore dropped every paper whose *title* didn't
+  name the query: usually 5–8 of 10 results, and on 2026-11-05 all of them, so a search
+  for semaglutide reported "no current results" for the last 90 days. `require_match` now
+  defaults to off for PubMed, whose own search is already precise; it stays on for
+  ClinicalTrials.gov, where the registry does return unrelated studies. Caught by the
+  daily live check, which now also requires a full page of semaglutide papers.
+
+### Fixed (tests)
+- **Fixture dates aged out of the tools' recency windows**, so two MCP tests started
+  failing on their own on 2026-10-30, and an approvals test would have from 2026-12-26.
+  Fixture dates now move with the calendar, and the suite was checked with the clock
+  set as far ahead as 2028. CI also runs weekly now, so a date-dependent failure shows
+  up without waiting for a push.
+
 Mostly about knowing when results go wrong; the one package fix the live checks found
 is listed under 0.8.6 (not yet released).
 

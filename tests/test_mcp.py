@@ -11,7 +11,7 @@ Runs with pytest or directly (``python tests/test_mcp.py``).
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -23,6 +23,24 @@ from openbionews.connectors import (
 )
 from openbionews.httputil import HTTPJSONError
 from openbionews.models import Citation, Item
+
+
+# Fixture dates are written as if today were 2026-10-20 and shifted forward by however
+# long it has really been since, so records stay inside the tools' recency windows.
+# (Fixed dates made tests start failing on their own once they aged out of a window.)
+_ANCHOR = date(2026, 10, 20)
+_DELTA = datetime.now(timezone.utc).date() - _ANCHOR
+
+
+def _shift(d: str) -> str:
+    """Shift a fixture date ("YYYY-MM-DD" or openFDA's "YYYYMMDD") by _DELTA."""
+    fmt = "%Y%m%d" if "-" not in d else "%Y-%m-%d"
+    return (datetime.strptime(d, fmt).date() + _DELTA).strftime(fmt)
+
+
+def _pubdate(d: str) -> str:
+    """PubMed's "2026 Sep 15" form of a shifted fixture date."""
+    return datetime.strptime(_shift(d), "%Y-%m-%d").strftime("%Y %b %d")
 
 
 def _ct_study(nct, title, date, phase="PHASE3", enrollment=120,
@@ -41,35 +59,35 @@ def _ct_study(nct, title, date, phase="PHASE3", enrollment=120,
 
 
 # ---- canned upstream payloads (same JSON shapes the real APIs return) ------- #
-CT = {"studies": [_ct_study("NCT0001", "CRISPR base editing study", "2026-10-01")]}
+CT = {"studies": [_ct_study("NCT0001", "CRISPR base editing study", _shift("2026-10-01"))]}
 CT_MANY = {"studies": [
-    _ct_study("NCT_A", "Study A", "2026-10-10"),
-    _ct_study("NCT_B", "Study B", "2026-10-05"),
-    _ct_study("NCT_C", "Study C", "2026-08-01"),
+    _ct_study("NCT_A", "Study A", _shift("2026-10-10")),
+    _ct_study("NCT_B", "Study B", _shift("2026-10-05")),
+    _ct_study("NCT_C", "Study C", _shift("2026-08-01")),
 ]}
 CT_PHASES = {"studies": [
-    _ct_study("NCT_P1", "Early study", "2026-10-01", phase="PHASE1"),
-    _ct_study("NCT_P3", "Pivotal study", "2026-10-01", phase="PHASE3"),
+    _ct_study("NCT_P1", "Early study", _shift("2026-10-01"), phase="PHASE1"),
+    _ct_study("NCT_P3", "Pivotal study", _shift("2026-10-01"), phase="PHASE3"),
 ]}
 RECALLS = {"results": [{
     "recall_number": "D-1111-2026", "product_description": "Injectable 10 mg/mL",
     "recalling_firm": "Insilico", "reason_for_recall": "Contamination risk.",
-    "classification": "Class I", "status": "Ongoing", "report_date": "20261001",
+    "classification": "Class I", "status": "Ongoing", "report_date": _shift("20261001"),
     "openfda": {"brand_name": ["Injectacin"]}}]}
 APPROVALS = {"results": [{
     "application_number": "BLA761000", "sponsor_name": "BEAM THERAPEUTICS",
     "openfda": {"brand_name": ["EDITACEL"], "generic_name": ["examplecel"]},
     "submissions": [{"submission_status": "AP", "submission_type": "ORIG",
-                     "submission_status_date": "20261001", "submission_number": "1",
+                     "submission_status_date": _shift("20261001"), "submission_number": "1",
                      "submission_class_code": "EFFICACY"}]}]}
 SHORTAGES = {"results": [{
     "proprietary_name": ["Injectacin"], "generic_name": ["examplecin"],
     "company_name": "Insilico", "status": "Current",
-    "reason_for_shortage": "Demand increase.", "update_date": "2026-10-01",
+    "reason_for_shortage": "Demand increase.", "update_date": _shift("2026-10-01"),
     "openfda": {}}]}
 EDGAR = {"hits": {"hits": [{"_id": "0001-26-000001:filing.htm", "_source": {
     "ciks": ["0001628280"], "display_names": ["BEAM THERAPEUTICS INC (RXRX)"],
-    "root_form": "8-K", "file_date": "2026-10-01",
+    "root_form": "8-K", "file_date": _shift("2026-10-01"),
     "file_description": "Material agreement on a collaboration."}}]}}
 # SEC's registrant directory (name/ticker -> CIK), as company_tickers.json returns it.
 TICKERS = {
@@ -80,7 +98,7 @@ TICKERS = {
 VIKING_SUBMISSIONS = {"cik": "1607678", "name": "Viking Therapeutics, Inc.",
     "filings": {"recent": {
         "form": ["8-K", "10-Q"],
-        "filingDate": ["2026-10-10", "2026-09-30"],
+        "filingDate": [_shift("2026-10-10"), _shift("2026-09-30")],
         "accessionNumber": ["0001607678-26-000045", "0001607678-26-000040"],
         "primaryDocument": ["vktx-8k.htm", "vktx-10q.htm"],
         "primaryDocDescription": ["Current report", "Quarterly report"]}}}
@@ -93,12 +111,12 @@ LABELS = {"results": [{
 FEDREG = {"results": [{
     "title": "Guidance for Industry; Availability", "type": "Notice",
     "html_url": "https://www.federalregister.gov/documents/2026/10/01/2026-9/g",
-    "publication_date": "2026-10-01", "document_number": "2026-9",
+    "publication_date": _shift("2026-10-01"), "document_number": "2026-9",
     "agencies": [{"name": "Food and Drug Administration"}]}]}
 PM_SEARCH = {"esearchresult": {"idlist": ["40000001"]}}
 PM_SUMMARY = {"result": {"uids": ["40000001"], "40000001": {
     "title": "Base editing in sickle cell disease.", "source": "N Engl J Med",
-    "pubdate": "2026 Sep 15", "authors": [{"name": "Smith J"}],
+    "pubdate": _pubdate("2026-09-15"), "authors": [{"name": "Smith J"}],
     "articleids": [{"idtype": "doi", "value": "10.1056/ex"}]}}}
 def _pubmed_fake(url, *a, **k):
     return PM_SUMMARY if "esummary" in url else PM_SEARCH
@@ -215,17 +233,17 @@ def test_phase_normalisation():
 
 
 CT_LEAK = {"studies": [
-    _ct_study("NCT_TZP", "Tirzepatide for obesity", "2026-10-05"),
-    _ct_study("NCT_SEC", "Secukinumab for psoriasis", "2026-10-06"),
+    _ct_study("NCT_TZP", "Tirzepatide for obesity", _shift("2026-10-05")),
+    _ct_study("NCT_SEC", "Secukinumab for psoriasis", _shift("2026-10-06")),
 ]}
 
 
 # A substantial phase-3 study (older) vs. a tiny phase-1 pilot (newer): recency and
 # relevance disagree, so ranking order is a real signal, not an artifact of dates.
 CT_RANK = {"studies": [
-    _ct_study("NCT_HI", "Aspirin cardiovascular outcomes", "2026-09-01",
+    _ct_study("NCT_HI", "Aspirin cardiovascular outcomes", _shift("2026-09-01"),
               phase="PHASE3", enrollment=2000),
-    _ct_study("NCT_LO", "Aspirin pilot study", "2026-10-18",
+    _ct_study("NCT_LO", "Aspirin pilot study", _shift("2026-10-18"),
               phase="PHASE1", enrollment=20),
 ]}
 
@@ -251,9 +269,9 @@ def test_rank_by_relevance_reorders_vs_recency():
 # A large mature Phase-3 trial updated outside the 90-day window vs. a small recent
 # Phase-1 one: recency/relevance surface the small recent; salience surfaces the big one.
 CT_SALIENCE = {"studies": [
-    _ct_study("NCT_BIG", "Semaglutide cardiovascular outcomes", "2026-05-01",
+    _ct_study("NCT_BIG", "Semaglutide cardiovascular outcomes", _shift("2026-05-01"),
               phase="PHASE3", enrollment=1024),
-    _ct_study("NCT_SMALL", "Semaglutide pilot dose study", "2026-10-18",
+    _ct_study("NCT_SMALL", "Semaglutide pilot dose study", _shift("2026-10-18"),
               phase="PHASE1", enrollment=40),
 ]}
 
@@ -285,8 +303,8 @@ def test_salience_widens_candidate_pool():
 # The recency pass never sees the landmark; the enrollment pass does.
 _SELECT = _ct_study("NCT_SELECT", "Semaglutide SELECT cardiovascular outcomes",
                     "2024-08-01", phase="PHASE3", enrollment=17604)
-_SMALL_A = _ct_study("NCT_SA", "Semaglutide pilot A", "2026-10-10", phase="PHASE1", enrollment=30)
-_SMALL_B = _ct_study("NCT_SB", "Semaglutide pilot B", "2026-10-09", phase="PHASE2", enrollment=60)
+_SMALL_A = _ct_study("NCT_SA", "Semaglutide pilot A", _shift("2026-10-10"), phase="PHASE1", enrollment=30)
+_SMALL_B = _ct_study("NCT_SB", "Semaglutide pilot B", _shift("2026-10-09"), phase="PHASE2", enrollment=60)
 
 
 def _ct_sort_router(url, *a, **k):
@@ -313,7 +331,7 @@ def test_salience_pivotal_outcomes_beats_recent_phase4():
     pivotal = _ct_study("NCT_PIVOTAL", "Semaglutide SELECT cardiovascular outcomes",
                         "2024-08-01", phase="PHASE3", enrollment=17000,
                         status="COMPLETED", has_results=True)
-    recent_p4 = _ct_study("NCT_P4", "Semaglutide label-expansion study", "2026-10-15",
+    recent_p4 = _ct_study("NCT_P4", "Semaglutide label-expansion study", _shift("2026-10-15"),
                           phase="PHASE4", enrollment=60, status="RECRUITING")
 
     def router(url, *a, **k):
@@ -333,9 +351,9 @@ def test_salience_pivotal_outcomes_beats_recent_phase4():
 def test_salience_phase3_outranks_phase4_when_otherwise_equal():
     # Pivotal weighting: with identical enrollment/results/maturity, the registrational
     # Phase 3 must outrank the post-marketing Phase 4 (the fix that took recall to 1.0).
-    p3 = _ct_study("NCT_P3", "Drug pivotal outcomes", "2026-01-01", phase="PHASE3",
+    p3 = _ct_study("NCT_P3", "Drug pivotal outcomes", _shift("2026-01-01"), phase="PHASE3",
                    enrollment=1000, status="COMPLETED", has_results=True)
-    p4 = _ct_study("NCT_P4b", "Drug post-marketing", "2026-01-01", phase="PHASE4",
+    p4 = _ct_study("NCT_P4b", "Drug post-marketing", _shift("2026-01-01"), phase="PHASE4",
                    enrollment=1000, status="COMPLETED", has_results=True)
     with _patch(clinicaltrials, {"studies": [p4, p3]}):
         out = mcp_server.search_clinical_trials("drug", rank_by="salience", limit=10)
@@ -392,11 +410,11 @@ def test_relevance_components_in_verbose():
 RECALLS_SEV = {"results": [
     {"recall_number": "D-3-2026", "product_description": "Aspirin low dose",
      "recalling_firm": "X", "reason_for_recall": "Label mix-up.",
-     "classification": "Class III", "status": "Ongoing", "report_date": "20261019",
+     "classification": "Class III", "status": "Ongoing", "report_date": _shift("20261019"),
      "openfda": {"brand_name": ["Aspirin Low"]}},
     {"recall_number": "D-1-2026", "product_description": "Aspirin extra",
      "recalling_firm": "X", "reason_for_recall": "Contamination.",
-     "classification": "Class I", "status": "Ongoing", "report_date": "20260822",
+     "classification": "Class I", "status": "Ongoing", "report_date": _shift("20260822"),
      "openfda": {"brand_name": ["Aspirin Extra"]}},
 ]}
 
@@ -472,6 +490,20 @@ def test_search_pubmed():
     r = out["results"][0]
     assert out["count"] == 1 and "pubmed.ncbi.nlm.nih.gov/40000001" in r["source"]["url"]
     assert any("doi.org" in c["url"] for c in r["source"]["also"])
+
+
+def test_pubmed_keeps_hits_whose_title_omits_the_query():
+    # PubMed matched "semaglutide" in the abstract/MeSH, which the tool never fetches.
+    # The old default (require_match=true) checked only title/journal/authors, dropped
+    # every such paper, and reported "no_current_results" — a false negative caught by
+    # the live checks on 2026-11-05.
+    with _patch(pubmed, _pubmed_fake):
+        out = mcp_server.search_pubmed("semaglutide")
+    assert out.get("status") != "no_current_results"
+    assert out["count"] == 1 and out["results"][0]["match"]["terms"] == []
+    with _patch(pubmed, _pubmed_fake):                  # opting in still filters by title
+        strict = mcp_server.search_pubmed("semaglutide", require_match=True)
+    assert strict["status"] == "no_current_results"
 
 
 def test_search_federal_register():
@@ -593,7 +625,7 @@ def test_empty_search_returns_no_current_results():
 # --- E. since cursor filters + flags is_new ---------------------------------- #
 def test_since_filters_and_flags_new():
     with _patch(clinicaltrials, CT_MANY):
-        out = mcp_server.search_clinical_trials("study", since="2026-09-01", limit=10)
+        out = mcp_server.search_clinical_trials("study", since=_shift("2026-09-01"), limit=10)
     ids = [r["source"]["id"] for r in out["results"]]
     assert "NCT_C" not in ids                        # Aug study is before the cursor
     assert all(r["is_new"] for r in out["results"])  # everything returned is new
