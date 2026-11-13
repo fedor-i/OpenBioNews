@@ -22,6 +22,14 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.9", "3.11", "3.12"]
+        # ubuntu-latest is Ubuntu 26.04, which has no Python 3.9 build; test 3.9 on
+        # Linux with the previous LTS while the package still supports it.
+        exclude:
+          - os: ubuntu-latest
+            python-version: "3.9"
+        include:
+          - os: ubuntu-24.04
+            python-version: "3.9"
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
