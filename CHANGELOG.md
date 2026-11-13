@@ -6,6 +6,15 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Agent skill** (`skills/openbionews/SKILL.md`) for the MCP server. It tells an AI
+  assistant which tool fits which question, when to rank by importance, and how to
+  phrase queries: one concept per query, and a trial's development code name when one
+  might be missing. It sets the citation rules (cite every fact, quote numbers only
+  from `facts`, report "no results" with its date) and lists the limits to state. The
+  README shows how to install it. A test keeps it in step with the tools, failing if
+  the skill names a tool, argument or source key that doesn't exist.
+
 ## [0.8.7] — 2026-11-05
 
 ### Fixed (MCP)

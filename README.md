@@ -417,6 +417,26 @@ to `"Your Name your@email.com"`. The other sources don't need it.
 Then ask your assistant things like *"any Class I drug recalls for Moderna in the last
 90 days?"* and it will call the tool and answer from the cited records.
 
+### Add the agent skill (recommended)
+
+[`skills/openbionews/SKILL.md`](skills/openbionews/SKILL.md) teaches the assistant how
+to use these tools well: which tool fits which question, when to rank by importance,
+how to phrase queries, and to cite every fact and quote numbers only from the record.
+It also says how to read a dated "no results" and which limits to state (FAERS counts
+aren't incidence; SEC results are filing pointers).
+
+**Claude Code** — install it for all your projects:
+
+```bash
+mkdir -p ~/.claude/skills/openbionews
+curl -fsSL https://raw.githubusercontent.com/fedor-i/OpenBioNews/main/skills/openbionews/SKILL.md \
+  -o ~/.claude/skills/openbionews/SKILL.md
+```
+
+**Claude apps** — zip the `skills/openbionews` folder and upload it under
+Settings → Capabilities → Skills. **Other agents** that support Agent Skills: copy the
+folder into their skills directory.
+
 ---
 
 ## Commands

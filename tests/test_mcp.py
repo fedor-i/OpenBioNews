@@ -764,6 +764,32 @@ def test_all_tools_registered():
     assert hasattr(mcp_server, "serve") and hasattr(mcp_server, "build_server")
 
 
+# --- the bundled agent skill stays in step with the tools ------------------- #
+def test_agent_skill_matches_the_tools():
+    """skills/openbionews/SKILL.md tells agents which tools and arguments to use. If a
+    tool or argument is renamed, the skill would send agents to one that doesn't exist."""
+    import inspect
+    import re
+    skill = (Path(__file__).resolve().parent.parent / "skills" / "openbionews" / "SKILL.md")
+    text = skill.read_text("utf-8")
+    front = text.split("---")[1]                       # YAML frontmatter
+    assert re.search(r"^name: openbionews$", front, re.M), "skill name missing"
+    assert re.search(r"^description: .{50,}", front, re.M), "skill description missing"
+    tools = {fn.__name__: fn for fn in mcp_server.TOOLS}
+    named = set(re.findall(r"`((?:search_[a-z_]+)|watchlist_digest)", text))
+    assert named, "skill names no tools"
+    assert named <= set(tools), f"skill names unknown tools: {named - set(tools)}"
+    assert set(tools) <= named, f"skill doesn't mention: {set(tools) - named}"
+    # Every argument used in an example call exists on that tool.
+    for name, args in re.findall(r"`?(search_[a-z_]+|watchlist_digest)\(([^)]*)\)", text):
+        params = inspect.signature(tools[name]).parameters
+        for arg in re.findall(r"([a-z_]+)=", args):
+            assert arg in params, f"{name} has no argument {arg!r}"
+    # Every digest source key the skill mentions is a real one.
+    for key in re.findall(r'"([a-z_]+)"', text[text.index("watchlist_digest` with"):][:300]):
+        assert key in mcp_server._DIGEST_KEYS, f"unknown digest source {key!r}"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

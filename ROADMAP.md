@@ -58,6 +58,7 @@ or ranking modes. Feature ideas are still welcome as issues.
 - [ ] Optional **claim ↔ source verification** pass when an LLM is enabled.
 
 ## MCP tools (open follow-ups)
+- [x] **Agent skill** for the MCP server (`skills/openbionews/`).
 - [ ] Per-item **`changed_fields`** deltas over a `since` cursor — [#8](https://github.com/fedor-i/OpenBioNews/issues/8).
 - [ ] Optional **`fields=`** allowlist for minimal, still-cited payloads — [#9](https://github.com/fedor-i/OpenBioNews/issues/9).
 - [ ] **Verbatim SEC filing excerpt** in `facts` (quote, never generated) — [#10](https://github.com/fedor-i/OpenBioNews/issues/10).
