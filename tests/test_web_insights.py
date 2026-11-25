@@ -614,6 +614,33 @@ def test_getjson_retries_transient_and_errors_are_deduped():
     assert js.count("iDedupeErrors().join(") >= 2, "dedupe not applied at both error render sites"
 
 
+def test_first_visit_starter_views_are_valid_links():
+    # The landing page greets a first visit with ready-made views. Each is a plain
+    # shareable link, so every parameter must be one loadFromUrl() understands, or
+    # the card opens an empty filter form. (tests/live/check_website.py opens each
+    # one against the real APIs daily.)
+    from urllib.parse import parse_qs, urlparse
+    import html as _html
+    js = _script()
+    assert 'id="starters"' in SRC and 'hidden>' in SRC[SRC.index('id="starters"'):][:200], \
+        "starter block missing, or not hidden until JS decides"
+    assert "function updateStarters(" in js and "updateStarters();" in js
+    known = set()
+    for block in re.findall(r"const [TRASH]_FIELDS=\{([^}]*)\}", js):
+        known |= set(re.findall(r':"([a-z]+)"', block))
+    known |= {"tab", "industry", "w", "sort"}
+    tabs = set()
+    for decl in ("const TABS", "const VIEW_TABS"):      # VIEW_TABS = TABS.concat(...)
+        tabs |= set(re.findall(r'"([a-z]+)"', js[js.index(decl):].split(";")[0]))
+    hrefs = re.findall(r'class="starter" data-starter href="([^"]+)"', SRC)
+    assert len(hrefs) >= 4, "expected several ready-made views"
+    for href in hrefs:
+        q = parse_qs(urlparse(_html.unescape(href)).query)
+        assert q.get("tab", [""])[0] in tabs, f"{href}: unknown tab"
+        assert set(q) <= known, f"{href}: unknown parameter(s) {set(q) - known}"
+        assert len(q) > 1, f"{href}: a view needs at least one filter"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

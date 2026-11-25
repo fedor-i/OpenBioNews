@@ -234,7 +234,10 @@ that constrain the hosted web page — this is the reliable path for SEC data.
 
 For people who just want to **click and filter**, there's a single-page web app
 in [`docs/index.html`](docs/index.html) with a tab for each source, plus a
-cross-agency **Insights** digest:
+cross-agency **Insights** digest. A first visit opens on **ready-made views**
+(terminated Phase 3 trials, industry Phase 3 activity this week, Class I recalls,
+current shortages, GLP-1 / ADC / radiopharmaceutical trials); each is an ordinary
+shareable link, and a daily CI job opens every one against the live APIs.
 
 - **Clinical trials** — filter ClinicalTrials.gov by company, condition, drug,
   status, phase, **recency** ("updated within N days"), and

@@ -5,6 +5,14 @@ sources into a clean, cited daily brief (trade-press feeds are an optional extra
 [open an issue](https://github.com/fedor-i/OpenBioNews/issues) to propose or
 claim something.
 
+## Primary user
+**Business-development and competitive-intelligence analysts at small and mid-size
+biotechs**, who track competitors across trials, FDA actions and filings without an
+enterprise budget. Enterprise tools (Citeline, Cortellis, Evaluate) are priced by quote
+and gated behind sales calls; newer tools at $29–$149/month sell trial-change alerts
+alone. The site's landing page, presets and any public brief should speak to this
+user first.
+
 ## Current focus: stabilise 0.8.x
 Most 0.8.x patch releases fixed results that were quietly wrong rather than
 adding features. Until the daily live checks and the landmark benchmark have been

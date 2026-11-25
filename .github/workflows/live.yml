@@ -14,6 +14,7 @@ on:
     branches: [main]
     paths:
       - "tests/live/**"
+      - "docs/index.html"
       - "benchmarks/**"
       - ".github/workflows/live.yml"
 
@@ -63,11 +64,27 @@ jobs:
           path: landmark-results.json
           if-no-files-found: ignore
 
+  website:
+    name: Website ready-made views
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install a headless browser
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Open every ready-made view against the live APIs
+        run: python tests/live/check_website.py
+
   # A failed scheduled run opens (or comments on) one tracking issue, so a broken
   # upstream contract is noticed even when nobody is watching the Actions tab.
   report:
     name: Report scheduled failure
-    needs: [contract, landmarks]
+    needs: [contract, landmarks, website]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:

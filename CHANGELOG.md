@@ -6,6 +6,26 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed (website)
+- **Opens on ready-made views instead of an empty form.** A first visit now sees
+  seven one-click views aimed at competitive-intelligence and BD work: terminated
+  Phase 3 trials, industry Phase 3 activity this week, Class I recalls, current
+  shortages, and GLP-1, antibody–drug conjugate and radiopharmaceutical trials. Each
+  is a normal shareable link. The cards step aside once there's a query or a watchlist.
+- **One name and a clear pitch.** The page title said "Bio Watch"; it now reads
+  "OpenBioNews — track biopharma competitors in official records", with a matching
+  description and link-preview tags for LinkedIn and Slack.
+- **Quality made visible.** The footer shows the daily live-check status, the
+  landmark-benchmark result with its basis and date, all the sources the page uses,
+  and links to use it from an AI assistant and to report an issue.
+
+### Added (checks)
+- **Daily live check of the website** (`tests/live/check_website.py`): a headless
+  browser opens every ready-made view against the real APIs and fails if one shows no
+  results or throws a script error. Writing it caught an imprecise view (unquoted
+  "antibody-drug conjugate" matched each word separately); it now searches the phrase.
+  An offline test also checks every view's link uses only parameters the page reads.
+
 ### Added
 - **Agent skill** (`skills/openbionews/SKILL.md`) for the MCP server. It tells an AI
   assistant which tool fits which question, when to rank by importance, and how to
