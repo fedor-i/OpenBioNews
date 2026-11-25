@@ -1,0 +1,41 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.fedor-i/openbionews",
+  "title": "OpenBioNews",
+  "description": "Cited biopharma records: ClinicalTrials.gov, FDA, Federal Register, PubMed and SEC EDGAR.",
+  "websiteUrl": "https://fedor-i.github.io/OpenBioNews/",
+  "repository": {
+    "url": "https://github.com/fedor-i/OpenBioNews",
+    "source": "github"
+  },
+  "version": "0.8.8",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "openbionews",
+      "version": "0.8.8",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--with",
+          "value": "mcp>=1.2",
+          "description": "The MCP SDK, which openbionews keeps as an optional extra so its core has no dependencies."
+        }
+      ],
+      "packageArguments": [
+        { "type": "positional", "value": "mcp" }
+      ],
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "OPENBIONEWS_EDGAR_UA",
+          "description": "Your name and email, e.g. 'Jane Doe jane@example.com'. SEC requires a contact; only search_sec_filings needs it.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

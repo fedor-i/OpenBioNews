@@ -18,8 +18,9 @@ in the repository.
 
 ## Cutting a release
 
-1. Update the version in `pyproject.toml` and `openbionews/__init__.py`
-   (they must match), following semantic versioning.
+1. Update the version in `pyproject.toml`, `openbionews/__init__.py` and both
+   `version` fields in `server.json` (they must all match; a test checks),
+   following semantic versioning.
 2. Move the `## [Unreleased]` notes in `CHANGELOG.md` under a new
    `## [x.y.z]` heading.
 3. Commit, then tag and push:
@@ -32,6 +33,11 @@ in the repository.
 5. The `Publish to PyPI` workflow builds the sdist + wheel, runs `twine check`,
    and uploads to PyPI. Confirm it appears at
    `https://pypi.org/project/openbionews/`.
+6. The same workflow then lists the version in the official
+   [MCP Registry](https://registry.modelcontextprotocol.io) as
+   `io.github.fedor-i/openbionews`, signing in with GitHub OIDC (no setup needed).
+   The registry verifies ownership through the `mcp-name:` comment at the top of
+   `README.md`, so keep it. A version can be published to the registry only once.
 
 ## Local build check (optional)
 

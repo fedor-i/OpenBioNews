@@ -790,6 +790,28 @@ def test_agent_skill_matches_the_tools():
         assert key in mcp_server._DIGEST_KEYS, f"unknown digest source {key!r}"
 
 
+def test_mcp_registry_entry_matches_the_package():
+    # server.json lists the server in the official MCP Registry. The registry rejects
+    # it unless the PyPI description (our README) carries the same mcp-name, and the
+    # release job checks its version against the package; this catches drift before.
+    import json
+    import re
+    from openbionews import __version__
+    root = Path(__file__).resolve().parent.parent
+    entry = json.loads((root / "server.json").read_text("utf-8"))
+    readme = (root / "README.md").read_text("utf-8")
+    names = re.findall(r"mcp-name: (\S+?)(?:\s|-->)", readme)
+    assert names == [entry["name"]], f"README mcp-name {names} != server.json {entry['name']}"
+    assert entry["name"].startswith("io.github.fedor-i/")        # GitHub-auth namespace
+    assert len(entry["description"]) <= 100, "registry limit is 100 characters"
+    pkg = entry["packages"][0]
+    assert pkg["registryType"] == "pypi" and pkg["identifier"] == "openbionews"
+    assert entry["version"] == pkg["version"] == __version__, "bump server.json with the package"
+    assert [a["value"] for a in pkg["packageArguments"]] == ["mcp"]   # `openbionews mcp`
+    assert any(a.get("value", "").startswith("mcp") for a in pkg["runtimeArguments"]), \
+        "uvx must add the MCP SDK (it's an optional extra)"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

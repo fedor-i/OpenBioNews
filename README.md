@@ -1,5 +1,7 @@
 # OpenBioNews
 
+<!-- mcp-name: io.github.fedor-i/openbionews -->
+
 [![CI](https://github.com/fedor-i/OpenBioNews/actions/workflows/ci.yml/badge.svg)](https://github.com/fedor-i/OpenBioNews/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
@@ -286,6 +288,10 @@ The core has no LLM and invents nothing — but any assistant that speaks the
 Code, …) can call OpenBioNews as a tool to pull **primary-source** records, each
 returned with the exact URL it traces to. The AI gets grounded, citable facts; it
 never sees our prose.
+
+It's listed in the official [MCP Registry](https://registry.modelcontextprotocol.io)
+as `io.github.fedor-i/openbionews`, so clients that browse the registry can install it
+directly (they run `uvx --with mcp openbionews mcp`).
 
 **The MCP server needs Python 3.10+** (the `mcp` SDK requires it; the core
 pipeline still runs on 3.9). Install it with an isolated installer so the

@@ -6,6 +6,18 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.8] — 2026-11-26
+
+### Added
+- **Listed in the official MCP Registry** as `io.github.fedor-i/openbionews`.
+  `server.json` describes the server for registry clients, which launch it as
+  `uvx --with mcp openbionews mcp`, so nothing needs installing first and the core
+  package keeps zero dependencies. The release workflow publishes each new version to
+  the registry after PyPI, signing in with GitHub OIDC (no stored token), and
+  verifies the publisher tool's signature before running it. The registry proves
+  ownership through an `mcp-name` comment at the top of the README. A test keeps the
+  name, version and launch arguments in step with the package.
+
 ### Changed (website)
 - **Opens on ready-made views instead of an empty form.** A first visit now sees
   seven one-click views aimed at competitive-intelligence and BD work: terminated
