@@ -38,8 +38,9 @@ to follow [Semantic Versioning](https://semver.org/).
   Phase 3 trials, industry Phase 3 activity this week, and Class I recalls. The other
   views are a "More views" line beneath (2×2 tiles on phones).
 - **The tiles are live.** Each shows its current count and rotates through the latest
-  records' headlines (e.g. "41 · last 30 days", then "Janssen: A Study of
-  Aticaprant…"), fetched with the same filters as the tile's own link. The brief tile
+  records' headlines like slides (each slides in from the right, with dots showing how
+  many there are and which is showing), e.g. "41 · last 30 days", then "Janssen: A
+  Study of Aticaprant…", fetched with the same filters as the tile's own link. The brief tile
   rotates last week's highlights from `brief/latest.json`, which the weekly brief now
   writes. Rotation pauses on hover or focus, is off for reduced motion, and is hidden
   from screen readers; a source that can't be reached leaves the plain description.
