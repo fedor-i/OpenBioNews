@@ -568,7 +568,7 @@ def render_edition(brief: dict, per_section: int = 3) -> str:
                f'<p>Built automatically from ClinicalTrials.gov, openFDA and the Federal Register with '
                f'<a href="{SITE}">OpenBioNews</a>, free and open source. It also works inside AI '
                f'assistants (MCP), so they cite these records instead of guessing. Nothing here is '
-               f'editorialised; check the linked record before relying on an item. Not investment '
+               f'made up; check the linked record before relying on an item. Not investment '
                f'or medical advice.</p>')
     title = f"This week in biopharma records: {label}"
     body = (f'<p class="sub"><b>For the author:</b> LinkedIn → your newsletter → <b>Create new edition</b>. '
