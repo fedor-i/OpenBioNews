@@ -33,9 +33,10 @@ to follow [Semantic Versioning](https://semver.org/).
 ### Fixed (website)
 - **Returning visitors never saw the ready-made views.** They were hidden whenever a
   watchlist was saved in the browser, which is anyone who has used the site before.
-  They now always stay visible: cards on a first visit, and a row of one-tap buttons
-  above the results once there's a watchlist or a search (a sideways-scrolling row on
-  phones). The weekly brief is the first, highlighted view.
+  Four tiles now sit at the front of the page, under the header and above the
+  watchlist, the same for every visitor: the weekly brief (highlighted), terminated
+  Phase 3 trials, industry Phase 3 activity this week, and Class I recalls. The other
+  views are a "More views" line beneath (2×2 tiles on phones).
 
 ### Changed (website)
 - **Opens on ready-made views instead of an empty form.** A first visit now sees

@@ -51,33 +51,19 @@
   footer .quality img{vertical-align:middle}
   .brand small{font:400 .82rem/1.3 -apple-system,sans-serif;color:var(--muted);display:block;margin-top:.35rem}
   main{max-width:60rem;margin:0 auto;padding:0 1rem 3rem}
-  .starters{margin:1rem 0 .4rem}
-  .starters h2{font-size:1.05rem;margin:0 0 .2rem}
-  .starters-sub{color:var(--muted);font-size:.88rem;margin:0 0 .7rem}
-  .starters-sub a{color:var(--accent)}
-  .starter-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.6rem}
-  .starter{display:block;background:var(--panel);border:1px solid var(--line);border-radius:12px;
-    padding:.75rem .85rem;color:var(--ink);text-decoration:none}
-  .starter:hover,.starter:focus-visible{border-color:var(--accent)}
-  .starter b{display:block;font-size:.95rem;margin-bottom:.2rem}
-  .starter span{display:block;font-size:.8rem;color:var(--muted)}
-  .starter.brief{border-color:var(--accent)}
-  /* Returning visitors (a watchlist or a query): the same views as one row of compact
-     buttons, always visible, so they're one tap away without pushing results down.
-     On narrow screens the row scrolls sideways instead of wrapping onto many lines. */
-  .starters.compact{margin:.8rem 0 .2rem}
-  .starters.compact .starters-sub{display:none}
-  .starters.compact h2{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 .35rem}
-  .starters.compact .starter-grid{display:flex;flex-wrap:wrap;gap:.4rem}
-  .starters.compact .starter{border-radius:999px;padding:.35rem .8rem}
-  .starters.compact .starter b{font-size:.85rem;margin:0;white-space:nowrap}
-  .starters.compact .starter span{display:none}
-  .starters.compact .starter.brief{background:var(--accent);border-color:var(--accent)}
-  .starters.compact .starter.brief b{color:var(--on-accent)}
-  @media (max-width:640px){
-    .starters.compact .starter-grid{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.3rem;scrollbar-width:thin}
-    .starters.compact .starter{flex:0 0 auto}
-  }
+  /* A few ready-made views at the front of the page, the same for every visitor. */
+  .front{max-width:60rem;margin:0 auto;padding:.4rem 1rem .8rem}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem}
+  .tile{display:block;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:.7rem .8rem;color:var(--ink);text-decoration:none}
+  .tile:hover,.tile:focus-visible{border-color:var(--accent)}
+  .tile b{display:block;font-size:.95rem;line-height:1.25;margin-bottom:.2rem}
+  .tile span{display:block;font-size:.8rem;color:var(--muted)}
+  .tile.brief{background:var(--accent);border-color:var(--accent)}
+  .tile.brief b,.tile.brief span{color:var(--on-accent)}
+  .morev{margin:.55rem 0 0;font-size:.85rem;color:var(--muted)}
+  .morev a{color:var(--accent)}
+  @media (max-width:640px){ .tiles{grid-template-columns:1fr 1fr} }
   .tabs{display:flex;flex-wrap:wrap;gap:.2rem .4rem;margin:1rem 0 .2rem;border-bottom:1px solid var(--line)}
   .tab{background:none;border:none;padding:.6rem .9rem;font-size:.98rem;font-weight:600;color:var(--muted);
     cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -384,6 +370,20 @@
   </h1>
 </header>
 
+<section class="front" id="starters" aria-label="Ready-made views">
+  <div class="tiles">
+    <a class="tile brief" href="brief/"><b>📰 This week's brief</b><span>Trials, approvals, recalls · Mondays</span></a>
+    <a class="tile" data-starter href="?tab=trials&amp;status=TERMINATED&amp;phase=PHASE3&amp;recent=30"><b>Terminated Phase 3 trials</b><span>Last 30 days</span></a>
+    <a class="tile" data-starter href="?tab=trials&amp;phase=PHASE3&amp;recent=7&amp;industry=1"><b>Industry Phase 3 this week</b><span>New and updated</span></a>
+    <a class="tile" data-starter href="?tab=recalls&amp;class=1&amp;rrecent=30"><b>Class I recalls</b><span>Most serious · last 30 days</span></a>
+  </div>
+  <p class="morev">More views:
+    <a data-starter href="?tab=shortages&amp;hstatus=Current">Current drug shortages</a> ·
+    <a data-starter href="?tab=trials&amp;term=GLP-1&amp;recent=30">GLP-1 trials</a> ·
+    <a data-starter href="?tab=trials&amp;term=%22antibody-drug+conjugate%22&amp;recent=30">Antibody–drug conjugate trials</a> ·
+    <a data-starter href="?tab=trials&amp;term=radiopharmaceutical&amp;recent=30">Radiopharmaceutical trials</a></p>
+</section>
+
 <div class="watchbar">
   <div class="watchrow">
     <span class="watchlabel">📌 Watchlist</span>
@@ -433,29 +433,6 @@
 </div>
 
 <main>
-  <section class="starters" id="starters" aria-labelledby="starters_h">
-    <h2 id="starters_h">Ready-made views</h2>
-    <p class="starters-sub">Live from the official registries, every result linked to its record.
-      Or <a href="#watchInput" id="starterTrack">add a competitor to your watchlist</a> to follow it across every agency.</p>
-    <div class="starter-grid">
-      <a class="starter brief" href="brief/">
-        <b>📰 This week's brief</b><span>New Phase 3 trials, results, approvals and recalls · every Monday</span></a>
-      <a class="starter" data-starter href="?tab=trials&amp;status=TERMINATED&amp;phase=PHASE3&amp;recent=30">
-        <b>Terminated Phase 3 trials</b><span>Updated in the last 30 days · ClinicalTrials.gov</span></a>
-      <a class="starter" data-starter href="?tab=trials&amp;phase=PHASE3&amp;recent=7&amp;industry=1">
-        <b>Industry Phase 3 activity this week</b><span>Registrations and updates · ClinicalTrials.gov</span></a>
-      <a class="starter" data-starter href="?tab=recalls&amp;class=1&amp;rrecent=30">
-        <b>Class I recalls</b><span>The most serious · last 30 days · openFDA</span></a>
-      <a class="starter" data-starter href="?tab=shortages&amp;hstatus=Current">
-        <b>Current drug shortages</b><span>FDA Drug Shortages database</span></a>
-      <a class="starter" data-starter href="?tab=trials&amp;term=GLP-1&amp;recent=30">
-        <b>GLP-1 trials</b><span>Updated in the last 30 days · ClinicalTrials.gov</span></a>
-      <a class="starter" data-starter href="?tab=trials&amp;term=%22antibody-drug+conjugate%22&amp;recent=30">
-        <b>Antibody–drug conjugate trials</b><span>Updated in the last 30 days · ClinicalTrials.gov</span></a>
-      <a class="starter" data-starter href="?tab=trials&amp;term=radiopharmaceutical&amp;recent=30">
-        <b>Radiopharmaceutical trials</b><span>Updated in the last 30 days · ClinicalTrials.gov</span></a>
-    </div>
-  </section>
   <div class="tabs" role="tablist">
     <button class="tab" id="tab-trials" role="tab" aria-selected="true" aria-controls="panel-trials">Clinical trials</button>
     <button class="tab" id="tab-recalls" role="tab" aria-selected="false" aria-controls="panel-recalls">FDA recalls</button>
@@ -1865,7 +1842,6 @@ document.querySelectorAll('.chips[data-for="sec"] .chip').forEach(c=>c.onclick=(
 // ================= WATCHLIST (drives every tab) =================
 function saveWatch(){ try{ localStorage.setItem("obn_watch", JSON.stringify(watch)); }catch(e){} }
 function renderWatchChips(){
-  updateStarters();                    // a watchlist replaces the first-visit cards
   const box=$("watchChips"); box.innerHTML="";
   watch.forEach((t,i)=>{
     const c=document.createElement("span"); c.className="wchip";
@@ -3670,7 +3646,6 @@ function syncUrl(){
     if(tab==="trials" && $("t_industry").checked) p.set("industry","1");
   }
   history.replaceState(null,"","?"+p.toString());
-  updateStarters();
 }
 $("copyLink").onclick=async()=>{
   syncUrl();
@@ -3678,14 +3653,6 @@ $("copyLink").onclick=async()=>{
   try{ await navigator.clipboard.writeText(url); $("copyLink").textContent="✓ Copied"; setTimeout(()=>$("copyLink").textContent="🔗 Copy link",1500); }
   catch(e){ prompt("Copy this link:", url); }
 };
-// Ready-made views are cards on a first visit. Once there's a query or a watchlist the
-// results are the page, so the views shrink to one row of buttons above them, still
-// visible and one tap away. (Hiding or folding them made them easy to miss.)
-function updateStarters(){
-  const el=$("starters"); if(!el) return;
-  el.classList.toggle("compact", watch.length>0 || location.search.length>1);
-}
-if($("starterTrack")) $("starterTrack").onclick=e=>{ e.preventDefault(); $("watchInput").focus(); };
 function loadFromUrl(){
   const p=new URLSearchParams(location.search);
   const t=VIEW_TABS.includes(p.get("tab"))?p.get("tab"):"trials";
@@ -3716,7 +3683,6 @@ function loadFromUrl(){
   else if(t==="sec" && secHasFilter(secFilters())) searchSec(true);
 }
 loadFromUrl();
-updateStarters();
 </script>
 </body>
 </html>

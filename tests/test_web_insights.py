@@ -614,21 +614,21 @@ def test_getjson_retries_transient_and_errors_are_deduped():
     assert js.count("iDedupeErrors().join(") >= 2, "dedupe not applied at both error render sites"
 
 
-def test_first_visit_starter_views_are_valid_links():
-    # The landing page greets a first visit with ready-made views. Each is a plain
-    # shareable link, so every parameter must be one loadFromUrl() understands, or
-    # the card opens an empty filter form. (tests/live/check_website.py opens each
-    # one against the real APIs daily.)
+def test_front_tiles_are_visible_and_valid_links():
+    # A few ready-made views sit at the front of the page, above the watchlist, the
+    # same for every visitor (hiding or folding them made them easy to miss). Each is
+    # a plain shareable link, so every parameter must be one loadFromUrl() reads, or
+    # it opens an empty form. tests/live/check_website.py opens each one daily.
     from urllib.parse import parse_qs, urlparse
     import html as _html
     js = _script()
-    assert '<section class="starters" id="starters"' in SRC and \
-        "hidden" not in SRC[SRC.index('id="starters"'):][:80], "starter views must always be visible"
-    assert "function updateStarters(" in js and "updateStarters();" in js
-    body = js[js.index("function updateStarters("):][:300]
-    assert "compact" in body and "hidden" not in body and ".open" not in body, \
-        "returning visitors must still see the views (as a compact row), not hide or fold them"
-    assert 'class="starter brief" href="brief/"' in SRC, "weekly brief missing from the views"
+    front = SRC[SRC.index('<section class="front" id="starters"'):]
+    front = front[:front.index("</section>")]
+    assert SRC.index('id="starters"') < SRC.index('<div class="watchbar">'), "tiles must come first"
+    assert "hidden" not in front and "updateStarters" not in js, "tiles must never be hidden"
+    tiles = re.findall(r'<a class="tile[^"]*"', front)
+    assert 3 <= len(tiles) <= 4, "keep the front to a few tiles"
+    assert 'class="tile brief" href="brief/"' in front, "the weekly brief should be a front tile"
     known = set()
     for block in re.findall(r"const [TRASH]_FIELDS=\{([^}]*)\}", js):
         known |= set(re.findall(r':"([a-z]+)"', block))
@@ -636,8 +636,8 @@ def test_first_visit_starter_views_are_valid_links():
     tabs = set()
     for decl in ("const TABS", "const VIEW_TABS"):      # VIEW_TABS = TABS.concat(...)
         tabs |= set(re.findall(r'"([a-z]+)"', js[js.index(decl):].split(";")[0]))
-    hrefs = re.findall(r'class="starter" data-starter href="([^"]+)"', SRC)
-    assert len(hrefs) >= 4, "expected several ready-made views"
+    hrefs = re.findall(r'data-starter href="([^"]+)"', front)
+    assert len(hrefs) >= 6, "expected the ready-made views (tiles plus 'More views')"
     for href in hrefs:
         q = parse_qs(urlparse(_html.unescape(href)).query)
         assert q.get("tab", [""])[0] in tabs, f"{href}: unknown tab"

@@ -49,7 +49,7 @@ def main() -> int:
         page.goto(base)
         cards = page.eval_on_selector_all(
             "#starters a[data-starter]",
-            "els => els.map(a => ({label: a.querySelector('b').textContent, href: a.getAttribute('href')}))")
+            "els => els.map(a => ({label: (a.querySelector('b') || a).textContent.trim(), href: a.getAttribute('href')}))")
         if not cards:
             print("FAIL         no ready-made views found on the landing page")
             return 1
