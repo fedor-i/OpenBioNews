@@ -622,9 +622,10 @@ def test_first_visit_starter_views_are_valid_links():
     from urllib.parse import parse_qs, urlparse
     import html as _html
     js = _script()
-    assert 'id="starters"' in SRC and 'hidden>' in SRC[SRC.index('id="starters"'):][:200], \
-        "starter block missing, or not hidden until JS decides"
+    assert '<details class="starters" id="starters"' in SRC, \
+        "starter views must stay on the page (folded, not hidden) so returning visitors find them"
     assert "function updateStarters(" in js and "updateStarters();" in js
+    assert "el.hidden" not in js[js.index("function updateStarters("):][:300], "views hidden again"
     known = set()
     for block in re.findall(r"const [TRASH]_FIELDS=\{([^}]*)\}", js):
         known |= set(re.findall(r':"([a-z]+)"', block))
