@@ -12,6 +12,13 @@ to follow [Semantic Versioning](https://semver.org/).
   preview (now the week page's `og:image`) and a 1080×1350 portrait image to attach
   to a LinkedIn post. The Monday workflow attaches the portrait image to the run next
   to the post draft. Sources that couldn't be reached read "unavailable", never zero.
+- **A LinkedIn video and swipeable PDF of the front box.** `tools/brief_reel.py` captures the
+  site's slides (overview first, then records, per feed) into a branded 1920×1080 frame
+  with a progress strip and writes a ~40 s MP4 (autoplays in the feed) and a PDF for a
+  LinkedIn document post. The Monday workflow builds both from the new week and attaches
+  them to the run.
+- **The brief's front page shows the latest week in full**, with every week listed
+  below, instead of a single link.
 - **RSS items carry the post text and image**, so an RSS-to-social tool (Zapier, Make,
   IFTTT) can post each week as is.
 - **Search engines:** a `sitemap.xml` covering the app, the brief index and every week,

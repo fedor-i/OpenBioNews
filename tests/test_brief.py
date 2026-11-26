@@ -225,6 +225,16 @@ def test_share_card_shows_counts_names_and_unavailable_sources():
     assert bc.card_html(brief, "post").count("<li>") > bc.card_html(brief, "card").count("<li>")
 
 
+def test_reel_picks_overviews_then_records_per_feed():
+    import brief_reel as br
+    slides = ([{"feed": "brief", "kind": "week"}] + [{"feed": "brief", "kind": "brief"}] * 4
+              + [{"feed": "stopped", "kind": "sum"}] + [{"feed": "stopped", "kind": "rec"}] * 4
+              + [{"feed": "recalls", "kind": "rec"}] * 2)
+    assert br.pick_slides(slides, 3) == [0, 1, 5, 6, 7, 10, 11]   # at most 2 overviews
+    frame = br.frame_html(b"png", "", "Nov 16–22, 2026", 1, 3, ["brief", "stopped"], "stopped")
+    assert "<b>Stopped Phase 3 · 30 days</b>" in frame and frame.count('<i class="') == 3
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):

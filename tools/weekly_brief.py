@@ -369,16 +369,12 @@ def _page(title: str, body: str, description: str, url: str = "", image: str = "
             f"<style>{CSS}</style></head><body><main>{body}</main></body></html>\n")
 
 
-def render_week(brief: dict, card: bool = False) -> str:
-    """``card``: the week has its own share image in cards/ (tools/brief_card.py)."""
-    label = week_label(brief)
+def _week_body(brief: dict) -> list[str]:
+    """The week's count chips, its sections and the footer, shared by the week's own
+    page and the brief's front page."""
     secs = brief["sections"]
     stats = "".join(f"<li>{stat(secs, k, html_bold=True)}</li>" for k, _, _ in SECTIONS)
-    parts = [f'<a class="brand" href="{SITE}">OpenBioNews</a>',
-             "<h1>This week in biopharma records</h1>",
-             f'<p class="sub">{html.escape(label)} · every item links to its official record · '
-             f'<a href="index.html">all weeks</a> · <a href="feed.xml">RSS</a></p>',
-             f'<ul class="stats">{stats}</ul>']
+    parts = [f'<ul class="stats">{stats}</ul>']
     for key, name, what in SECTIONS:
         sec = secs[key]
         parts.append(f'<section id="{key}"><h2>{html.escape(name)}</h2><p class="what">{html.escape(what)}</p>')
@@ -398,31 +394,60 @@ def render_week(brief: dict, card: bool = False) -> str:
             if sec["total"] > len(sec["items"]):
                 parts.append(f'<p class="what">Showing {len(sec["items"])} of {sec["total"]}.</p>')
         parts.append("</section>")
-    parts.append(f"<footer>Built automatically from ClinicalTrials.gov, openFDA and the Federal "
-                 f"Register on {html.escape(brief['generated_at'][:10])}. Nothing here is "
-                 f"editorialised; check the linked record before relying on an item. Not investment "
-                 f'or medical advice. · <a href="{SITE}">OpenBioNews</a> (free, open source)</footer>')
-    desc = (f"{label}: " + ", ".join(stat(secs, k) for k, _, _ in SECTIONS[:4])
+    return parts
+
+
+def _footer(brief: dict) -> str:
+    return (f"<footer>Built automatically from ClinicalTrials.gov, openFDA and the Federal "
+            f"Register on {html.escape(brief['generated_at'][:10])}. Nothing here is "
+            f"editorialised; check the linked record before relying on an item. Not investment "
+            f'or medical advice. · <a href="{SITE}">OpenBioNews</a> (free, open source)</footer>')
+
+
+def _description(brief: dict) -> str:
+    return (f"{week_label(brief)}: " + ", ".join(stat(brief["sections"], k) for k, _, _ in SECTIONS[:4])
             + ". Every item linked to its official record.")
-    return _page(f"This week in biopharma records — {label}", "".join(parts), desc,
+
+
+def render_week(brief: dict, card: bool = False) -> str:
+    """``card``: the week has its own share image in cards/ (tools/brief_card.py)."""
+    label = week_label(brief)
+    parts = [f'<a class="brand" href="{SITE}">OpenBioNews</a>',
+             "<h1>This week in biopharma records</h1>",
+             f'<p class="sub">{html.escape(label)} · every item links to its official record · '
+             f'<a href="./">latest and all weeks</a> · <a href="feed.xml">RSS</a></p>',
+             *_week_body(brief), _footer(brief)]
+    return _page(f"This week in biopharma records — {label}", "".join(parts), _description(brief),
                  url=f"{SITE}brief/{brief['end']}.html",
                  image=f"{SITE}brief/cards/{brief['end']}.png" if card else "")
 
 
-def render_index(briefs: list[dict]) -> str:
+def render_index(briefs: list[dict], card: bool = False) -> str:
+    """The brief's front page: the latest week in full, then every week. ``card``: the
+    latest week has a share image."""
     rows = "".join(
         f'<li><a href="{b["end"]}.html">{html.escape(week_label(b))}</a>'
         f'<div class="facts">' + html.escape(" · ".join(stat(b["sections"], k) for k, _, _ in SECTIONS))
         + "</div></li>"
         for b in briefs)
-    body = (f'<a class="brand" href="{SITE}">OpenBioNews</a><h1>Weekly brief</h1>'
-            f'<p class="sub">This week in biopharma records: new Phase 3 trials, results, stopped '
-            f'trials, FDA approvals, Class I recalls and FDA notices, every item linked to its '
-            f'official record. Published every Monday. <a href="feed.xml">RSS</a></p>'
-            f'<ol class="weeks">{rows}</ol>')
-    return _page("OpenBioNews weekly brief", body,
-                 "A weekly, fully cited summary of biopharma records for BD and competitive-intelligence analysts.",
-                 url=f"{SITE}brief/")
+    intro = ("New industry Phase 3 trials, Phase 3 results, stopped trials (with the stated reason), "
+             "original FDA approvals, Class I recalls and FDA notices, every item linked to its "
+             "official record. Published every Monday.")
+    if not briefs:
+        body = (f'<a class="brand" href="{SITE}">OpenBioNews</a><h1>This week in biopharma records</h1>'
+                f'<p class="sub">{intro} <a href="feed.xml">RSS</a></p>')
+        return _page("This week in biopharma records — OpenBioNews", body, intro, url=f"{SITE}brief/")
+    latest = briefs[0]
+    parts = [f'<a class="brand" href="{SITE}">OpenBioNews</a>',
+             "<h1>This week in biopharma records</h1>",
+             f'<p class="sub"><b>{html.escape(week_label(latest))}</b> · {intro} '
+             f'<a href="feed.xml">RSS</a> · <a href="{latest["end"]}.html">link to this week</a></p>',
+             *_week_body(latest),
+             f'<section id="weeks"><h2>All weeks</h2><ol class="weeks">{rows}</ol></section>',
+             _footer(latest)]
+    return _page("This week in biopharma records — OpenBioNews", "".join(parts), _description(latest),
+                 url=f"{SITE}brief/",
+                 image=f"{SITE}brief/cards/{latest['end']}.png" if card else "")
 
 
 def render_feed(briefs: list[dict], cards: dict | None = None) -> str:
@@ -550,7 +575,9 @@ def write_site(out: Path, sitemap: Path | None = None) -> list[dict]:
     for b in briefs:
         (out / f"{b['end']}.html").write_text(
             render_week(b, card=(out / "cards" / f"{b['end']}.png").exists()), "utf-8")
-    (out / "index.html").write_text(render_index(briefs), "utf-8")
+    (out / "index.html").write_text(
+        render_index(briefs, card=bool(briefs) and (out / "cards" / f"{briefs[0]['end']}.png").exists()),
+        "utf-8")
     (out / "feed.xml").write_text(render_feed(briefs, cards), "utf-8")
     if sitemap:
         sitemap.write_text(render_sitemap(briefs), "utf-8")

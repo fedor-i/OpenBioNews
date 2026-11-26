@@ -43,6 +43,16 @@ jobs:
           python -m playwright install --with-deps chromium
           python tools/brief_card.py
           python tools/weekly_brief.py --render-only
+      - name: Make the LinkedIn video and swipeable PDF
+        # The site's front-box slides (with the new week) as an MP4 and a PDF for a
+        # LinkedIn "document" post. Captured from a local copy of docs/, so the new
+        # week shows before it's deployed. Optional, like the images above.
+        continue-on-error: true
+        run: |
+          sudo apt-get install -y --no-install-recommends ffmpeg >/dev/null
+          python -m http.server 8000 --directory docs >/dev/null 2>&1 &
+          sleep 2
+          python tools/brief_reel.py --site http://localhost:8000/ --out reel
       - name: Show the LinkedIn draft
         run: |
           {
@@ -51,7 +61,8 @@ jobs:
             cat linkedin.txt
             echo '```'
             echo
-            echo "Image to attach: download the **linkedin-draft** artifact below (the -post.png file)."
+            echo "Download the **linkedin-draft** artifact below. It has the post text, a portrait"
+            echo "image (-post.png), a video (reel.mp4) and a swipeable PDF (reel.pdf): attach one."
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
@@ -59,6 +70,8 @@ jobs:
           path: |
             linkedin.txt
             docs/brief/cards/*-post.png
+            reel/reel.mp4
+            reel/reel.pdf
       - name: Commit the new week
         id: commit
         run: |

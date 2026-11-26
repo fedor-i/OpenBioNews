@@ -6,6 +6,7 @@
 [![Live API checks](https://github.com/fedor-i/OpenBioNews/actions/workflows/live.yml/badge.svg)](https://github.com/fedor-i/OpenBioNews/actions/workflows/live.yml)
 [![PyPI](https://img.shields.io/pypi/v/openbionews.svg)](https://pypi.org/project/openbionews/)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.fedor--i%2Fopenbionews-5b4bdb.svg)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.fedor-i/openbionews)
+[![fedor-i/OpenBioNews MCP server](https://glama.ai/mcp/servers/fedor-i/OpenBioNews/badges/score.svg)](https://glama.ai/mcp/servers/fedor-i/OpenBioNews)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](pyproject.toml)
 
