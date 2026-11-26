@@ -240,6 +240,10 @@ def test_newsletter_edition_is_paste_ready_and_not_indexed():
     assert '<meta name="robots" content="noindex">' in page and "Copy article" in page
     assert "<h2>The week in numbers</h2>" in page and "<b>2</b> new Phase 3 trials" in page
     assert f"brief/{END}.html" in page and "<script>alert(1)</script>" not in page.split("<script>document")[0]
+    titles = wb.edition_titles(_collect())
+    assert titles[0].startswith("2 new Phase 3 trials, 1 stopped, 2 FDA approvals: the week of Nov 16")
+    assert titles[-1] == "This week in biopharma records: Nov 16–22, 2026"
+    assert all(t in page for t in titles[:1])
 
 
 if __name__ == "__main__":

@@ -535,6 +535,38 @@ def render_linkedin(brief: dict) -> str:
     return "\n".join(lines)
 
 
+def edition_titles(brief: dict) -> list[str]:
+    """Title options for the newsletter edition: the week's numbers first, then one led
+    by the largest new Phase 3 trial, then the plain series title. Facts only."""
+    secs, label = brief["sections"], week_label(brief)
+    short = label.rsplit(",", 1)[0]                        # "Nov 16–22"
+    out = []
+    parts = []
+    for key, one, many in (("new_trials", "new Phase 3 trial", "new Phase 3 trials"),
+                           ("stopped", "stopped", "stopped"),
+                           ("approvals", "FDA approval", "FDA approvals")):
+        sec = secs[key]
+        if "error" not in sec and sec.get("total"):
+            parts.append(f"{sec['total']} {one if sec['total'] == 1 else many}")
+    if parts:
+        out.append(f"{', '.join(parts)}: the week of {short}")
+    new = secs["new_trials"]
+    if "error" not in new and new.get("items"):
+        top = new["items"][0]
+        k = top.get("key") or {}
+        n = next((f.split()[0] for f in top.get("facts", []) if f.endswith("participants")), "")
+        if k.get("org") and n:
+            cond = k.get("cond", "")
+            if cond and not any(w.isupper() and len(w) > 1 for w in cond.split()):
+                cond = cond.lower()                        # "myocardial infarction", but "COPD"
+            what = f"{cond} trial" if cond else "Phase 3 trial"
+            more = new["total"] - 1
+            tail = f", and {more} more new Phase 3s" if more > 0 else ""
+            out.append(f"{k['org']} starts a {n}-patient {what}{tail}: {short}")
+    out.append(f"This week in biopharma records: {label}")
+    return out
+
+
 def render_edition(brief: dict, per_section: int = 3) -> str:
     """The week as a LinkedIn newsletter edition: a page with the article (title,
     the week in numbers, the top records per section with links, and where to read
@@ -571,10 +603,11 @@ def render_edition(brief: dict, per_section: int = 3) -> str:
                f'made up; check the linked record before relying on an item. Not investment '
                f'or medical advice.</p>')
     title = f"This week in biopharma records: {label}"
+    titles = edition_titles(brief)
     body = (f'<p class="sub"><b>For the author:</b> LinkedIn → your newsletter → <b>Create new edition</b>. '
             f'Upload the cover image, paste the title, then click <b>Copy article</b> and paste into the '
             f'body. Attach the video or PDF from the weekly run in the post that shares it.</p>'
-            f'<p><b>Title:</b> <span id="t">{esc(title)}</span></p>'
+            f'<p><b>Title</b> (pick one):</p><ol>' + "".join(f"<li>{esc(t)}</li>" for t in titles) + "</ol>"
             f'<p><b>Cover image:</b> <a href="cards/{brief["end"]}.png">cards/{brief["end"]}.png</a></p>'
             f'<p><button id="copy" type="button">Copy article</button> <span id="ok"></span></p>'
             f'<section id="article">{"".join(art)}</section>'
