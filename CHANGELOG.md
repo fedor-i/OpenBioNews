@@ -6,6 +6,35 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed (website)
+- **One box at the front, cycling through a mix of the latest records.** A full-width
+  box on every screen size, above the watchlist, takes turns across this week's brief,
+  terminated Phase 3 trials, industry Phase 3 activity this week and Class I recalls:
+  up to 20 slides, each labelled with its source and count ("Terminated Phase 3 · 41 in
+  the last 30 days"). Slides advance every 4.5 s with a slide transition and position
+  dots, loop, pause on hover and in a background tab, and stay still under reduced
+  motion. Tapping the box opens the view of the slide on screen; the views are also
+  plain links underneath, which keyboards and screen readers use.
+- **Slides show the words that matter, at every screen size.** Each slide is built from
+  the record's own fields, not its long registry title: short company name ("Janssen",
+  not "Janssen Research & Development, LLC"), drug (placebo and control arms dropped),
+  condition ("Depressive Disorder, Major" reworded) and acronym; recalls show the brand
+  and the reason's first clause. Each slide has several lengths and the box shows the
+  longest that fits, re-chosen on resize or rotation. Checked at 320–1280px: nothing cut
+  off. The weekly brief and its LinkedIn draft use the same key words.
+
+### Fixed (website)
+- **Returning visitors never saw the ready-made views.** They were hidden whenever a
+  watchlist was saved in the browser, which is anyone who had used the site before.
+  They're now always at the front of the page.
+- **Tapping a ready-made view did nothing for anyone with a saved watchlist.** The page
+  filled in the view's filters, then let the watchlist take over and ran the watchlist
+  search instead. A link that names filters (a view, or any shared search link) now
+  shows exactly that search, keeps the watchlist, and scrolls to the results.
+- **Site deploys failed intermittently** ("No artifacts named github-pages were found"
+  right after a successful upload). Upload and deploy are now separate jobs, the deploy
+  retries once, and the Pages actions are on their current versions.
+
 ### Added
 - **Weekly brief** ("This week in biopharma records"), published every Monday at
   `/brief/` with an RSS feed, written for BD and competitive-intelligence analysts: new
@@ -29,31 +58,6 @@ to follow [Semantic Versioning](https://semver.org/).
   verifies the publisher tool's signature before running it. The registry proves
   ownership through an `mcp-name` comment at the top of the README. A test keeps the
   name, version and launch arguments in step with the package.
-
-### Fixed (website)
-- **Returning visitors never saw the ready-made views.** They were hidden whenever a
-  watchlist was saved in the browser, which is anyone who has used the site before.
-  Four tiles now sit at the front of the page, under the header and above the
-  watchlist, the same for every visitor: the weekly brief (highlighted), terminated
-  Phase 3 trials, industry Phase 3 activity this week, and Class I recalls. The other
-  views are a "More views" line beneath (2×2 tiles on phones).
-- **The tiles are live.** Each shows its current count and rotates through the latest
-  records' headlines like slides (each slides in from the right, with dots showing how
-  many there are and which is showing), e.g. "41 · last 30 days", then "Janssen: A
-  Study of Aticaprant…", fetched with the same filters as the tile's own link. The brief tile
-  rotates last week's highlights from `brief/latest.json`, which the weekly brief now
-  writes. Rotation pauses on hover or focus, is off for reduced motion, and is hidden
-  from screen readers; a source that can't be reached leaves the plain description.
-  The daily website check fails if a tile shows no live headline.
-- **Tile slides show the words that matter, at every screen size.** Each slide is built
-  from the record's key words, not its long registry title: company (short form,
-  "Janssen" not "Janssen Research & Development, LLC"), drug (placebo and control arms
-  dropped), condition (index-style "Depressive Disorder, Major" reworded) and acronym.
-  Each slide has several lengths and the tile shows the longest that fits its width,
-  re-chosen when the window is resized or a phone rotated: "Janssen: Aticaprant · Major
-  Depressive Disorder (VENTURA-7)" on a tablet, "Janssen: Aticaprant" on a small phone.
-  Checked at 320–1280px: no slide cut off. The weekly brief and its LinkedIn draft use
-  the same key words.
 
 ### Changed (website)
 - **Opens on ready-made views instead of an empty form.** A first visit now sees
