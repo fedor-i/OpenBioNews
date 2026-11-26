@@ -6,6 +6,17 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.9] — 2026-11-26
+
+### Added (MCP)
+- **Every tool parameter now has a description in its input schema** (75 in all),
+  e.g. what `rank_by="salience"` means, the accepted `phase` and `status` values, and
+  that `company` on `search_sec_filings` returns only the company's own filings.
+  Assistants read these, not the docstring, when choosing arguments. Before, the
+  schema carried only names and types. A test fails if a parameter lacks one.
+- `Dockerfile` (runs the MCP server over stdio from a checkout) and `glama.json`
+  (maintainers, for the Glama directory listing).
+
 ### Added (weekly brief)
 - **Share images for each week.** `tools/brief_card.py` renders the week's counts and a
   few named records (new Phase 3, approvals, results, stopped) as a 1200×630 link

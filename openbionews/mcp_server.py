@@ -830,6 +830,132 @@ TOOLS = [
 ]
 
 
+# What each tool parameter means, sent to the assistant in the tool's input schema
+# (the docstrings explain the tool as a whole). Shared meanings first, then per tool.
+PARAM_HELP = {
+    "limit": "Maximum number of results to return.",
+    "offset": "Number of results to skip, for paging. The response's `truncated` flag "
+              "says whether more remain.",
+    "since": "Only records dated on or after this date (YYYY-MM-DD); each is flagged "
+             "`is_new`. Pass the date of your last check to see only what changed.",
+    "recent_days": "How far back to look, in days from today.",
+    "rank_by": "Result order: 'recency' (newest first), 'relevance' (keyword match), "
+               "'semantic' (by meaning; needs the optional [ml] extra, otherwise falls back "
+               "to relevance) or 'salience' (what matters most, e.g. large late-stage "
+               "trials or Class I recalls; needs no query).",
+    "verbose": "Return full records with raw source fields and the score breakdown "
+               "(`relevance_components`). Leave false for compact results.",
+}
+PARAM_HELP_BY_TOOL = {
+    "search_clinical_trials": {
+        "query": "Drug, condition, sponsor or other keywords, e.g. 'semaglutide', "
+                 "'Moderna' or 'non-small cell lung cancer'.",
+        "status": "Overall status, e.g. 'RECRUITING', 'ACTIVE_NOT_RECRUITING', 'COMPLETED', "
+                  "'TERMINATED' or 'WITHDRAWN'. Omit for any status.",
+        "phase": "Phase: '1', '2', '3' or '4', or a combination such as '2/3' (Phase 2 or "
+                 "Phase 3). Omit for any phase.",
+        "recent_days": "Only studies whose record was updated within this many days.",
+        "require_match": "Drop studies where the query appears in no field (the loose "
+                         "matches the registry's search returns). Set false to see "
+                         "everything and judge each result's `match` yourself.",
+    },
+    "search_fda_recalls": {
+        "query": "Product name or words in the product description, e.g. 'metformin'. "
+                 "Leave empty to list all recent recalls.",
+        "firm": "Recalling company, e.g. 'Pfizer'.",
+        "classification": "Recall class: 'Class I' (most serious: may cause serious harm "
+                          "or death), 'Class II' or 'Class III'. Omit for all classes.",
+        "recent_days": "Only recalls reported within this many days.",
+    },
+    "search_fda_approvals": {
+        "query": "Brand or generic drug name, e.g. 'Keytruda' or 'pembrolizumab'. Leave "
+                 "empty to list recent approvals.",
+        "company": "Sponsor (applicant) company, e.g. 'Merck'.",
+        "include_supplements": "Also include supplemental approvals (new indications, "
+                               "label changes). Set false for original NDA/BLA approvals only.",
+        "recent_days": "Only approvals dated within this many days.",
+    },
+    "search_fda_shortages": {
+        "query": "Brand or generic drug name, e.g. 'amoxicillin'. Leave empty to list "
+                 "shortages.",
+        "company": "Manufacturer or company name.",
+        "status": "'Current' for active shortages or 'Resolved' for past ones.",
+    },
+    "search_fda_adverse_events": {
+        "query": "Drug name, brand or generic, e.g. 'semaglutide'.",
+        "top_reactions": "How many of the most-reported reactions to return.",
+    },
+    "search_fda_labeling": {
+        "query": "Drug name, brand or generic, e.g. 'Ozempic'.",
+    },
+    "search_federal_register": {
+        "query": "Search text, e.g. 'biosimilar' or 'advisory committee'. Leave empty for "
+                 "all recent documents.",
+        "recent_days": "Only documents published within this many days.",
+        "all_agencies": "Search every federal agency instead of only the FDA.",
+    },
+    "search_pubmed": {
+        "query": "Search terms, as you would type them into PubMed, e.g. "
+                 "'GLP-1 obesity cardiovascular'.",
+        "recent_days": "Only papers published within this many days.",
+        "require_match": "Keep only papers whose title names the query. Off by default "
+                         "because PubMed also matches abstracts and MeSH terms, which "
+                         "this tool doesn't fetch.",
+    },
+    "search_sec_filings": {
+        "query": "Text to search for. On its own: full-text search of every filing that "
+                 "mentions it. With `company`: filters that company's filings by "
+                 "form or description text.",
+        "company": "Company name, ticker or CIK, e.g. 'Moderna' or 'MRNA'. Returns only "
+                   "that company's own filings, not filings that mention it.",
+        "form": "Form type, e.g. '8-K', '10-K', '10-Q', 'S-1', '424B5', 'SC 13D', "
+                "'DEF 14A' or '4'.",
+        "recent_days": "Only filings dated within this many days.",
+        "own_filer_only": "Treat `query` as the company and return only its own filings "
+                          "(the same as passing `company`).",
+    },
+    "watchlist_digest": {
+        "terms": "Companies, drugs or topics to watch, e.g. ['Moderna', 'mRNA-1283']. "
+                 "A single string also works.",
+        "recent_days": "How far back to look in every source, in days from today.",
+        "limit_per_source": "Maximum number of records from each source.",
+        "sources": "Only these sources: trials, recalls, approvals, shortages, "
+                   "adverse_events, labeling, federal_register, pubmed, sec. Omit for all.",
+    },
+}
+
+
+def param_help(tool: str, param: str) -> str | None:
+    return PARAM_HELP_BY_TOOL.get(tool, {}).get(param) or PARAM_HELP.get(param)
+
+
+def _described(fn):
+    """``fn`` with each parameter's description attached (``Annotated`` + pydantic
+    ``Field``), so the MCP SDK puts it in the tool's input schema. Pydantic comes
+    with the ``mcp`` package, so this only runs when the server is built."""
+    import functools
+    import inspect
+    from typing import Annotated, get_type_hints
+
+    from pydantic import Field
+
+    hints = get_type_hints(fn)
+    sig = inspect.signature(fn)
+    params = []
+    for p in sig.parameters.values():
+        ann = hints.get(p.name, p.annotation)
+        text = param_help(fn.__name__, p.name)
+        params.append(p.replace(annotation=Annotated[ann, Field(description=text)] if text else ann))
+
+    @functools.wraps(fn)
+    def tool(*args, **kwargs):
+        return fn(*args, **kwargs)
+
+    tool.__signature__ = sig.replace(parameters=params, return_annotation=hints.get("return", sig.return_annotation))
+    tool.__annotations__ = {**{p.name: p.annotation for p in params}, "return": tool.__signature__.return_annotation}
+    return tool
+
+
 # --------------------------------------------------------------------------- #
 # MCP wiring (imports the optional ``mcp`` package lazily)
 # --------------------------------------------------------------------------- #
@@ -869,6 +995,7 @@ def build_server():
     # tool annotations lets agent frameworks cache and parallelise calls safely.
     annotations = {"readOnlyHint": True, "idempotentHint": True, "openWorldHint": True}
     for fn in TOOLS:
+        fn = _described(fn)
         try:
             server.tool(annotations=annotations)(fn)
         except TypeError:          # older SDK without annotation support

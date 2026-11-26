@@ -54,6 +54,20 @@ def test_build_server_registers_every_tool():
     assert len(expected) == 10, "expected 10 MCP tools"
 
 
+def test_every_tool_parameter_is_described_in_the_schema():
+    """Assistants (and directories that grade servers, like Glama) read each
+    parameter's description from the input schema, not the docstring."""
+    if not HAVE_MCP:
+        print("SKIP: the optional 'mcp' package is not installed")
+        return
+    import asyncio
+    tools = asyncio.run(mcp_server.build_server().list_tools())
+    for t in tools:
+        schema = getattr(t, "input_schema", None) or getattr(t, "inputSchema")
+        bare = [k for k, v in schema.get("properties", {}).items() if not v.get("description")]
+        assert not bare, f"{t.name}: no description for {bare}"
+
+
 def test_server_reports_its_version():
     if not HAVE_MCP:
         print("SKIP: the optional 'mcp' package is not installed")

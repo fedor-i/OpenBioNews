@@ -765,6 +765,18 @@ def test_all_tools_registered():
 
 
 # --- the bundled agent skill stays in step with the tools ------------------- #
+def test_every_tool_parameter_has_help_text():
+    import inspect
+    for fn in mcp_server.TOOLS:
+        for name in inspect.signature(fn).parameters:
+            text = mcp_server.param_help(fn.__name__, name)
+            assert text and len(text) > 20, f"{fn.__name__}({name}) has no parameter description"
+    # per-tool entries must name real parameters (catches a renamed argument)
+    for tool, params in mcp_server.PARAM_HELP_BY_TOOL.items():
+        fn = next(f for f in mcp_server.TOOLS if f.__name__ == tool)
+        assert set(params) <= set(inspect.signature(fn).parameters), tool
+
+
 def test_agent_skill_matches_the_tools():
     """skills/openbionews/SKILL.md tells agents which tools and arguments to use. If a
     tool or argument is renamed, the skill would send agents to one that doesn't exist."""

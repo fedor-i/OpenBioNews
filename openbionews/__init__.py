@@ -9,5 +9,5 @@ standard library — no third-party packages required for the core pipeline. The
 connectors are also served to AI assistants as an MCP server (``openbionews[mcp]``).
 """
 
-__version__ = "0.8.8"
+__version__ = "0.8.9"
 __all__ = ["__version__"]
