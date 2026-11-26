@@ -5,7 +5,7 @@ video in the feed and shows an uploaded PDF as a swipeable carousel. This captur
 the front box's slides from the live site (or any URL serving docs/), puts each in a
 branded 1920x1080 frame with a progress strip, and writes:
 
-  <out>/reel.mp4    ~3.5 s per slide with short crossfades (H.264, silent)
+  <out>/reel.mp4    ~4.4 s per slide with short crossfades (H.264, silent)
   <out>/reel.pdf    one frame per page, for a LinkedIn "document" post
   <out>/frames/     the frames as PNGs
 
@@ -135,7 +135,7 @@ def capture(site: str, per_feed: int, out: Path) -> list[Path]:
     return paths
 
 
-def encode(frames: list[Path], out: Path, hold: float = 3.5, fade: float = 0.4) -> Path | None:
+def encode(frames: list[Path], out: Path, hold: float = 4.375, fade: float = 0.5) -> Path | None:
     """Crossfade the frames into an H.264 MP4 that LinkedIn and phones play."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:

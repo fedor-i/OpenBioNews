@@ -25,7 +25,7 @@ to follow [Semantic Versioning](https://semver.org/).
   to the post draft. Sources that couldn't be reached read "unavailable", never zero.
 - **A LinkedIn video and swipeable PDF of the front box.** `tools/brief_reel.py` captures the
   site's slides (overview first, then records, per feed) into a branded 1920×1080 frame
-  with a progress strip and writes a ~40 s MP4 (autoplays in the feed) and a PDF for a
+  with a progress strip and writes a ~50 s MP4 (autoplays in the feed) and a PDF for a
   LinkedIn document post. The Monday workflow builds both from the new week and attaches
   them to the run.
 - **A LinkedIn newsletter edition for each week** (`brief/<week>-edition.html`, not indexed):
@@ -39,7 +39,7 @@ to follow [Semantic Versioning](https://semver.org/).
   canonical URLs, and structured data (schema.org `WebApplication`) on the site.
 
 ### Changed (website)
-- Front-box slides stay up for 10 seconds each.
+- Front-box slides stay up for 20 seconds each.
 - **A front box that shows the week's real activity, with small charts.** One box at
   the top of every page, in four labelled feeds: this week's brief, terminated Phase 3
   trials (30 days), industry Phase 3 activity (this week) and Class I recalls (30 days).
