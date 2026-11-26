@@ -18,10 +18,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  # Upload and deploy are separate jobs, the layout GitHub's own Pages workflow uses.
+  # Deploying in the same job right after the upload intermittently failed with
+  # "No artifacts named github-pages were found" (2 of 5 runs in Nov 2026): the
+  # artifact wasn't visible to the deploy API yet. The deploy also retries once.
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -32,6 +33,22 @@ jobs:
         uses: actions/upload-pages-artifact@v5
         with:
           path: docs
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url || steps.retry.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      - name: Wait before retrying
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+      - name: Deploy to GitHub Pages (retry)
+        id: retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v5
