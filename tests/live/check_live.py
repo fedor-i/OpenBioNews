@@ -196,7 +196,17 @@ def check_pubmed():
     return f"{len(res)} papers"
 
 
+def _sec_weekly_only():
+    """SEC requests carry the maintainer's email (EDGAR_UA), which is used about once a
+    week: the scheduled daily run checks SEC only on Mondays, ahead of the weekly brief.
+    Pushes and manual runs check it whenever they run."""
+    from datetime import datetime, timezone
+    if os.environ.get("GITHUB_EVENT_NAME") == "schedule" and datetime.now(timezone.utc).weekday() != 0:
+        raise Skipped("SEC is checked on Mondays only (it uses the maintainer's contact email)")
+
+
 def check_sec_entity_scoping():
+    _sec_weekly_only()
     try:
         out = call(ms.search_sec_filings, company="LLY", recent_days=180, limit=10)
     except AssertionError as exc:
@@ -216,6 +226,7 @@ def check_sec_entity_scoping():
 def check_brief_sec_section():
     """The weekly brief's SEC section: biopharma deals (8-K) and IPO filings (S-1/F-1)
     for the last full week, from EDGAR full-text search."""
+    _sec_weekly_only()
     sys.path.insert(0, str(ROOT / "tools"))
     import weekly_brief as wb
     from datetime import datetime, timezone
