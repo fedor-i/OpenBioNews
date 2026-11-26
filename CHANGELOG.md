@@ -6,6 +6,18 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (weekly brief)
+- **SEC section: biopharma deals and IPO filings.** Each week, from EDGAR full-text
+  search: 8-Ks from biopharma registrants (SEC industry codes 2834, 2835, 2836) reporting
+  a material agreement entered or ended (Items 1.01, 1.02: licensing, collaborations,
+  M&A) or a completed acquisition (Item 2.01), and new S-1/F-1 IPO registrations. One
+  entry per filing (EDGAR returns a hit per document), each linked to its filing index.
+  It appears on the week's page, in the LinkedIn draft, the newsletter edition, the share
+  images (in place of the FDA notices tile) and the website's front box. SEC requires a
+  contact email: the workflow reads the `EDGAR_UA` repository secret; without it the
+  section reads "unavailable", never "none". Weeks built before this show "not part of
+  the brief yet". A live check runs the real search daily and on changes to the brief.
+
 ## [0.8.9] — 2026-11-26
 
 ### Added (MCP)

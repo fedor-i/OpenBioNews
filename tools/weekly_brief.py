@@ -33,8 +33,10 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 import re
 import sys
+import time
 import urllib.parse
 from datetime import date, datetime, timedelta, timezone
 from email.utils import format_datetime
@@ -52,6 +54,13 @@ CT_API = "https://clinicaltrials.gov/api/v2/studies"
 APPROVALS_API = "https://api.fda.gov/drug/drugsfda.json"
 RECALLS_API = "https://api.fda.gov/drug/enforcement.json"
 FEDREG_API = "https://www.federalregister.gov/api/v1/documents.json"
+EFTS_API = "https://efts.sec.gov/LATEST/search-index"
+# SEC industry codes (SIC) counted as biopharma: pharmaceutical preparations, in vitro
+# diagnostics, biological products.
+BIOPHARMA_SICS = {"2834", "2835", "2836"}
+# 8-K items worth a BD reader's attention, in plain words.
+SEC_ITEMS = {"1.01": "entered a material agreement", "1.02": "ended a material agreement",
+             "2.01": "completed an acquisition or sale"}
 MAX_ITEMS = 50
 CT_FIELDS = ("NCTId,BriefTitle,LeadSponsorName,EnrollmentCount,OverallStatus,Condition,"
              "WhyStopped,Phase,Acronym,InterventionName")
@@ -70,6 +79,10 @@ SECTIONS = [
     ("approvals", "New FDA approvals",
      "Original NDA and BLA approvals dated this week in Drugs@FDA. Generics (ANDAs) "
      "and supplements are left out. Drugs@FDA can lag by a few days."),
+    ("sec", "SEC: deals and IPO filings",
+     "Biopharma companies' 8-Ks reporting a material agreement entered or ended (licensing, "
+     "collaborations, M&A) or a completed acquisition, and new IPO registrations (S-1, F-1), "
+     "filed with the SEC this week. Biopharma means SEC industry codes 2834, 2835 and 2836."),
     ("recalls", "Class I recalls",
      "The most serious class of drug recall, reported to FDA's enforcement database this week."),
     ("fda_notices", "FDA notices",
@@ -274,9 +287,93 @@ def collect_fda_notices(start: date, end: date) -> dict:
     return {"total": len(items), "items": items}
 
 
+def _sec_name(display: str) -> tuple[str, str]:
+    """("Vertex Pharmaceuticals Inc", "VRTX") from EDGAR's "Vertex Pharmaceuticals Inc
+    (VRTX)  (CIK 0000875320)"."""
+    name = re.sub(r"\s*\(CIK\s*\d+\)\s*$", "", display or "").strip()
+    m = re.search(r"\s*\(([A-Z0-9.\-, ]{1,24})\)\s*$", name)
+    return (name[: m.start()].strip(), m.group(1).split(",")[0].strip()) if m else (name, "")
+
+
+def _efts(params: dict, ua: str, max_pages: int = 10) -> list[dict]:
+    """Every hit for an EDGAR full-text search, following its pages."""
+    hits: list[dict] = []
+    while len(hits) < max_pages * 100:
+        page = get_json(EFTS_API, params={**params, "from": len(hits) or None},
+                        headers={"User-Agent": ua}, timeout=30)
+        batch = (page.get("hits") or {}).get("hits") or []
+        hits += batch
+        total = ((page.get("hits") or {}).get("total") or {}).get("value", 0)
+        if not batch or len(hits) >= total:
+            break
+        time.sleep(0.2)                   # SEC asks for at most 10 requests a second
+    return hits
+
+
+def parse_sec_hits(hits: list[dict], kind: str) -> list[dict]:
+    """Brief items from EDGAR hits: biopharma filers only, one item per filing (EDGAR
+    returns a hit per document, exhibits included). ``kind`` is "deal" (8-K) or "ipo"."""
+    if hits and not any("sics" in (h.get("_source") or {}) for h in hits):
+        raise HTTPJSONError("EDGAR results no longer carry industry codes (sics)")
+    out, seen = [], set()
+    for h in hits:
+        src = h.get("_source") or {}
+        accn = (h.get("_id") or "").partition(":")[0] or src.get("adsh", "")
+        form = src.get("root_form") or src.get("form") or ""
+        if not accn or accn in seen or not BIOPHARMA_SICS & set(map(str, src.get("sics") or [])):
+            continue
+        if kind == "deal":
+            if form != "8-K":
+                continue
+            items = [i for i in (src.get("items") or []) if i in SEC_ITEMS]
+            if not items:
+                continue
+            what = "; ".join(SEC_ITEMS[i] for i in items)
+            detail = "8-K Item " + ", ".join(items)
+        else:
+            if form not in ("S-1", "F-1"):
+                continue
+            what, detail = f"filed to go public ({form})", form
+        seen.add(accn)
+        company, ticker = _sec_name((src.get("display_names") or [""])[0])
+        cik = str(int((src.get("ciks") or ["0"])[0] or 0))
+        url = (f"https://www.sec.gov/Archives/edgar/data/{cik}/{accn.replace('-', '')}/{accn}-index.htm"
+               if cik != "0" else f"https://efts.sec.gov/LATEST/search-index?q=%22{accn}%22")
+        filed = src.get("file_date", "")
+        out.append({"title": f"{company}: {what}",
+                    "key": {"org": short_org(company), "what": what[0].upper() + what[1:], "acr": ticker},
+                    "url": url, "cite": accn,
+                    "facts": [f for f in (company, detail, f"filed {filed}" if filed else "") if f],
+                    "note": ""})
+    return out
+
+
+def collect_sec(start: date, end: date) -> dict:
+    """The week's biopharma deals (8-K Items 1.01, 1.02, 2.01) and IPO registrations
+    (S-1, F-1) from EDGAR full-text search. SEC requires a contact email in the
+    User-Agent: OPENBIONEWS_EDGAR_UA (the weekly workflow sets it from a secret)."""
+    ua = os.environ.get("OPENBIONEWS_EDGAR_UA", "")
+    if "@" not in ua:
+        return {"error": "SEC needs a contact email: set OPENBIONEWS_EDGAR_UA"}
+    week = {"dateRange": "custom", "startdt": str(start), "enddt": str(end)}
+    try:
+        deals = []
+        for phrase in ('"material definitive agreement"', '"completion of acquisition"'):
+            deals += _efts({"q": phrase, "forms": "8-K", **week}, ua)
+        ipos = _efts({"q": '"registration statement"', "forms": "S-1,F-1", **week}, ua)
+    except HTTPJSONError as exc:
+        return {"error": str(exc)[:200]}
+    items = parse_sec_hits(deals, "deal")
+    seen = {i["cite"] for i in items}
+    items += [i for i in parse_sec_hits(ipos, "ipo") if i["cite"] not in seen]
+    items.sort(key=lambda i: next((f for f in i["facts"] if f.startswith("filed ")), ""), reverse=True)
+    return {"total": len(items), "items": items}
+
+
 def collect(start: date, end: date) -> dict:
     sections = collect_trials(start, end)
     sections["approvals"] = collect_approvals(start, end)
+    sections["sec"] = collect_sec(start, end)
     sections["recalls"] = collect_recalls(start, end)
     sections["fda_notices"] = collect_fda_notices(start, end)
     for sec in sections.values():
@@ -296,14 +393,28 @@ STAT_LABELS = {
     "results": ("Phase 3 trial with results", "Phase 3 trials with results"),
     "stopped": ("Phase 3 trial stopped", "Phase 3 trials stopped"),
     "approvals": ("FDA approval", "FDA approvals"),
+    "sec": ("SEC deal or IPO filing", "SEC deals and IPO filings"),
     "recalls": ("Class I recall", "Class I recalls"),
     "fda_notices": ("FDA notice", "FDA notices"),
 }
 
 
+NOT_YET = "not part of the brief yet"
+
+
+def with_all_sections(brief: dict) -> dict:
+    """Weeks built before a section existed show it as "not part of the brief yet"
+    rather than failing or reading as zero."""
+    for key, _, _ in SECTIONS:
+        brief["sections"].setdefault(key, {"error": NOT_YET})
+    return brief
+
+
 def stat(sections: dict, key: str, html_bold: bool = False) -> str:
-    sec = sections[key]
+    sec = sections.get(key) or {"error": NOT_YET}
     one, many = STAT_LABELS[key]
+    if sec.get("error") == NOT_YET:
+        return ""
     if "error" in sec:
         return f"{many}: unavailable"
     n = sec.get("total", 0)
@@ -373,12 +484,14 @@ def _week_body(brief: dict) -> list[str]:
     """The week's count chips, its sections and the footer, shared by the week's own
     page and the brief's front page."""
     secs = brief["sections"]
-    stats = "".join(f"<li>{stat(secs, k, html_bold=True)}</li>" for k, _, _ in SECTIONS)
+    stats = "".join(f"<li>{x}</li>" for x in (stat(secs, k, html_bold=True) for k, _, _ in SECTIONS) if x)
     parts = [f'<ul class="stats">{stats}</ul>']
     for key, name, what in SECTIONS:
         sec = secs[key]
         parts.append(f'<section id="{key}"><h2>{html.escape(name)}</h2><p class="what">{html.escape(what)}</p>')
-        if "error" in sec:
+        if sec.get("error") == NOT_YET:
+            parts.append('<p class="empty">Not part of the brief yet that week.</p>')
+        elif "error" in sec:
             parts.append('<p class="err">This source couldn\'t be reached when the brief was built, '
                          "so this section is missing, not empty.</p>")
         elif not sec["items"]:
@@ -398,8 +511,8 @@ def _week_body(brief: dict) -> list[str]:
 
 
 def _footer(brief: dict) -> str:
-    return (f"<footer>Built automatically from ClinicalTrials.gov, openFDA and the Federal "
-            f"Register on {html.escape(brief['generated_at'][:10])}. Nothing here is "
+    return (f"<footer>Built automatically from ClinicalTrials.gov, openFDA, the Federal "
+            f"Register and SEC EDGAR on {html.escape(brief['generated_at'][:10])}. Nothing here is "
             f"editorialised; check the linked record before relying on an item. Not investment "
             f'or medical advice. · <a href="{SITE}">OpenBioNews</a> (free, open source)</footer>')
 
@@ -427,7 +540,7 @@ def render_index(briefs: list[dict], card: bool = False) -> str:
     latest week has a share image."""
     rows = "".join(
         f'<li><a href="{b["end"]}.html">{html.escape(week_label(b))}</a>'
-        f'<div class="facts">' + html.escape(" · ".join(stat(b["sections"], k) for k, _, _ in SECTIONS))
+        f'<div class="facts">' + html.escape(" · ".join(x for x in (stat(b["sections"], k) for k, _, _ in SECTIONS) if x))
         + "</div></li>"
         for b in briefs)
     intro = ("New industry Phase 3 trials, Phase 3 results, stopped trials (with the stated reason), "
@@ -503,7 +616,7 @@ def render_linkedin(brief: dict) -> str:
     secs, label = brief["sections"], week_label(brief)
 
     def ok(key):
-        return "error" not in secs[key]
+        return "error" not in secs.get(key, {"error": NOT_YET})
 
     def examples(key, n=2):
         return "".join(f"\n   – {key_line(i)}" for i in secs[key]["items"][:n])
@@ -526,10 +639,13 @@ def render_linkedin(brief: dict) -> str:
                         else f"\n   – {i['title']} ({i['facts'][0]})" for i in prio)
         lines.append(f"• {_n(a['total'], 'original FDA approval', 'original FDA approvals')} (NDA/BLA)"
                      + (f", {len(prio)} with priority review:{named}" if prio else ""))
+    if ok("sec"):
+        lines.append(f"• {_n(secs['sec']['total'], 'biopharma SEC filing', 'biopharma SEC filings')}"
+                     f" on deals or IPOs{examples('sec')}")
     if ok("recalls"):
         lines.append(f"• {_n(secs['recalls']['total'], 'Class I drug recall', 'Class I drug recalls')}")
     lines += ["", f"Every item links to its official record: {SITE}brief/{brief['end']}.html", "",
-              "Built automatically from ClinicalTrials.gov, openFDA and the Federal Register "
+              "Built automatically from ClinicalTrials.gov, openFDA, the Federal Register and SEC EDGAR "
               "with OpenBioNews (free, open source). Check the record before relying on an item.",
               "", "#biotech #pharma #clinicaltrials #FDA #competitiveintelligence"]
     return "\n".join(lines)
@@ -575,7 +691,7 @@ def render_edition(brief: dict, per_section: int = 3) -> str:
     secs, label = brief["sections"], week_label(brief)
     esc = html.escape
     page_url = f"{SITE}brief/{brief['end']}.html"
-    nums = "".join(f"<li>{stat(secs, k, html_bold=True)}</li>" for k, _, _ in SECTIONS)
+    nums = "".join(f"<li>{x}</li>" for x in (stat(secs, k, html_bold=True) for k, _, _ in SECTIONS) if x)
     art = [f"<p>The week of {esc(label)} in official records: what was registered, reported, "
            f"stopped, approved and recalled. Every item links to the record itself.</p>",
            f"<h2>The week in numbers</h2><ul>{nums}</ul>"]
@@ -597,7 +713,7 @@ def render_edition(brief: dict, per_section: int = 3) -> str:
         art.append(f"<ul>{''.join(rows)}</ul>{more}")
     art.append(f'<h2>Read the full week</h2><p>All {sum(s.get("total", 0) for s in secs.values() if "error" not in s)} '
                f'items with their sources: <a href="{page_url}">{page_url}</a></p>'
-               f'<p>Built automatically from ClinicalTrials.gov, openFDA and the Federal Register with '
+               f'<p>Built automatically from ClinicalTrials.gov, openFDA, the Federal Register and SEC EDGAR with '
                f'<a href="{SITE}">OpenBioNews</a>, free and open source. It also works inside AI '
                f'assistants (MCP), so they cite these records instead of guessing. Nothing here is '
                f'made up; check the linked record before relying on an item. Not investment '
@@ -627,12 +743,13 @@ def latest_summary(brief: dict) -> dict:
     secs = brief["sections"]
 
     def items(key, n):
-        return [] if "error" in secs[key] else secs[key]["items"][:n]
+        return [] if "error" in secs.get(key, {"error": NOT_YET}) else secs[key]["items"][:n]
 
     slides = [{"text": stat(secs, k)} for k in ("new_trials", "results", "approvals", "recalls")
               if "error" not in secs[k]]
     for lead, key, n in (("New Phase 3", "new_trials", 2), ("Results", "results", 2),
-                         ("Approved", "approvals", 4), ("Stopped", "stopped", 2)):
+                         ("Approved", "approvals", 4), ("Stopped", "stopped", 2),
+                         ("SEC", "sec", 2)):
         for i in items(key, n):
             k = i.get("key") or {"what": _short(i["title"], 60)}
             slides.append({"lead": lead, **{f: v for f, v in k.items() if v}})
@@ -653,7 +770,7 @@ def render_sitemap(briefs: list[dict]) -> str:
 def write_site(out: Path, sitemap: Path | None = None) -> list[dict]:
     """Rebuild every page from data/*.json. ``sitemap``: where to write sitemap.xml
     (the site root); main() passes docs/sitemap.xml for the published site."""
-    briefs = sorted((json.loads(p.read_text("utf-8")) for p in (out / "data").glob("*.json")),
+    briefs = sorted((with_all_sections(json.loads(p.read_text("utf-8"))) for p in (out / "data").glob("*.json")),
                     key=lambda b: b["end"], reverse=True)
     cards = {b["end"]: (out / "cards" / f"{b['end']}-post.png").stat().st_size for b in briefs
              if (out / "cards" / f"{b['end']}-post.png").exists()}

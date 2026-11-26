@@ -39,11 +39,11 @@ TILES = [("new_trials", "New Phase 3 trials", "New Phase 3 trial"),
          ("stopped", "Phase 3 trials stopped", "Phase 3 trial stopped"),
          ("approvals", "FDA approvals", "FDA approval"),
          ("recalls", "Class I recalls", "Class I recall"),
-         ("fda_notices", "FDA notices", "FDA notice")]
+         ("sec", "SEC deals & IPO filings", "SEC deal or IPO filing")]
 
 # Named records: (section, label, how many on the card, how many on the post image).
-PICKS = [("new_trials", "New Phase 3", 1, 2), ("approvals", "Approved", 1, 2),
-         ("results", "Results", 1, 1), ("stopped", "Stopped", 1, 1)]
+PICKS = [("new_trials", "New Phase 3", 1, 1), ("approvals", "Approved", 1, 2),
+         ("results", "Results", 1, 1), ("stopped", "Stopped", 1, 1), ("sec", "SEC", 1, 1)]
 
 
 def _line(key: str, item: dict) -> tuple[str, str, str]:
@@ -56,6 +56,9 @@ def _line(key: str, item: dict) -> tuple[str, str, str]:
         detail = k.get("cond", "")
         if k.get("acr") and k["acr"] != what:
             detail = f"{detail} ({k['acr']})" if detail else k["acr"]
+    if key == "sec":                             # ticker · the form and item
+        form = (item.get("facts") or ["", ""])[1:2][0]   # "8-K Item 1.01", or "S-1" (already in what)
+        detail = " · ".join(x for x in (k.get("acr"), form if form not in what else "") if x)
     if key in ("new_trials", "results", "stopped"):
         n = next((f for f in item.get("facts", []) if f.endswith("participants")), "")
         if n:
@@ -66,11 +69,13 @@ def _line(key: str, item: dict) -> tuple[str, str, str]:
 def card_html(brief: dict, kind: str = "card") -> str:
     """The image as a self-contained page; ``kind`` is "card" or "post"."""
     w, h = SIZES[kind]
-    secs = brief["sections"]
+    secs = wb.with_all_sections(brief)["sections"]
+    tiles_spec = [t if not (t[0] == "sec" and secs["sec"].get("error") == wb.NOT_YET)
+                  else ("fda_notices", "FDA notices", "FDA notice") for t in TILES]
     esc = html.escape
 
     tiles = []
-    for key, many, one in TILES:
+    for key, many, one in tiles_spec:
         sec = secs[key]
         if "error" in sec:
             tiles.append(f'<div class="t na"><b>–</b><span>{esc(many)}: unavailable</span></div>')
@@ -125,7 +130,7 @@ footer b{{color:#0f3d38}}
 <div class="kicker">This week in biopharma records</div>
 <div class="when">{esc(wb.week_label(brief))}</div></header>
 <main><div class="tiles">{''.join(tiles)}</div><ul>{''.join(rows)}</ul></main>
-<footer><span>Every item linked to its official record<br>ClinicalTrials.gov · openFDA · Federal Register</span>
+<footer><span>Every item linked to its official record<br>ClinicalTrials.gov · openFDA · Federal Register · SEC EDGAR</span>
 <b>fedor-i.github.io/OpenBioNews</b></footer>
 </body></html>"""
 

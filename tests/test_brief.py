@@ -75,6 +75,37 @@ FEDREG = {"results": [
      "html_url": "https://www.federalregister.gov/d/2026-2"}]}
 
 
+
+def _hit(adsh, doc, form, sics, items=None, name="Acme Therapeutics Inc  (ACME)  (CIK 0001234567)",
+         date="2026-11-18"):
+    src = {"ciks": ["0001234567"], "display_names": [name], "form": form, "root_form": form,
+           "file_date": date, "sics": sics}
+    if items is not None:
+        src["items"] = items
+    return {"_id": f"{adsh}:{doc}", "_source": src}
+
+
+EFTS_DEALS = [
+    _hit("0001234567-26-000001", "d8k.htm", "8-K", ["2834"], ["1.01", "9.01"]),
+    _hit("0001234567-26-000001", "ex10-1.htm", "8-K", ["2834"], ["1.01", "9.01"]),   # its exhibit
+    _hit("0009999999-26-000002", "d8k.htm", "8-K", ["7372"], ["1.01"],
+         name="Software Co  (SOFT)  (CIK 0009999999)"),                                # not biopharma
+    _hit("0001234567-26-000003", "d8k.htm", "8-K", ["2836"], ["5.02"]),               # exec change
+    _hit("0001234567-26-000004", "d8ka.htm", "8-K/A", ["2836"], ["1.01"]),            # amendment
+]
+EFTS_IPOS = [
+    _hit("0005555555-26-000010", "ds1.htm", "S-1", ["2836"], name="NewBio Inc  (CIK 0005555555)",
+         date="2026-11-20"),
+    _hit("0005555555-26-000011", "ds1a.htm", "S-1/A", ["2836"], name="OtherBio Inc  (CIK 0005555556)"),
+]
+
+
+def _efts(params):
+    hits = EFTS_IPOS if "S-1" in params.get("forms", "") else (
+        EFTS_DEALS if "material definitive" in params.get("q", "") else [])
+    return {"hits": {"total": {"value": len(hits)}, "hits": hits}}
+
+
 def _router(fail_ct=False):
     def fake(url, params=None, **kw):
         if "clinicaltrials.gov" in url:
@@ -94,17 +125,29 @@ def _router(fail_ct=False):
             return RECALLS
         if "federalregister" in url:
             return FEDREG
+        if "efts.sec.gov" in url:
+            assert "@" in kw.get("headers", {}).get("User-Agent", ""), "SEC needs a contact email"
+            return _efts(params or {})
         raise AssertionError(f"unexpected URL {url}")
     return fake
 
 
-def _collect(**kw):
-    orig = wb.get_json
-    wb.get_json = _router(**kw)
+def _collect(ua="OpenBioNews-test test@example.com", **kw):
+    import os
+    orig, orig_ua, orig_sleep = wb.get_json, os.environ.get("OPENBIONEWS_EDGAR_UA"), wb.time.sleep
+    wb.get_json, wb.time.sleep = _router(**kw), (lambda s: None)
+    if ua is None:
+        os.environ.pop("OPENBIONEWS_EDGAR_UA", None)
+    else:
+        os.environ["OPENBIONEWS_EDGAR_UA"] = ua
     try:
         return wb.collect(START, END)
     finally:
-        wb.get_json = orig
+        wb.get_json, wb.time.sleep = orig, orig_sleep
+        if orig_ua is None:
+            os.environ.pop("OPENBIONEWS_EDGAR_UA", None)
+        else:
+            os.environ["OPENBIONEWS_EDGAR_UA"] = orig_ua
 
 
 def test_key_words_pick_company_drug_and_condition():
@@ -244,6 +287,43 @@ def test_newsletter_edition_is_paste_ready_and_not_indexed():
     assert titles[0].startswith("2 new Phase 3 trials, 1 stopped, 2 FDA approvals: the week of Nov 16")
     assert titles[-1] == "This week in biopharma records: Nov 16–22, 2026"
     assert all(t in page for t in titles[:1])
+
+
+def test_sec_section_keeps_biopharma_deals_and_ipos_once_each():
+    sec = _collect()["sections"]["sec"]
+    assert sec["total"] == 2, sec
+    ipo, deal = sec["items"]                                  # newest filing first
+    assert ipo["title"] == "NewBio Inc: filed to go public (S-1)" and ipo["facts"][-1] == "filed 2026-11-20"
+    assert deal["title"] == "Acme Therapeutics Inc: entered a material agreement"
+    assert deal["key"] == {"org": "Acme", "what": "Entered a material agreement", "acr": "ACME"}
+    assert "8-K Item 1.01" in deal["facts"] and deal["cite"] == "0001234567-26-000001"
+    assert deal["url"] == ("https://www.sec.gov/Archives/edgar/data/1234567/000123456726000001/"
+                           "0001234567-26-000001-index.htm")
+
+
+def test_sec_without_a_contact_email_reads_as_unavailable():
+    brief = _collect(ua=None)
+    assert "contact email" in brief["sections"]["sec"]["error"]
+    assert wb.stat(brief["sections"], "sec") == "SEC deals and IPO filings: unavailable"
+    assert "biopharma SEC filing" not in wb.render_linkedin(brief)
+
+
+def test_sec_format_change_is_an_error_not_an_empty_week():
+    hits = [{"_id": "0001-26-1:a.htm", "_source": {"form": "8-K", "items": ["1.01"]}}]
+    try:
+        wb.parse_sec_hits(hits, "deal")
+    except HTTPJSONError as exc:
+        assert "industry codes" in str(exc)
+    else:
+        raise AssertionError("missing sics should raise, not return an empty week")
+
+
+def test_weeks_before_the_sec_section_still_render():
+    brief = _collect()
+    del brief["sections"]["sec"]
+    wb.with_all_sections(brief)
+    page = wb.render_week(brief)
+    assert "Not part of the brief yet that week." in page and "unavailable" not in page.split("<section")[0]
 
 
 if __name__ == "__main__":

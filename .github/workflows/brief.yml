@@ -33,6 +33,10 @@ jobs:
       - name: Build the brief
         env:
           END: ${{ github.event.inputs.end }}
+          # SEC requires a contact email in the User-Agent. Repository secret EDGAR_UA,
+          # e.g. "OpenBioNews-CI you@example.com" (a secret, so it's masked in the logs).
+          # Without it the SEC section reads "unavailable".
+          OPENBIONEWS_EDGAR_UA: ${{ secrets.EDGAR_UA }}
         run: python tools/weekly_brief.py ${END:+--end "$END"} > linkedin.txt
       - name: Render the share images
         # A preview card for the week's page and a portrait image to attach to the post.

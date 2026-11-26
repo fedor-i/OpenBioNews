@@ -212,6 +212,39 @@ def check_sec_entity_scoping():
     return f"{len(res)} filings, all Lilly's own"
 
 
+
+def check_brief_sec_section():
+    """The weekly brief's SEC section: biopharma deals (8-K) and IPO filings (S-1/F-1)
+    for the last full week, from EDGAR full-text search."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import weekly_brief as wb
+    from datetime import datetime, timezone
+    ua = os.environ.get("OPENBIONEWS_EDGAR_UA", "")
+    if "@" not in ua:
+        raise Skipped("no contact email for SEC; add a repository secret EDGAR_UA "
+                      "like 'OpenBioNews-CI you@example.com'")
+    start, end = wb.last_full_week(datetime.now(timezone.utc).date())
+    week = {"dateRange": "custom", "startdt": str(start), "enddt": str(end)}
+    try:   # the raw search first, so a format change shows up as such
+        hits = wb._efts({"q": '"material definitive agreement"', "forms": "8-K", **week}, ua, max_pages=2)
+    except Exception as exc:
+        if "HTTP 403" in str(exc):
+            raise Skipped("SEC refused the request (check the EDGAR_UA secret)") from exc
+        if _transient(str(exc)):
+            raise Unreachable(str(exc)) from exc
+        raise
+    need(hits, f"EDGAR full-text search returned no 8-Ks for {start}..{end}")
+    srcs = [h.get("_source") or {} for h in hits]
+    need(share(srcs, lambda s: "sics" in s) > 0.9, "8-K hits no longer carry industry codes (sics)")
+    need(share(srcs, lambda s: "items" in s) > 0.9, "8-K hits no longer carry item numbers (items)")
+    sec = wb.collect_sec(start, end)
+    need("error" not in sec, f"SEC section error: {sec.get('error')}")
+    need(sec["total"] >= 1, f"no biopharma deal or IPO filings found for {start}..{end} "
+                            f"({len(hits)} raw 8-K hits)")
+    sample = "; ".join(i["title"] for i in sec["items"][:3])
+    return f"{sec['total']} filings for {start}..{end} ({len(hits)} raw 8-K hits), e.g. {sample}"
+
+
 CHECKS = [
     ("ClinicalTrials.gov: fields + salience", check_trials_fields_and_salience),
     ("ClinicalTrials.gov: recency window", check_trials_recency_window),
@@ -225,6 +258,7 @@ CHECKS = [
     ("Federal Register", check_federal_register),
     ("PubMed", check_pubmed),
     ("SEC EDGAR: entity scoping", check_sec_entity_scoping),
+    ("SEC EDGAR: weekly brief section", check_brief_sec_section),
 ]
 
 

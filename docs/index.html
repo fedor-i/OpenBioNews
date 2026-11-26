@@ -4007,19 +4007,24 @@ function feedBrief(latest, week){
     {id:"stopped",    n:dig(S,"stopped","total")||0,    label:"Stopped"},
     {id:"approvals",  n:dig(S,"approvals","total")||0,  label:"FDA approvals"},
     {id:"recalls",    n:dig(S,"recalls","total")||0,    label:"Class I recalls"},
-    {id:"fda_notices",n:dig(S,"fda_notices","total")||0,label:"FDA notices"},
+    // SEC deals & IPO filings once the brief has them (weeks before it: FDA notices)
+    S.sec && S.sec.total!=null ? {id:"sec", n:S.sec.total, label:"SEC filings"}
+                               : {id:"fda_notices",n:dig(S,"fda_notices","total")||0,label:"FDA notices"},
   ];
   const ppl=it=>{ const f=(it.facts||[]).find(x=>/participants$/.test(x)); return f?+f.replace(/\D/g,""):null; };
-  const row=it=>{ const k=it.key||{}, p=ppl(it), ap=(it.facts||[]).find(x=>/^approved /.test(x));
-    return {id:it.cite, org:k.org||(it.facts||[])[0]||"", what:k.what||it.title, cond:k.acr?`${k.cond} (${k.acr})`:k.cond,
-      n: p!=null?fmtN(p):(ap?fmtD(ap.slice(9)):"")}; };
+  const row=it=>{ const k=it.key||{}, p=ppl(it), ap=(it.facts||[]).find(x=>/^approved /.test(x)),
+      fl=(it.facts||[]).find(x=>/^filed /.test(x));
+    return {id:it.cite, org:k.org||(it.facts||[])[0]||"", what:k.what||it.title,
+      cond:k.acr?(k.cond?`${k.cond} (${k.acr})`:k.acr):k.cond,
+      n: p!=null?fmtN(p):(ap?fmtD(ap.slice(9)):(fl?fmtD(fl.slice(6)):""))}; };
   const cat=`This week's brief <span class="when">· ${fbEsc(label)}</span>`;
   const slides=[{kind:"week", cat, href, tiles,
       top:(dig(S,"new_trials","items")||[]).slice().sort((a,b)=>(ppl(b)??-1)-(ppl(a)??-1)).slice(0,5).map(row)}];
   const SEC=[["new_trials","new Phase 3 trials","Largest new Phase 3, by participants"],
              ["results","Phase 3 trials posted results","Largest with results, by participants"],
              ["stopped","Phase 3 trials stopped","Stopped, largest first"],
-             ["approvals","FDA approvals","Approved this week"]];
+             ["approvals","FDA approvals","Approved this week"],
+             ["sec","biopharma SEC deals and IPO filings","Filed this week"]];
   for(const [id,noun,listCap] of SEC){
     const sec=S[id]; if(!sec||!sec.total) continue;
     // largest first by participants where the brief gives them (approvals keep brief order)
@@ -4027,6 +4032,9 @@ function feedBrief(latest, week){
     let lede="";
     if(id==="approvals"){ const pr=items.filter(it=>(it.facts||[]).includes("priority review")).length;
       lede=pr?`<strong>${pr} of ${items.length}</strong> under priority review.`:""; }
+    else if(id==="sec"){ const ipo=items.filter(it=>/go public/i.test((it.key||{}).what||"")).length;
+      const d=items.length-ipo;
+      lede=`<strong>${d}</strong> deal filing${d===1?"":"s"} (8-K) · <strong>${ipo}</strong> IPO registration${ipo===1?"":"s"}.`; }
     else { const orgs=tally(items,it=>(it.key||{}).org), ps=items.map(ppl).filter(x=>x!=null);
       const sum=ps.reduce((a,b)=>a+b,0);
       lede=`<strong>${orgs.length}</strong> sponsors`+(ps.length?` · <strong>${fmtN(sum)}</strong> participants${ps.length<items.length?` in ${ps.length} trials`:""}`:"")+"."; }
