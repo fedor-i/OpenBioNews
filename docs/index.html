@@ -49,15 +49,10 @@
   .brand{font:700 1.5rem/1.1 Georgia,"Times New Roman",serif;letter-spacing:-.01em;margin:0}
   footer .quality{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin:.6rem 0}
   footer .quality img{vertical-align:middle}
-  .brand small a.briefnew{color:var(--accent);font-weight:600;white-space:nowrap}
   .brand small{font:400 .82rem/1.3 -apple-system,sans-serif;color:var(--muted);display:block;margin-top:.35rem}
   main{max-width:60rem;margin:0 auto;padding:0 1rem 3rem}
   .starters{margin:1rem 0 .4rem}
-  .starters summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:.4rem;margin:0 0 .2rem}
-  .starters summary::-webkit-details-marker{display:none}
-  .starters summary::before{content:"▸";color:var(--muted);font-size:.8rem;transition:transform .15s}
-  .starters[open] summary::before{transform:rotate(90deg)}
-  .starters h2{font-size:1.05rem;margin:0;display:inline}
+  .starters h2{font-size:1.05rem;margin:0 0 .2rem}
   .starters-sub{color:var(--muted);font-size:.88rem;margin:0 0 .7rem}
   .starters-sub a{color:var(--accent)}
   .starter-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.6rem}
@@ -66,6 +61,23 @@
   .starter:hover,.starter:focus-visible{border-color:var(--accent)}
   .starter b{display:block;font-size:.95rem;margin-bottom:.2rem}
   .starter span{display:block;font-size:.8rem;color:var(--muted)}
+  .starter.brief{border-color:var(--accent)}
+  /* Returning visitors (a watchlist or a query): the same views as one row of compact
+     buttons, always visible, so they're one tap away without pushing results down.
+     On narrow screens the row scrolls sideways instead of wrapping onto many lines. */
+  .starters.compact{margin:.8rem 0 .2rem}
+  .starters.compact .starters-sub{display:none}
+  .starters.compact h2{font-size:.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 .35rem}
+  .starters.compact .starter-grid{display:flex;flex-wrap:wrap;gap:.4rem}
+  .starters.compact .starter{border-radius:999px;padding:.35rem .8rem}
+  .starters.compact .starter b{font-size:.85rem;margin:0;white-space:nowrap}
+  .starters.compact .starter span{display:none}
+  .starters.compact .starter.brief{background:var(--accent);border-color:var(--accent)}
+  .starters.compact .starter.brief b{color:var(--on-accent)}
+  @media (max-width:640px){
+    .starters.compact .starter-grid{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.3rem;scrollbar-width:thin}
+    .starters.compact .starter{flex:0 0 auto}
+  }
   .tabs{display:flex;flex-wrap:wrap;gap:.2rem .4rem;margin:1rem 0 .2rem;border-bottom:1px solid var(--line)}
   .tab{background:none;border:none;padding:.6rem .9rem;font-size:.98rem;font-weight:600;color:var(--muted);
     cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -368,8 +380,7 @@
 <header>
   <button class="toggle" id="themeBtn" title="Toggle light/dark">◐ theme</button>
   <h1 class="brand">OpenBioNews
-    <small>Track competitors' trials, FDA actions and SEC filings in official records — every item cited to its source. Free, no login, nothing tracked.
-  · <a class="briefnew" href="brief/">This week's brief →</a></small>
+    <small>Track competitors' trials, FDA actions and SEC filings in official records — every item cited to its source. Free, no login, nothing tracked.</small>
   </h1>
 </header>
 
@@ -422,12 +433,13 @@
 </div>
 
 <main>
-  <details class="starters" id="starters" open>
-    <summary><h2 id="starters_h">Ready-made views</h2></summary>
+  <section class="starters" id="starters" aria-labelledby="starters_h">
+    <h2 id="starters_h">Ready-made views</h2>
     <p class="starters-sub">Live from the official registries, every result linked to its record.
-      Or <a href="#watchInput" id="starterTrack">add a competitor to your watchlist</a> to follow it across every agency,
-      or read <a href="brief/">this week's brief</a>.</p>
+      Or <a href="#watchInput" id="starterTrack">add a competitor to your watchlist</a> to follow it across every agency.</p>
     <div class="starter-grid">
+      <a class="starter brief" href="brief/">
+        <b>📰 This week's brief</b><span>New Phase 3 trials, results, approvals and recalls · every Monday</span></a>
       <a class="starter" data-starter href="?tab=trials&amp;status=TERMINATED&amp;phase=PHASE3&amp;recent=30">
         <b>Terminated Phase 3 trials</b><span>Updated in the last 30 days · ClinicalTrials.gov</span></a>
       <a class="starter" data-starter href="?tab=trials&amp;phase=PHASE3&amp;recent=7&amp;industry=1">
@@ -443,7 +455,7 @@
       <a class="starter" data-starter href="?tab=trials&amp;term=radiopharmaceutical&amp;recent=30">
         <b>Radiopharmaceutical trials</b><span>Updated in the last 30 days · ClinicalTrials.gov</span></a>
     </div>
-  </details>
+  </section>
   <div class="tabs" role="tablist">
     <button class="tab" id="tab-trials" role="tab" aria-selected="true" aria-controls="panel-trials">Clinical trials</button>
     <button class="tab" id="tab-recalls" role="tab" aria-selected="false" aria-controls="panel-recalls">FDA recalls</button>
@@ -3666,12 +3678,12 @@ $("copyLink").onclick=async()=>{
   try{ await navigator.clipboard.writeText(url); $("copyLink").textContent="✓ Copied"; setTimeout(()=>$("copyLink").textContent="🔗 Copy link",1500); }
   catch(e){ prompt("Copy this link:", url); }
 };
-// Ready-made views are open on a first visit. Once there's a query or a watchlist the
-// results are the page, so they fold into one line, still there, one click away.
-// (They used to be hidden outright, so returning visitors never saw them.)
+// Ready-made views are cards on a first visit. Once there's a query or a watchlist the
+// results are the page, so the views shrink to one row of buttons above them, still
+// visible and one tap away. (Hiding or folding them made them easy to miss.)
 function updateStarters(){
   const el=$("starters"); if(!el) return;
-  el.open = !(watch.length>0 || location.search.length>1);
+  el.classList.toggle("compact", watch.length>0 || location.search.length>1);
 }
 if($("starterTrack")) $("starterTrack").onclick=e=>{ e.preventDefault(); $("watchInput").focus(); };
 function loadFromUrl(){

@@ -33,8 +33,9 @@ to follow [Semantic Versioning](https://semver.org/).
 ### Fixed (website)
 - **Returning visitors never saw the ready-made views.** They were hidden whenever a
   watchlist was saved in the browser, which is anyone who has used the site before.
-  They now stay on the page, open on a first visit and folded into one line otherwise.
-  The weekly brief also has a link under the header for every visitor.
+  They now always stay visible: cards on a first visit, and a row of one-tap buttons
+  above the results once there's a watchlist or a search (a sideways-scrolling row on
+  phones). The weekly brief is the first, highlighted view.
 
 ### Changed (website)
 - **Opens on ready-made views instead of an empty form.** A first visit now sees
