@@ -622,18 +622,23 @@ def test_front_carousel_and_view_links():
     from urllib.parse import parse_qs, urlparse
     import html as _html
     js = _script()
-    front = SRC[SRC.index('<section class="front" id="starters"'):]
-    front = front[:front.index("</section>")]
+    front = SRC[SRC.index('<section class="front" id="starters"'):SRC.index('<div class="watchbar">')]
     assert SRC.index('id="starters"') < SRC.index('<div class="watchbar">'), "the box must come first"
     assert front.count('class="carousel"') == 1, "exactly one carousel box"
     assert not re.search(r"(?<!aria-)\bhidden\b", front), "the front must never be hidden"
-    feeds = re.findall(r'data-feed="([a-z]+)"', front)
-    assert feeds.count("brief") == 1 and len(feeds) >= 3, "the box needs a mixture of feeds"
-    assert "CAROUSEL_MAX=20" in js and "function interleave(" in js, "mix up to 20 slides"
-    for fn in ("function slideVariants(", "function fitSlide(", "function keyDrug(", "function keyCond("):
-        assert fn in js, f"{fn} missing: slides would fall back to cut-off titles"
-    assert 'addEventListener("resize"' in js[js.index("function fitSlide("):], "no re-fit on resize"
-    assert "prefers-reduced-motion:reduce" in js[js.index("function runCarousel("):], "rotates despite reduced motion"
+    feeds = re.findall(r'data-feed="([a-z]+)"', front.split('<p class="views">')[1])
+    assert feeds == ["brief", "stopped", "industry", "recalls"], f"view links must name their feed: {feeds}"
+    for fn in ("function feedBrief(", "function feedStopped(", "function feedIndustry(", "function feedRecalls(",
+               "function stopReason(", "function areaOf(", "function barsHTML(", "function fitStage(",
+               "function runCarousel(", "function keyDrug(", "function keyCond("):
+        assert fn in js, f"{fn} missing from the front box"
+    # Charts need a text equivalent; motion needs a pause control and must respect reduced motion.
+    assert 'role="img"' in js[js.index("function barsHTML("):][:900], "charts need role=img + aria-label"
+    run = js[js.index("function runCarousel("):]
+    assert "prefers-reduced-motion:reduce" in run and 'class="pp"' in SRC, "rotation needs pause + reduced motion"
+    # The front box's helpers must not replace the page's own functions of the same name.
+    for name in ("topN", "titleCase", "esc"):
+        assert len(re.findall(r"function " + name + r"\(", js)) <= 1, f"{name} defined twice"
     # A view link must run its own search even when a watchlist is saved.
     lf = js[js.index("function loadFromUrl("):]
     assert lf.index("selectTab(t, runner)") < lf.index("if(watch.length) return;"), \

@@ -7,14 +7,25 @@ to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed (website)
-- **One box at the front, cycling through a mix of the latest records.** A full-width
-  box on every screen size, above the watchlist, takes turns across this week's brief,
-  terminated Phase 3 trials, industry Phase 3 activity this week and Class I recalls:
-  up to 20 slides, each labelled with its source and count ("Terminated Phase 3 · 41 in
-  the last 30 days"). Slides advance every 4.5 s with a slide transition and position
-  dots, loop, pause on hover and in a background tab, and stay still under reduced
-  motion. Tapping the box opens the view of the slide on screen; the views are also
-  plain links underneath, which keyboards and screen readers use.
+- **A front box that shows the week's real activity, with small charts.** One box at
+  the top of every page, in four labelled feeds: this week's brief, terminated Phase 3
+  trials (30 days), industry Phase 3 activity (this week) and Class I recalls (30 days).
+  - Summary slides pair the count with one ranked bar chart computed from the records:
+    *why trials stopped* (efficacy/futility, slow enrollment, business decision, safety,
+    grouped from each trial's stated reason), *most active sponsors* and *new trials by
+    therapeutic area* (from ClinicalTrials.gov's own MeSH coding). Captions state what
+    isn't drawn ("155 other sponsors: 242 trials", "not yet coded: 5").
+  - Record slides show who did what, in which disease: company · drug, condition and
+    acronym, status, enrollment, date and ID; stopped trials quote the sponsor's stated
+    reason, recalls the FDA's. On wide screens the feed's chart sits alongside with this
+    record's bar highlighted.
+  - Fixed height per screen size (no jumping), with lower-priority details dropped to
+    fit rather than cut off. Labelled progress per feed (tap to jump), a pause button,
+    and no automatic movement under reduced motion. Charts have text equivalents.
+  - Tapping the box opens the view for the slide on screen; the views are also plain
+    links underneath. Each feed loads on its own, so one agency being down only removes
+    its feed. Designed and prototyped on real data first, then checked slide by slide at
+    320–1280px in light and dark.
 - **Slides show the words that matter, at every screen size.** Each slide is built from
   the record's own fields, not its long registry title: short company name ("Janssen",
   not "Janssen Research & Development, LLC"), drug (placebo and control arms dropped),

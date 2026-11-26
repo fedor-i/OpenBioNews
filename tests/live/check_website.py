@@ -53,14 +53,14 @@ def main() -> int:
         if not cards:
             print("FAIL         no ready-made views found on the landing page")
             return 1
-        # The front box cycles through a mix of the latest records from the views.
+        # The front box cycles through records and summaries from its four feeds.
         try:
             page.wait_for_function("document.getElementById('carousel')._slides", timeout=WAIT_MS)
-            n, cats = page.evaluate("(() => { const s = document.getElementById('carousel')._slides;"
-                                    " return [s.length, new Set(s.map(x => x.cat.split(' · ')[0])).size]; })()")
-            ok = n >= 8 and cats >= 3
+            n, feeds = page.evaluate("(() => { const s = document.getElementById('carousel')._slides;"
+                                     " return [s.length, new Set(s.map(x => x.feed)).size]; })()")
+            ok = n >= 8 and feeds >= 3
             rows.append(("PASS" if ok else "FAIL", "Front box",
-                         f"{n} slides from {cats} sources" + ("" if ok else " (expected a mixture)")))
+                         f"{n} slides from {feeds} feeds" + ("" if ok else " (expected a mixture)")))
             failed += not ok
         except PWTimeout:
             rows.append(("FAIL", "Front box", "no slides loaded"))
