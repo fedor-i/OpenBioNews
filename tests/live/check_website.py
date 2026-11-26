@@ -53,6 +53,17 @@ def main() -> int:
         if not cards:
             print("FAIL         no ready-made views found on the landing page")
             return 1
+        # The front tiles fill in live counts and rotating headlines from the same queries.
+        try:
+            page.wait_for_function("[...document.querySelectorAll('#starters .tile .live')]"
+                                   ".filter(e => e.textContent.trim()).length >= 4", timeout=WAIT_MS)
+            rows.append(("PASS", "Front tiles", "all show live headlines"))
+        except PWTimeout:
+            empty = page.eval_on_selector_all(
+                "#starters .tile", "ts => ts.filter(t => !t.querySelector('.live').textContent.trim())"
+                ".map(t => t.querySelector('b').textContent)")
+            rows.append(("FAIL", "Front tiles", f"no live headline on: {', '.join(empty)}"))
+            failed += 1
         page.close()
         for card in cards:
             view = browser.new_page()            # a fresh page per card: clean errors and state

@@ -419,6 +419,28 @@ def render_linkedin(brief: dict) -> str:
     return "\n".join(lines)
 
 
+def latest_summary(brief: dict) -> dict:
+    """A small summary of the newest week for the site's front tile to rotate through.
+    Plain strings (the page inserts them as text), facts only, each from the records."""
+    secs = brief["sections"]
+
+    def items(key, n):
+        return [] if "error" in secs[key] else secs[key]["items"][:n]
+
+    lines = []
+    for key in ("new_trials", "results", "approvals", "recalls"):
+        if "error" not in secs[key]:
+            lines.append(stat(secs, key))
+    lines += [f"New Phase 3: {i['facts'][0]} — {_short(i['title'], 70)}" for i in items("new_trials", 2)]
+    lines += [f"Results: {i['facts'][0]} — {_short(i['title'], 70)}" for i in items("results", 2)]
+    lines += [f"Approved: {i['title']} ({i['facts'][0]})"
+              + (" · priority review" if "priority review" in i["facts"] else "")
+              for i in items("approvals", 4)]
+    lines += [f"Stopped: {i['facts'][0]} — {_short(i['title'], 70)}" for i in items("stopped", 2)]
+    return {"end": brief["end"], "label": week_label(brief), "url": f"{brief['end']}.html",
+            "highlights": lines}
+
+
 def write_site(out: Path) -> list[dict]:
     briefs = sorted((json.loads(p.read_text("utf-8")) for p in (out / "data").glob("*.json")),
                     key=lambda b: b["end"], reverse=True)
@@ -426,6 +448,9 @@ def write_site(out: Path) -> list[dict]:
         (out / f"{b['end']}.html").write_text(render_week(b), "utf-8")
     (out / "index.html").write_text(render_index(briefs), "utf-8")
     (out / "feed.xml").write_text(render_feed(briefs), "utf-8")
+    if briefs:
+        (out / "latest.json").write_text(json.dumps(latest_summary(briefs[0]), indent=1,
+                                                    ensure_ascii=False), "utf-8")
     return briefs
 
 

@@ -37,6 +37,13 @@ to follow [Semantic Versioning](https://semver.org/).
   watchlist, the same for every visitor: the weekly brief (highlighted), terminated
   Phase 3 trials, industry Phase 3 activity this week, and Class I recalls. The other
   views are a "More views" line beneath (2×2 tiles on phones).
+- **The tiles are live.** Each shows its current count and rotates through the latest
+  records' headlines (e.g. "41 · last 30 days", then "Janssen: A Study of
+  Aticaprant…"), fetched with the same filters as the tile's own link. The brief tile
+  rotates last week's highlights from `brief/latest.json`, which the weekly brief now
+  writes. Rotation pauses on hover or focus, is off for reduced motion, and is hidden
+  from screen readers; a source that can't be reached leaves the plain description.
+  The daily website check fails if a tile shows no live headline.
 
 ### Changed (website)
 - **Opens on ready-made views instead of an empty form.** A first visit now sees

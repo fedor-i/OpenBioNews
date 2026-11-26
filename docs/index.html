@@ -61,9 +61,15 @@
   .tile span{display:block;font-size:.8rem;color:var(--muted)}
   .tile.brief{background:var(--accent);border-color:var(--accent)}
   .tile.brief b,.tile.brief span{color:var(--on-accent)}
+  /* The latest records, rotating. Two lines reserved so tiles don't jump as text changes. */
+  .tile .live{font-size:.8rem;line-height:1.3;color:var(--ink);margin-top:.35rem;min-height:2.6em;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;transition:opacity .35s}
+  .tile .live:empty{display:none}
+  .tile .live.fade{opacity:0}
+  @media (prefers-reduced-motion:reduce){ .tile .live{transition:none} }
   .morev{margin:.55rem 0 0;font-size:.85rem;color:var(--muted)}
   .morev a{color:var(--accent)}
-  @media (max-width:640px){ .tiles{grid-template-columns:1fr 1fr} }
+  @media (max-width:640px){ .tiles{grid-template-columns:1fr 1fr} .tile .live{-webkit-line-clamp:3;min-height:3.9em} }
   .tabs{display:flex;flex-wrap:wrap;gap:.2rem .4rem;margin:1rem 0 .2rem;border-bottom:1px solid var(--line)}
   .tab{background:none;border:none;padding:.6rem .9rem;font-size:.98rem;font-weight:600;color:var(--muted);
     cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -372,10 +378,10 @@
 
 <section class="front" id="starters" aria-label="Ready-made views">
   <div class="tiles">
-    <a class="tile brief" href="brief/"><b>📰 This week's brief</b><span>Trials, approvals, recalls · Mondays</span></a>
-    <a class="tile" data-starter href="?tab=trials&amp;status=TERMINATED&amp;phase=PHASE3&amp;recent=30"><b>Terminated Phase 3 trials</b><span>Last 30 days</span></a>
-    <a class="tile" data-starter href="?tab=trials&amp;phase=PHASE3&amp;recent=7&amp;industry=1"><b>Industry Phase 3 this week</b><span>New and updated</span></a>
-    <a class="tile" data-starter href="?tab=recalls&amp;class=1&amp;rrecent=30"><b>Class I recalls</b><span>Most serious · last 30 days</span></a>
+    <a class="tile brief" href="brief/"><b>📰 This week's brief</b><span class="sub">Trials, approvals, recalls · Mondays</span><span class="live" aria-hidden="true"></span></a>
+    <a class="tile" data-starter href="?tab=trials&amp;status=TERMINATED&amp;phase=PHASE3&amp;recent=30"><b>Terminated Phase 3 trials</b><span class="sub">Last 30 days</span><span class="live" aria-hidden="true"></span></a>
+    <a class="tile" data-starter href="?tab=trials&amp;phase=PHASE3&amp;recent=7&amp;industry=1"><b>Industry Phase 3 this week</b><span class="sub">New and updated</span><span class="live" aria-hidden="true"></span></a>
+    <a class="tile" data-starter href="?tab=recalls&amp;class=1&amp;rrecent=30"><b>Class I recalls</b><span class="sub">Most serious · last 30 days</span><span class="live" aria-hidden="true"></span></a>
   </div>
   <p class="morev">More views:
     <a data-starter href="?tab=shortages&amp;hstatus=Current">Current drug shortages</a> ·
@@ -3683,6 +3689,75 @@ function loadFromUrl(){
   else if(t==="sec" && secHasFilter(secFilters())) searchSec(true);
 }
 loadFromUrl();
+
+// ---- live front tiles ----
+// Each tile fetches a few of the records its own link opens (same filters, same
+// builders) and rotates their headlines, so the front of the page shows what's
+// actually happening. Rotation pauses on hover/focus and is off for reduced motion;
+// a source that can't be reached just leaves the tile's plain description.
+function tileFilters(params){
+  const p=new URLSearchParams(params), days=k=>p.get(k)?{fromISO:daysAgoISO(+p.get(k)),toISO:todayISO(),custom:false}:null;
+  if(p.get("tab")==="trials") return {kind:"trials", f:{spons:"",cond:"",intr:"",term:p.get("term")||"",
+    status:p.get("status")||"", phase:p.get("phase")||"", industry:p.get("industry")==="1", range:days("recent")}};
+  if(p.get("tab")==="recalls") return {kind:"recalls", f:{firm:"",drug:"",reason:"",cls:p.get("class")||"",
+    status:"", type:"", range:days("rrecent")}};
+  return null;
+}
+// "Janssen Research & Development, LLC" → "Janssen", "Sagimet Biosciences Inc." → "Sagimet",
+// so a two-line tile spends its space on the trial, not the company's legal name.
+function shortOrg(name){
+  const full=(name||"").trim();
+  const s=full.split(/,| - /)[0]
+    .replace(/\b(Inc|LLC|L\.L\.C|Ltd|Limited|Co|Corp|Corporation|GmbH|AG|SA|S\.A|plc|Pharmaceuticals?|Pharma|Biosciences|Biotherapeutics|Therapeutics|Biopharma(ceuticals)?|Research (&|and) Development)\b\.?/gi,"")
+    .replace(/\s+/g," ").replace(/[\s&-]+$/,"").trim();
+  return s||full;
+}
+function withOrg(org, text){ const o=shortOrg(org); return (o?o+": ":"")+(text||""); }
+async function tilePreview(tile){
+  const href=tile.getAttribute("href")||"";
+  if(tile.classList.contains("brief")){
+    const d=await getJson("brief/latest.json");
+    return {count:`Week of ${d.label}`, lines:d.highlights||[]};
+  }
+  const spec=tileFilters(href.split("?")[1]||""); if(!spec) return null;
+  const sub=tile.querySelector(".sub").textContent;
+  if(spec.kind==="trials"){
+    const u=new URL(buildCtUrl(spec.f));
+    u.searchParams.set("pageSize","6"); u.searchParams.set("fields","NCTId,BriefTitle,LeadSponsorName");
+    const d=await getJson(u.toString());
+    const lines=(d.studies||[]).map(st=>{ const ps=st.protocolSection||{};
+      return withOrg(dig(ps,"sponsorCollaboratorsModule","leadSponsor","name"), dig(ps,"identificationModule","briefTitle")); });
+    return {count:`${(d.totalCount||lines.length).toLocaleString()} · ${sub.toLowerCase()}`, lines};
+  }
+  const d=await getJson(buildFdaUrl(spec.f,0).replace(/limit=\d+/,"limit=6"), true);
+  if(d.__empty) return {count:`0 · ${sub.toLowerCase()}`, lines:[]};
+  const lines=(d.results||[]).map(r=>withOrg(r.recalling_firm, clip(r.product_description||"",90)));
+  return {count:`${(dig(d,"meta","results","total")||lines.length).toLocaleString()} · ${sub.toLowerCase()}`, lines};
+}
+function rotateTile(tile, lines, offset){
+  const live=tile.querySelector(".live"); if(!live||!lines.length) return;
+  let i=0, paused=false; live.textContent=lines[0];
+  const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
+  if(reduce||lines.length<2) return;
+  ["mouseenter","focusin"].forEach(e=>tile.addEventListener(e,()=>{paused=true;}));
+  ["mouseleave","focusout"].forEach(e=>tile.addEventListener(e,()=>{paused=false;}));
+  setTimeout(()=>setInterval(()=>{
+    if(paused||document.hidden) return;
+    live.classList.add("fade");
+    setTimeout(()=>{ i=(i+1)%lines.length; live.textContent=lines[i]; live.classList.remove("fade"); },350);
+  },4500), offset);
+}
+async function loadTilePreviews(){
+  const tiles=[...document.querySelectorAll("#starters .tile")];
+  await Promise.all(tiles.map(async(tile,n)=>{
+    try{
+      const r=await tilePreview(tile); if(!r) return;
+      tile.querySelector(".sub").textContent=r.count;
+      rotateTile(tile, r.lines.filter(Boolean), n*1100);   // staggered, so tiles don't all change at once
+    }catch(e){ /* unreachable source: the tile keeps its plain description */ }
+  }));
+}
+loadTilePreviews();
 </script>
 </body>
 </html>

@@ -151,6 +151,9 @@ def test_pages_escape_record_text_and_feed_is_valid_xml():
         assert len(briefs) == 1 and (out / f"{END}.html").exists()
         xml.dom.minidom.parse(str(out / "feed.xml"))       # raises if malformed
         assert "1 Class I recall" in (out / "index.html").read_text("utf-8")
+        latest = json.loads((out / "latest.json").read_text("utf-8"))   # the site's front tile
+        assert latest["url"] == f"{END}.html" and latest["highlights"][0] == "2 new Phase 3 trials"
+        assert "Approved: Nelkarmi (Nuvalent) · priority review" in latest["highlights"]
 
 
 def test_linkedin_draft_is_plain_facts_with_correct_plurals():

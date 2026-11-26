@@ -625,7 +625,12 @@ def test_front_tiles_are_visible_and_valid_links():
     front = SRC[SRC.index('<section class="front" id="starters"'):]
     front = front[:front.index("</section>")]
     assert SRC.index('id="starters"') < SRC.index('<div class="watchbar">'), "tiles must come first"
-    assert "hidden" not in front and "updateStarters" not in js, "tiles must never be hidden"
+    # (aria-hidden on the rotating line is fine: it keeps screen readers from announcing
+    # every change; the tile's own title still names the link.)
+    assert not re.search(r"(?<!aria-)\bhidden\b", front) and "updateStarters" not in js, \
+        "tiles must never be hidden"
+    assert "function loadTilePreviews(" in js and "prefers-reduced-motion:reduce" in js, \
+        "live tiles missing, or rotating regardless of reduced-motion"
     tiles = re.findall(r'<a class="tile[^"]*"', front)
     assert 3 <= len(tiles) <= 4, "keep the front to a few tiles"
     assert 'class="tile brief" href="brief/"' in front, "the weekly brief should be a front tile"
