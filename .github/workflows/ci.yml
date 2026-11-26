@@ -44,6 +44,8 @@ jobs:
         run: python tests/test_web_insights.py
       - name: Run the MCP server tool tests (standard library only)
         run: python tests/test_mcp.py
+      - name: Weekly brief filters and rendering (standard library only)
+        run: python tests/test_brief.py
       - name: Check the MCP and website rankings agree (shared spec, needs Node)
         env:
           OBN_REQUIRE_NODE: "1"

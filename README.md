@@ -232,6 +232,17 @@ that constrain the hosted web page — this is the reliable path for SEC data.
 
 ---
 
+## Weekly brief
+
+Every Monday a GitHub Action publishes **[This week in biopharma records](https://fedor-i.github.io/OpenBioNews/brief/)**
+([RSS](https://fedor-i.github.io/OpenBioNews/brief/feed.xml)), written for business-development
+and competitive-intelligence analysts: new industry Phase 3 trials, Phase 3 results posted,
+Phase 3 trials stopped (with the stated reason), original FDA approvals (generics left out),
+Class I recalls and FDA notices. Every item links to its official record, and a source that
+couldn't be reached shows as unavailable, never as "none". The run also leaves a LinkedIn
+draft in its summary to review before posting. Build one yourself with
+`python tools/weekly_brief.py --end YYYY-MM-DD`.
+
 ## Hosted web version — filter in your browser, no install
 
 For people who just want to **click and filter**, there's a single-page web app

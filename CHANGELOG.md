@@ -6,6 +6,18 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Weekly brief** ("This week in biopharma records"), published every Monday at
+  `/brief/` with an RSS feed, written for BD and competitive-intelligence analysts: new
+  industry Phase 3 trials (largest first), Phase 3 results posted, Phase 3 trials stopped
+  with the stated reason, original NDA/BLA approvals (generics and supplements left out,
+  priority reviews first), Class I recalls, and FDA notices (routine paperwork left out).
+  Every item links to its official record; an unreachable source shows as unavailable,
+  never as "none this week". The workflow commits the week's page, deploys the site and
+  leaves a LinkedIn draft in its summary to review before posting. The site links to it
+  from the first-visit block and the footer. Offline tests cover the filters, escaping,
+  plurals and the unavailable case.
+
 ## [0.8.8] — 2026-11-26
 
 ### Added

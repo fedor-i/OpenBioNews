@@ -29,6 +29,7 @@ or ranking modes. Feature ideas are still welcome as issues.
       dropped by the keyword filter (a code-named osimertinib trial) — [#13](https://github.com/fedor-i/OpenBioNews/issues/13).
 - [x] Primary sources by default; news feeds opt-in (0.8.6).
 - [ ] Align the two remaining differences: the approvals signal and Update-mode relevance.
+- [x] **Weekly public brief** for BD/CI analysts (`tools/weekly_brief.py`, every Monday).
 
 ## Primary sources (highest value)
 - [x] **openFDA drug approvals** (Drugs@FDA) — new + supplemental approvals.

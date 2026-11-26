@@ -1,0 +1,64 @@
+name: Weekly brief
+
+# Every Monday: build "This week in biopharma records" for the week that just ended,
+# publish it on the site (docs/brief/), and leave a LinkedIn draft in the run summary
+# to review and edit before posting. The page itself is records only, each linked to
+# its official source, so it's published without a manual step.
+on:
+  schedule:
+    - cron: "37 6 * * 1"        # Mondays, 06:37 UTC
+  workflow_dispatch:
+    inputs:
+      end:
+        description: "Week ending on this Sunday (YYYY-MM-DD); blank = last full week"
+        required: false
+
+permissions:
+  contents: write   # commit the new week's page
+  actions: write    # start the Pages deploy (a push by this workflow doesn't trigger it)
+
+concurrency:
+  group: weekly-brief
+  cancel-in-progress: false
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the brief
+        env:
+          END: ${{ github.event.inputs.end }}
+        run: python tools/weekly_brief.py ${END:+--end "$END"} > linkedin.txt
+      - name: Show the LinkedIn draft
+        run: |
+          {
+            echo "## LinkedIn draft (review before posting)"
+            echo '```'
+            cat linkedin.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linkedin-draft
+          path: linkedin.txt
+      - name: Commit the new week
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/brief
+          if git diff --cached --quiet; then echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          week="$(ls docs/brief/data | sort | tail -1 | sed 's/.json//')"
+          git commit -m "Weekly brief: week ending $week"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      - name: Deploy the site
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main
