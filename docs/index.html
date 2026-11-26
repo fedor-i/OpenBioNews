@@ -3702,9 +3702,11 @@ loadFromUrl();
 
 // ---- live front tiles ----
 // Each tile fetches a few of the records its own link opens (same filters, same
-// builders) and rotates their headlines, so the front of the page shows what's
-// actually happening. Rotation pauses on hover/focus and is off for reduced motion;
-// a source that can't be reached just leaves the tile's plain description.
+// builders) and shows them as slides. A slide is built from the record's key words
+// (company, drug, condition, acronym), not its long title, and each has several
+// lengths: the tile shows the longest that fits its current width, so phones,
+// tablets and desktops each get a version that reads whole. tools/weekly_brief.py
+// builds the same key words for the brief tile; keep the two in step.
 function tileFilters(params){
   const p=new URLSearchParams(params), days=k=>p.get(k)?{fromISO:daysAgoISO(+p.get(k)),toISO:todayISO(),custom:false}:null;
   if(p.get("tab")==="trials") return {kind:"trials", f:{spons:"",cond:"",intr:"",term:p.get("term")||"",
@@ -3713,49 +3715,90 @@ function tileFilters(params){
     status:"", type:"", range:days("rrecent")}};
   return null;
 }
-// "Janssen Research & Development, LLC" → "Janssen", "Sagimet Biosciences Inc." → "Sagimet",
-// so a two-line tile spends its space on the trial, not the company's legal name.
+// "Janssen Research & Development, LLC" → "Janssen"; "Genzyme Corp A Sanofi Co" → "Genzyme".
 function shortOrg(name){
   const full=(name||"").trim();
-  const s=full.split(/,| - /)[0]
+  const s=full.split(/,| - |\s+[Aa]n?\s+(?=[A-Z])/)[0]
     .replace(/\b(Inc|LLC|L\.L\.C|Ltd|Limited|Co|Corp|Corporation|GmbH|AG|SA|S\.A|plc|Pharmaceuticals?|Pharma|Biosciences|Biotherapeutics|Therapeutics|Biopharma(ceuticals)?|Research (&|and) Development)\b\.?/gi,"")
     .replace(/\s+/g," ").replace(/[\s&-]+$/,"").trim();
   return s||full;
 }
-function withOrg(org, text){ const o=shortOrg(org); return (o?o+": ":"")+(text||""); }
+// The investigational products: no placebo/control arms, no dosage-form words.
+function keyDrug(names){
+  const out=[];
+  for(let n of names||[]){
+    if(!n || /placebo|sham|vehicle|standard of care|usual care|best supportive|\bcontrol\b|^intervention\s*\d|^arm\b/i.test(n)) continue;
+    n=n.replace(/\([^)]*\)/g,"").trim();
+    while(/\s+(oral|tablets?|capsules?|injection|injectable|solution|suspension|usp|for)$/i.test(n)) n=n.replace(/\s+\S+$/,"").trim();
+    if(n && !out.some(o=>o.toLowerCase()===n.toLowerCase())) out.push(n);
+  }
+  return out.slice(0,2).join(" + ");
+}
+// Index-style "Depressive Disorder, Major" → "Major Depressive Disorder".
+function keyCond(c){
+  c=(c||"").trim(); const m=/^([^,()]+), ([^,()]+)$/.exec(c);
+  return m && m[2].split(" ").length<=2 ? `${m[2]} ${m[1]}` : c;
+}
+function titleCase(s){ return s && s===s.toUpperCase() ? s.toLowerCase().replace(/\b[a-z]/g,x=>x.toUpperCase()) : (s||""); }
+// Every way to say a slide, longest first; the tile shows the first that fits.
+function slideVariants(sl){
+  if(sl.text) return [sl.text];
+  const lead=sl.lead||"", org=sl.org||"", what=sl.what||"", cond=sl.cond||"";
+  const condShort=(/\(([^)]{2,12})\)\s*$/.exec(cond)||[])[1] || cond.replace(/\s*\([^)]*\)\s*$/,"");
+  const tail=[sl.acr&&sl.acr!==what?`(${sl.acr})`:"", sl.extra?`· ${sl.extra}`:""].filter(Boolean).join(" ");
+  const say=(...parts)=>{ const [head,body,c,t]=parts;
+    return [[head,body].filter(Boolean).join(": "), c?`· ${c}`:"", t||""].filter(Boolean).join(" "); };
+  const headFull=[lead,org].filter(Boolean).join(" · ");
+  const v=[say(headFull,what,cond,tail), say(headFull,what,cond), say(headFull,what,condShort),
+           say(org||lead,what,condShort), say(org||lead,what), say("",what,condShort), what];
+  return v.filter((x,i)=>x && v.indexOf(x)===i);
+}
+function fitSlide(live, sl){
+  const vs=slideVariants(sl);
+  for(const v of vs){ live.textContent=v; if(live.scrollHeight<=live.clientHeight+2) return; }
+  live.textContent=vs[vs.length-1];     // nothing fits whole: the shortest, clamped with "…"
+}
 async function tilePreview(tile){
   const href=tile.getAttribute("href")||"";
   if(tile.classList.contains("brief")){
     const d=await getJson("brief/latest.json");
-    return {count:`Week of ${d.label}`, lines:d.highlights||[]};
+    return {count:`Week of ${d.label}`, slides:d.slides||(d.highlights||[]).map(t=>({text:t}))};
   }
   const spec=tileFilters(href.split("?")[1]||""); if(!spec) return null;
   const sub=tile.querySelector(".sub").textContent;
   if(spec.kind==="trials"){
     const u=new URL(buildCtUrl(spec.f));
-    u.searchParams.set("pageSize","6"); u.searchParams.set("fields","NCTId,BriefTitle,LeadSponsorName");
+    u.searchParams.set("pageSize","6");
+    u.searchParams.set("fields","NCTId,BriefTitle,LeadSponsorName,Acronym,InterventionName,Condition");
     const d=await getJson(u.toString());
-    const lines=(d.studies||[]).map(st=>{ const ps=st.protocolSection||{};
-      return withOrg(dig(ps,"sponsorCollaboratorsModule","leadSponsor","name"), dig(ps,"identificationModule","briefTitle")); });
-    return {count:`${(d.totalCount||lines.length).toLocaleString()} · ${sub.toLowerCase()}`, lines};
+    const slides=(d.studies||[]).map(st=>{ const ps=st.protocolSection||{};
+      const acr=dig(ps,"identificationModule","acronym")||"";
+      const drug=keyDrug((dig(ps,"armsInterventionsModule","interventions")||[]).map(i=>i.name));
+      return {org:shortOrg(dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")),
+        what: drug || acr || clip(dig(ps,"identificationModule","briefTitle")||"",60),
+        cond: keyCond((dig(ps,"conditionsModule","conditions")||[])[0]), acr}; });
+    return {count:`${(d.totalCount||slides.length).toLocaleString()} · ${sub.toLowerCase()}`, slides};
   }
   const d=await getJson(buildFdaUrl(spec.f,0).replace(/limit=\d+/,"limit=6"), true);
-  if(d.__empty) return {count:`0 · ${sub.toLowerCase()}`, lines:[]};
-  const lines=(d.results||[]).map(r=>withOrg(r.recalling_firm, clip(r.product_description||"",90)));
-  return {count:`${(dig(d,"meta","results","total")||lines.length).toLocaleString()} · ${sub.toLowerCase()}`, lines};
+  if(d.__empty) return {count:`0 · ${sub.toLowerCase()}`, slides:[]};
+  const slides=(d.results||[]).map(r=>({org:shortOrg(r.recalling_firm),
+    what: titleCase((dig(r,"openfda","brand_name")||dig(r,"openfda","generic_name")||[])[0]) || clip((r.product_description||"").split(/,|\(/)[0],40),
+    cond: clip((r.reason_for_recall||"").split(/[:;]|\s-\s|-\s(?=[A-Z])|\.\s/)[0].trim(),45)}));   // the reason's first clause
+  return {count:`${(dig(d,"meta","results","total")||slides.length).toLocaleString()} · ${sub.toLowerCase()}`, slides};
 }
-// Headlines advance like slides, with dots showing how many there are and which is
-// on screen. The tile stays a single link to the full view; the dots are indicators,
-// not buttons, so a tap anywhere opens the records.
-const TILE_SLIDES=8;   // the newest few; the full list is one tap away
-function rotateTile(tile, lines, offset){
-  const live=tile.querySelector(".live"); if(!live||!lines.length) return;
-  lines=lines.slice(0,TILE_SLIDES);
-  let i=0, paused=false; live.textContent=lines[0];
+// Slides advance with position dots; the tile stays one link to the full view (the
+// dots are indicators, not buttons). Pauses on hover/focus and in a background tab;
+// under reduced motion there's no sliding and no dots.
+const TILE_SLIDES=8;
+function rotateTile(tile, slides, offset){
+  const live=tile.querySelector(".live"); if(!live||!slides.length) return;
+  slides=slides.slice(0,TILE_SLIDES);
+  tile._slides=slides; tile._i=0; fitSlide(live, slides[0]);
   const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
-  if(reduce||lines.length<2) return;
+  if(reduce||slides.length<2) return;
+  let paused=false;
   const dots=document.createElement("span"); dots.className="dots"; dots.setAttribute("aria-hidden","true");
-  dots.innerHTML=lines.map((_,n)=>`<i${n?"":' class="on"'}></i>`).join("");
+  dots.innerHTML=slides.map((_,n)=>`<i${n?"":' class="on"'}></i>`).join("");
   live.after(dots);
   ["mouseenter","focusin"].forEach(e=>tile.addEventListener(e,()=>{paused=true;}));
   ["mouseleave","focusout"].forEach(e=>tile.addEventListener(e,()=>{paused=false;}));
@@ -3763,20 +3806,25 @@ function rotateTile(tile, lines, offset){
     if(paused||document.hidden) return;
     live.classList.add("slide-out");
     setTimeout(()=>{
-      i=(i+1)%lines.length; live.textContent=lines[i];
+      tile._i=(tile._i+1)%slides.length; fitSlide(live, slides[tile._i]);
       live.classList.remove("slide-out"); live.classList.add("slide-in");
-      [...dots.children].forEach((d,n)=>d.classList.toggle("on", n===i));
+      [...dots.children].forEach((d,n)=>d.classList.toggle("on", n===tile._i));
       setTimeout(()=>live.classList.remove("slide-in"),360);
     },350);
   },4500), offset);
 }
+// A rotated phone or a resized window changes what fits: re-pick the version shown.
+let tileResizeTimer=null;
+window.addEventListener("resize",()=>{ clearTimeout(tileResizeTimer); tileResizeTimer=setTimeout(()=>{
+  document.querySelectorAll("#starters .tile").forEach(t=>{ if(t._slides) fitSlide(t.querySelector(".live"), t._slides[t._i]); });
+},150); });
 async function loadTilePreviews(){
   const tiles=[...document.querySelectorAll("#starters .tile")];
   await Promise.all(tiles.map(async(tile,n)=>{
     try{
       const r=await tilePreview(tile); if(!r) return;
       tile.querySelector(".sub").textContent=r.count;
-      rotateTile(tile, r.lines.filter(Boolean), n*1100);   // staggered, so tiles don't all change at once
+      rotateTile(tile, r.slides.filter(Boolean), n*1100);   // staggered, so tiles don't all change at once
     }catch(e){ /* unreachable source: the tile keeps its plain description */ }
   }));
 }

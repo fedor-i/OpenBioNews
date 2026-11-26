@@ -631,6 +631,11 @@ def test_front_tiles_are_visible_and_valid_links():
         "tiles must never be hidden"
     assert "function loadTilePreviews(" in js and "prefers-reduced-motion:reduce" in js, \
         "live tiles missing, or rotating regardless of reduced-motion"
+    # Slides are built from key words with several lengths, picked to fit the tile's
+    # current width (and re-picked on resize), so the relevant words always show.
+    for fn in ("function slideVariants(", "function fitSlide(", "function keyDrug(", "function keyCond("):
+        assert fn in js, f"{fn} missing: tiles would fall back to cut-off titles"
+    assert 'addEventListener("resize"' in js[js.index("function fitSlide("):], "no re-fit on resize"
     tiles = re.findall(r'<a class="tile[^"]*"', front)
     assert 3 <= len(tiles) <= 4, "keep the front to a few tiles"
     assert 'class="tile brief" href="brief/"' in front, "the weekly brief should be a front tile"

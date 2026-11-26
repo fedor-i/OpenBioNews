@@ -26,12 +26,17 @@ from openbionews.httputil import HTTPJSONError  # noqa: E402
 START, END = date(2026, 11, 16), date(2026, 11, 22)
 
 
-def _study(nct, title, sponsor="Acme", n=500, status="RECRUITING", why=None):
+def _study(nct, title, sponsor="Acme", n=500, status="RECRUITING", why=None,
+           drugs=("Semaglutide", "Placebo"), acronym=None):
     st = {"overallStatus": status}
     if why:
         st["whyStopped"] = why
+    ident = {"nctId": nct, "briefTitle": title}
+    if acronym:
+        ident["acronym"] = acronym
     return {"protocolSection": {
-        "identificationModule": {"nctId": nct, "briefTitle": title},
+        "identificationModule": ident,
+        "armsInterventionsModule": {"interventions": [{"name": d} for d in drugs]},
         "sponsorCollaboratorsModule": {"leadSponsor": {"name": sponsor}},
         "designModule": {"enrollmentInfo": {"count": n}},
         "conditionsModule": {"conditions": ["Obesity"]},
@@ -77,7 +82,7 @@ def _router(fail_ct=False):
                 raise HTTPJSONError("HTTP 503 from clinicaltrials.gov")
             adv = (params or {}).get("filter.advanced", "")
             if "StudyFirstPostDate" in adv:
-                return {"totalCount": 2, "studies": [_study("NCT1", "Big obesity trial", "Novo", 9000),
+                return {"totalCount": 2, "studies": [_study("NCT1", "Big obesity trial", "Novo", 9000, acronym="STEP 9"),
                                                      _study("NCT2", "Small trial", "Lilly", 300)]}
             if "ResultsFirstPostDate" in adv:
                 return {"totalCount": 0, "studies": []}
@@ -100,6 +105,18 @@ def _collect(**kw):
         return wb.collect(START, END)
     finally:
         wb.get_json = orig
+
+
+def test_key_words_pick_company_drug_and_condition():
+    assert wb.short_org("Janssen Research & Development, LLC") == "Janssen"
+    assert wb.short_org("Bellus Health Inc. - a GSK company") == "Bellus Health"
+    assert wb.short_org("Genzyme Corp A Sanofi Co") == "Genzyme"
+    assert wb.key_drug(["Azithromycin Oral Tablet", "Placebo"]) == "Azithromycin"
+    assert wb.key_drug(["Intervention 1", "Control"]) == ""          # no real drug named
+    assert wb.key_drug(["Pirtobrutinib", "Venetoclax", "Rituximab"]) == "Pirtobrutinib + Venetoclax"
+    assert wb.key_cond("Depressive Disorder, Major") == "Major Depressive Disorder"
+    item = _collect()["sections"]["new_trials"]["items"][0]
+    assert wb.key_line(item) == "Novo: Semaglutide · Obesity (STEP 9)"
 
 
 def test_last_full_week():
@@ -152,8 +169,11 @@ def test_pages_escape_record_text_and_feed_is_valid_xml():
         xml.dom.minidom.parse(str(out / "feed.xml"))       # raises if malformed
         assert "1 Class I recall" in (out / "index.html").read_text("utf-8")
         latest = json.loads((out / "latest.json").read_text("utf-8"))   # the site's front tile
-        assert latest["url"] == f"{END}.html" and latest["highlights"][0] == "2 new Phase 3 trials"
-        assert "Approved: Nelkarmi (Nuvalent) · priority review" in latest["highlights"]
+        assert latest["url"] == f"{END}.html" and latest["slides"][0] == {"text": "2 new Phase 3 trials"}
+        assert {"lead": "Approved", "org": "Nuvalent", "what": "Nelkarmi", "cond": "neladalkib",
+                "extra": "priority review"} in latest["slides"]
+        assert {"lead": "New Phase 3", "org": "Novo", "what": "Semaglutide", "cond": "Obesity",
+                "acr": "STEP 9"} in latest["slides"]
 
 
 def test_linkedin_draft_is_plain_facts_with_correct_plurals():

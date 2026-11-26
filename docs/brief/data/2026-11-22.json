@@ -1,13 +1,19 @@
 {
  "start": "2026-11-16",
  "end": "2026-11-22",
- "generated_at": "2026-11-26T01:00:50Z",
+ "generated_at": "2026-11-26T02:26:47Z",
  "sections": {
   "new_trials": {
    "total": 23,
    "items": [
     {
      "title": "A Study to Assess the Effect of Pacibekitug on Major Cardiovascular Events in Patients After a Myocardial Infarction",
+     "key": {
+      "org": "Novartis",
+      "what": "Pacibekitug",
+      "cond": "Myocardial Infarction",
+      "acr": "PINNACLE-MI"
+     },
      "url": "https://clinicaltrials.gov/study/NCT07938411",
      "cite": "NCT07938411",
      "facts": [
@@ -19,6 +25,12 @@
     },
     {
      "title": "A Study to Evaluate the Long-term Safety and Efficacy of Fenebrutinib in Participants With Multiple Sclerosis (MS)",
+     "key": {
+      "org": "Hoffmann-La Roche",
+      "what": "Fenebrutinib",
+      "cond": "Multiple Sclerosis",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07937852",
      "cite": "NCT07937852",
      "facts": [
@@ -30,6 +42,12 @@
     },
     {
      "title": "A Phase Ⅲ Clinical Trial of an Investigative 24-valent Pneumococcal Polysaccharide Conjugate Vaccine",
+     "key": {
+      "org": "Reinovax Biologics",
+      "what": "Prevention of pneumococcal disease from 24 serotypes with the administration of Reinovax's PCV24 + PPSV23",
+      "cond": "Pneumococcal Infectious Disease",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07943585",
      "cite": "NCT07943585",
      "facts": [
@@ -41,6 +59,12 @@
     },
     {
      "title": "A Clinical Trial of MK-8748 Compared to Aflibercept in Participants With Macular Edema After Retinal Vein Occlusion (MK-8748-006)",
+     "key": {
+      "org": "Merck Sharp & Dohme",
+      "what": "MK-8748 + Aflibercept",
+      "cond": "Retinal Vein Occlusion",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07951515",
      "cite": "NCT07951515",
      "facts": [
@@ -52,6 +76,12 @@
     },
     {
      "title": "Intravenous Recombinant Human Prourokinase (rhPro-UK) for Acute Ischemic Stroke Within 4.5 to 24 Hours of Onset",
+     "key": {
+      "org": "Tasly",
+      "what": "Recombinant Human Prourokinase + Aspirin Enteric-Coated",
+      "cond": "Acute Ischemic Stroke",
+      "acr": "PROST-3"
+     },
      "url": "https://clinicaltrials.gov/study/NCT07942584",
      "cite": "NCT07942584",
      "facts": [
@@ -63,6 +93,12 @@
     },
     {
      "title": "Study of Hexaxim Compared With Pentaxim Administered With a Monovalent Hepatitis B Vaccine in Healthy Chinese Infants.",
+     "key": {
+      "org": "Sanofi",
+      "what": "DTaP-IPV-HB-PRP~T combined vaccine + DTaP-IPV//PRP~T combined vaccine",
+      "cond": "Haemophilus Influenzae Type b Immunisation",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07941622",
      "cite": "NCT07941622",
      "facts": [
@@ -74,6 +110,12 @@
     },
     {
      "title": "A Study of Risvutatug Rezetecan in Combination With Atezolizumab in Participants With Extensive Stage Small Cell Lung Cancer (EMBOLD-SCLC-303)",
+     "key": {
+      "org": "GlaxoSmithKline",
+      "what": "Ris-Rez + Atezolizumab",
+      "cond": "Lung Neoplasm",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07947121",
      "cite": "NCT07947121",
      "facts": [
@@ -85,6 +127,12 @@
     },
     {
      "title": "Diagnostic Performance and Safety of Ragweed Pollen and Dog Dander Skin Prick Test Solutions",
+     "key": {
+      "org": "Zhejiang Wolwo Bio",
+      "what": "Ragweed Pollen Skin Prick Test + Dog Dander Skin Prick Test",
+      "cond": "Allergic Disorder",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07945665",
      "cite": "NCT07945665",
      "facts": [
@@ -96,6 +144,12 @@
     },
     {
      "title": "BHB-1893 vs. Placebo for Symptomatic Non-obstructive Hypertrophic Cardiomyopathy",
+     "key": {
+      "org": "Braveheart Bio",
+      "what": "BHB-1893",
+      "cond": "Hypertrophic Non-Obstructive Cardiomyopathy",
+      "acr": "NOBLEHEART-HCM"
+     },
      "url": "https://clinicaltrials.gov/study/NCT07946107",
      "cite": "NCT07946107",
      "facts": [
@@ -107,6 +161,12 @@
     },
     {
      "title": "A Study to Evaluate the Efficacy and Safety of LP-003 Injection in Patients With Chronic Spontaneous Urticaria Who Remain Symptomatic Despite Treatment With H1 Antihistamines",
+     "key": {
+      "org": "Longbio",
+      "what": "LP-003 + Omalizumab",
+      "cond": "Chronic Spontaneous Urticaria (CSU)",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07946913",
      "cite": "NCT07946913",
      "facts": [
@@ -118,6 +178,12 @@
     },
     {
      "title": "A Study to Evaluate the Safety and Efficacy of Mavacamten in Adults With Symptomatic Non-obstructive Hypertrophic Cardiomyopathy (SOLSTICE-HCM)",
+     "key": {
+      "org": "Bristol-Myers Squibb",
+      "what": "Mavacamten",
+      "cond": "Non-obstructive Hypertrophic Cardiomyopathy",
+      "acr": "SOLSTICE-HCM"
+     },
      "url": "https://clinicaltrials.gov/study/NCT07940777",
      "cite": "NCT07940777",
      "facts": [
@@ -129,6 +195,12 @@
     },
     {
      "title": "Clinical Trial to Evaluate the Protective Effect of Larazotide Acetate in Individuals With Well-Controlled Celiac Disease",
+     "key": {
+      "org": "Interlude",
+      "what": "Larazotide Acetate",
+      "cond": "Celiac Disease",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07944625",
      "cite": "NCT07944625",
      "facts": [
@@ -140,6 +212,12 @@
     },
     {
      "title": "A Study of Glumetinib in Combination With Osimertinib as 1st Line Treatment in Patients With Non-Small Cell Lung Cancer",
+     "key": {
+      "org": "Shanghai JMT-Bio",
+      "what": "Glumetinib + Osimertinib Mesylate",
+      "cond": "Non-small Cell Lung Cancer",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07951463",
      "cite": "NCT07951463",
      "facts": [
@@ -151,6 +229,12 @@
     },
     {
      "title": "A Study to Evaluate the Efficacy and Safety of BRC-201 in Patients With Acute Uncomplicated Influenza",
+     "key": {
+      "org": "Boryung",
+      "what": "BRC-201",
+      "cond": "Influenza",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07943390",
      "cite": "NCT07943390",
      "facts": [
@@ -162,6 +246,12 @@
     },
     {
      "title": "A Study Evaluating the Antipyretic Efficacy and Safety of an Acetaminophen/Naproxen Sodium Fixed Combination in Subjects With Endotoxin-Induced Fever",
+     "key": {
+      "org": "Kenvue Brands",
+      "what": "Acetaminophen 650 mg/Naproxen Sodium 220 mg",
+      "cond": "Fever",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07948811",
      "cite": "NCT07948811",
      "facts": [
@@ -173,6 +263,12 @@
     },
     {
      "title": "A Study of AND017 to Evaluate Efficacy and Safety in NDD-CKD Associated Anemia",
+     "key": {
+      "org": "Kind",
+      "what": "AND017 + ESA",
+      "cond": "Anemia Due to Chronic Kidney Disease",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07950215",
      "cite": "NCT07950215",
      "facts": [
@@ -184,6 +280,12 @@
     },
     {
      "title": "The Efficacy and Safety of DLBS1442 in Patients With Primary Dysmenorrhea",
+     "key": {
+      "org": "Dexa Medica Group",
+      "what": "DLBS1442",
+      "cond": "Primary Dysmenorrhea",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07937462",
      "cite": "NCT07937462",
      "facts": [
@@ -195,6 +297,12 @@
     },
     {
      "title": "A Phase III Study of WSD0922-FU Versus Chemotherapy In Patients With C797S+ Advanced Non-small Cell Lung Cancer",
+     "key": {
+      "org": "Wayshine Biopharm",
+      "what": "WSD0922-FU + Platinum-based doublet chemotherapy",
+      "cond": "Non Small Cell Lung Cancer (NSCLC)",
+      "acr": "WAYWIN-301"
+     },
      "url": "https://clinicaltrials.gov/study/NCT07948408",
      "cite": "NCT07948408",
      "facts": [
@@ -206,6 +314,12 @@
     },
     {
      "title": "The Efficacy and Safety of DLBS3233 in Adults With Prediabetes",
+     "key": {
+      "org": "Dexa Medica Group",
+      "what": "DLBS3233 + Metformin XR",
+      "cond": "Prediabetes",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07937449",
      "cite": "NCT07937449",
      "facts": [
@@ -217,6 +331,12 @@
     },
     {
      "title": "Comparing the Plaque and Gingivitis Efficacy After Using a Stannous Fluoride Toothpaste or a Toothpaste in Conjunction With Dental Floss",
+     "key": {
+      "org": "Procter and Gamble",
+      "what": "0.76% Sodium Monofluorophosphate Dentifrice + 0.454% Stannous Fluoride Dentifrice",
+      "cond": "Gingivitis",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07951255",
      "cite": "NCT07951255",
      "facts": [
@@ -228,6 +348,12 @@
     },
     {
      "title": "Study to Evaluate the Effect of Crinecerfont on Androgen Reduction and Related Outcomes in Adults With Classic Congenital Adrenal Hyperplasia (CAH)",
+     "key": {
+      "org": "Neurocrine",
+      "what": "Crinecerfont",
+      "cond": "Congenital Adrenal Hyperplasia",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07947368",
      "cite": "NCT07947368",
      "facts": [
@@ -239,6 +365,12 @@
     },
     {
      "title": "An Open-label Study to Evaluate the Long-Term Safety and Tolerability of Iptacopan in Patients With Complement Mediated Diseases.",
+     "key": {
+      "org": "Novartis",
+      "what": "Iptacopan",
+      "cond": "IgAN Complement Mediated Diseases e.g. PNH",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07951190",
      "cite": "NCT07951190",
      "facts": [
@@ -250,6 +382,12 @@
     },
     {
      "title": "Study of Twice Yearly Lenacapavir, Teropavimab, and Zinlirvimab in the Pediatric Population With HIV-1",
+     "key": {
+      "org": "Gilead Sciences",
+      "what": "Lenacapavir + Teropavimab",
+      "cond": "HIV-1-infection",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT07947732",
      "cite": "NCT07947732",
      "facts": [
@@ -266,6 +404,12 @@
    "items": [
     {
      "title": "A Study to Test Asundexian for Preventing a Stroke Caused by a Clot in Participants After an Acute Ischemic Stroke or After a High-risk Transient Ischemic Attack, a So-called Mini Stroke",
+     "key": {
+      "org": "Bayer",
+      "what": "Asundexian",
+      "cond": "Prevention of Ischemic Stroke",
+      "acr": "OCEANIC-STROKE"
+     },
      "url": "https://clinicaltrials.gov/study/NCT05686070",
      "cite": "NCT05686070",
      "facts": [
@@ -277,6 +421,12 @@
     },
     {
      "title": "Study of Bepirovirsen in Nucleos(t)Ide Analogue-treated Participants With Chronic Hepatitis B (B-Well 2)",
+     "key": {
+      "org": "GlaxoSmithKline",
+      "what": "Bepirovirsen",
+      "cond": "Chronic Hepatitis B",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT05630820",
      "cite": "NCT05630820",
      "facts": [
@@ -288,6 +438,12 @@
     },
     {
      "title": "Efficacy and Safety of Benralizumab in Moderate to Very Severe Chronic Obstructive Pulmonary Disease (COPD) With a History of Frequent Exacerbations",
+     "key": {
+      "org": "AstraZeneca",
+      "what": "Benralizumab",
+      "cond": "Chronic Obstructive Pulmonary Disease",
+      "acr": "RESOLUTE"
+     },
      "url": "https://clinicaltrials.gov/study/NCT04053634",
      "cite": "NCT04053634",
      "facts": [
@@ -299,6 +455,12 @@
     },
     {
      "title": "Study of Efficacy and Safety of Inhaled Treprostinil in Subjects With Idiopathic Pulmonary Fibrosis",
+     "key": {
+      "org": "United",
+      "what": "Inhaled Treprostinil + Treprostinil Ultrasonic Nebulizer",
+      "cond": "Idiopathic Pulmonary Fibrosis",
+      "acr": "TETON-1"
+     },
      "url": "https://clinicaltrials.gov/study/NCT04708782",
      "cite": "NCT04708782",
      "facts": [
@@ -310,6 +472,12 @@
     },
     {
      "title": "Study to Assess Rifaximin Soluble Solid Dispersion (SSD) for the Delay of Encephalopathy Decompensation in Cirrhosis",
+     "key": {
+      "org": "Bausch Health Americas",
+      "what": "Rifaximin SSD",
+      "cond": "Hepatic Encephalopathy",
+      "acr": "RED-C-3131"
+     },
      "url": "https://clinicaltrials.gov/study/NCT05071716",
      "cite": "NCT05071716",
      "facts": [
@@ -321,6 +489,12 @@
     },
     {
      "title": "Efficacy and Safety Study of Adjunctive Troriluzole in Obsessive Compulsive Disorder",
+     "key": {
+      "org": "Biohaven",
+      "what": "Troriluzole",
+      "cond": "Obsessive-Compulsive Disorder",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT04641143",
      "cite": "NCT04641143",
      "facts": [
@@ -332,6 +506,12 @@
     },
     {
      "title": "A Study to Evaluate the Long-term Safety of Inclacumab Administered to Participants With Sickle Cell Disease",
+     "key": {
+      "org": "Pfizer",
+      "what": "Inclacumab",
+      "cond": "Sickle Cell Disease",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT05348915",
      "cite": "NCT05348915",
      "facts": [
@@ -343,6 +523,12 @@
     },
     {
      "title": "Olaparib Tablets Maintenance Monotherapy Ovarian Cancer Patients After Complete or Partial Response to Platinum Chemotherapy",
+     "key": {
+      "org": "AstraZeneca",
+      "what": "Olaparib 300mg",
+      "cond": "Relapsed Ovarian Cancer",
+      "acr": "L-MOCA"
+     },
      "url": "https://clinicaltrials.gov/study/NCT03534453",
      "cite": "NCT03534453",
      "facts": [
@@ -354,6 +540,12 @@
     },
     {
      "title": "A Long-term Extension Study of Apremilast (CC-10004) in Pediatric Subjects From 6 Through 17 Years of Age With Moderate to Severe Plaque Psoriasis",
+     "key": {
+      "org": "Amgen",
+      "what": "Apremilast",
+      "cond": "Psoriasis",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT04175613",
      "cite": "NCT04175613",
      "facts": [
@@ -365,6 +557,12 @@
     },
     {
      "title": "Safety and Effectiveness of Juveena™ Hydrogel System Following Transcervical Gynecologic Procedures (TCGP) At High-Risk for Intrauterine Adhesions",
+     "key": {
+      "org": "Rejoni",
+      "what": "Juveena Hydrogel System + Transcervical Gynecologic Procedures",
+      "cond": "Intrauterine Adhesion",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT05394662",
      "cite": "NCT05394662",
      "facts": [
@@ -376,6 +574,12 @@
     },
     {
      "title": "SCALE KIDS: Research Study to Look at How Well a New Medicine is at Lowering Weight in Children With Obesity",
+     "key": {
+      "org": "Novo Nordisk A/S",
+      "what": "Liraglutide",
+      "cond": "Obesity",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT04775082",
      "cite": "NCT04775082",
      "facts": [
@@ -387,6 +591,12 @@
     },
     {
      "title": "Phase III Trial to Evaluate the Efficacy and Safety in Patients With Ankle Sprains.",
+     "key": {
+      "org": "Teikoku Seiyaku",
+      "what": "Esflurbiprofen Topical System",
+      "cond": "Ankle Sprains",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT06866613",
      "cite": "NCT06866613",
      "facts": [
@@ -398,6 +608,12 @@
     },
     {
      "title": "A Study to Assess Safety, Tolerability and Efficacy of Garetosmab Versus Placebo Administered Intravenously (IV) in Adult Participants With Fibrodysplasia Ossificans Progressiva (FOP)",
+     "key": {
+      "org": "Regeneron",
+      "what": "Garetosmab",
+      "cond": "Fibrodysplasia Ossificans Progressiva",
+      "acr": "OPTIMA"
+     },
      "url": "https://clinicaltrials.gov/study/NCT05394116",
      "cite": "NCT05394116",
      "facts": [
@@ -409,6 +625,12 @@
     },
     {
      "title": "Research Study in Japan to Compare Dasiglucagon With Glucagon in Treating Very Low Levels of Blood Sugar in Asian Adults With Type 1 Diabetes and Testing of Dasiglucagon for the Same Condition in Japanese Adolescents",
+     "key": {
+      "org": "Novo Nordisk A/S",
+      "what": "Dasiglucagon + Glucagon",
+      "cond": "Type 1 Diabetes Mellitus",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT06588504",
      "cite": "NCT06588504",
      "facts": [
@@ -425,6 +647,12 @@
    "items": [
     {
      "title": "A 24-Week Study of the Efficacy and Safety of BLU-5937 in Adults With Refractory Chronic Cough",
+     "key": {
+      "org": "Bellus Health",
+      "what": "BLU-5937",
+      "cond": "Cough",
+      "acr": "CALM-2"
+     },
      "url": "https://clinicaltrials.gov/study/NCT05600777",
      "cite": "NCT05600777",
      "facts": [
@@ -436,6 +664,12 @@
     },
     {
      "title": "A Randomized Study of Azetukalner Versus Placebo in Major Depressive Disorder",
+     "key": {
+      "org": "Xenon",
+      "what": "Azetukalner",
+      "cond": "Major Depressive Disorder",
+      "acr": "X-NOVA2"
+     },
      "url": "https://clinicaltrials.gov/study/NCT06775379",
      "cite": "NCT06775379",
      "facts": [
@@ -447,6 +681,12 @@
     },
     {
      "title": "A Study to Evaluate the Long-term Safety of Inclacumab Administered to Participants With Sickle Cell Disease",
+     "key": {
+      "org": "Pfizer",
+      "what": "Inclacumab",
+      "cond": "Sickle Cell Disease",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT05348915",
      "cite": "NCT05348915",
      "facts": [
@@ -458,6 +698,12 @@
     },
     {
      "title": "A Study to Investigate the Efficacy, Safety and Tolerability of Remibrutinib Versus Placebo in Adult Patients With Generalized Myasthenia Gravis",
+     "key": {
+      "org": "Novartis",
+      "what": "Remibrutinib",
+      "cond": "Generalized Myasthenia Gravis",
+      "acr": "RELIEVE"
+     },
      "url": "https://clinicaltrials.gov/study/NCT06744920",
      "cite": "NCT06744920",
      "facts": [
@@ -469,6 +715,12 @@
     },
     {
      "title": "ITI-007 for the Treatment of Agitation in Patients With Dementia, Including Alzheimer's Disease",
+     "key": {
+      "org": "Intra-Cellular Therapies",
+      "what": "ITI-007",
+      "cond": "Agitation in Dementia, Including Alzheimer's Disease",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT02817906",
      "cite": "NCT02817906",
      "facts": [
@@ -480,6 +732,12 @@
     },
     {
      "title": "A Long-term Extension Study of Apremilast (CC-10004) in Pediatric Subjects From 6 Through 17 Years of Age With Moderate to Severe Plaque Psoriasis",
+     "key": {
+      "org": "Amgen",
+      "what": "Apremilast",
+      "cond": "Psoriasis",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT04175613",
      "cite": "NCT04175613",
      "facts": [
@@ -491,6 +749,12 @@
     },
     {
      "title": "Study of Oral Weekly Lepetegravir (Formerly GS-1720) and Lenacapavir Pacfosacil (Formerly GS-4182) Versus Biktarvy in People With HIV-1 Who Are Virologically Suppressed",
+     "key": {
+      "org": "Gilead Sciences",
+      "what": "Lepetegravir + Lenacapavir pacfosacil",
+      "cond": "HIV-1-Infection",
+      "acr": "WONDERS1"
+     },
      "url": "https://clinicaltrials.gov/study/NCT06544733",
      "cite": "NCT06544733",
      "facts": [
@@ -502,6 +766,12 @@
     },
     {
      "title": "A 24-Week Study of the Efficacy and Safety of BLU-5937 in Adults With Refractory Chronic Cough - China Extension",
+     "key": {
+      "org": "GlaxoSmithKline",
+      "what": "BLU-5937",
+      "cond": "Refractory Chronic Cough",
+      "acr": "CALM-2"
+     },
      "url": "https://clinicaltrials.gov/study/NCT07650084",
      "cite": "NCT07650084",
      "facts": [
@@ -513,6 +783,12 @@
     },
     {
      "title": "SSGJ-707 in Advanced Non-Small Cell Lung Cancer",
+     "key": {
+      "org": "Shenyang Sunshine",
+      "what": "SSGJ-707 + Pembrolizumab",
+      "cond": "Advanced Non-Small Cell Lung Cancer",
+      "acr": ""
+     },
      "url": "https://clinicaltrials.gov/study/NCT06980272",
      "cite": "NCT06980272",
      "facts": [
@@ -529,6 +805,12 @@
    "items": [
     {
      "title": "Infilbray",
+     "key": {
+      "org": "Genzyme",
+      "what": "Infilbray",
+      "cond": "venglustat",
+      "extra": "priority review"
+     },
      "url": "https://api.fda.gov/drug/drugsfda.json?search=application_number:%22NDA221144%22",
      "cite": "NDA221144",
      "facts": [
@@ -541,6 +823,12 @@
     },
     {
      "title": "Lembaz",
+     "key": {
+      "org": "Mandos",
+      "what": "Lembaz",
+      "cond": "adrabetadex",
+      "extra": "priority review"
+     },
      "url": "https://api.fda.gov/drug/drugsfda.json?search=application_number:%22NDA220996%22",
      "cite": "NDA220996",
      "facts": [
@@ -553,6 +841,12 @@
     },
     {
      "title": "Livsayis",
+     "key": {
+      "org": "Regeneron",
+      "what": "Livsayis",
+      "cond": "cemdisiran",
+      "extra": "priority review"
+     },
      "url": "https://api.fda.gov/drug/drugsfda.json?search=application_number:%22NDA221251%22",
      "cite": "NDA221251",
      "facts": [
@@ -565,6 +859,12 @@
     },
     {
      "title": "Nelkarmi",
+     "key": {
+      "org": "Nuvalent",
+      "what": "Nelkarmi",
+      "cond": "neladalkib",
+      "extra": "priority review"
+     },
      "url": "https://api.fda.gov/drug/drugsfda.json?search=application_number:%22NDA220936%22",
      "cite": "NDA220936",
      "facts": [
@@ -577,6 +877,12 @@
     },
     {
      "title": "NDA217062",
+     "key": {
+      "org": "Auson Pharm",
+      "what": "NDA217062",
+      "cond": "",
+      "extra": ""
+     },
      "url": "https://api.fda.gov/drug/drugsfda.json?search=application_number:%22NDA217062%22",
      "cite": "NDA217062",
      "facts": [
@@ -587,6 +893,12 @@
     },
     {
      "title": "NDA221313",
+     "key": {
+      "org": "Lupin",
+      "what": "NDA221313",
+      "cond": "",
+      "extra": ""
+     },
      "url": "https://api.fda.gov/drug/drugsfda.json?search=application_number:%22NDA221313%22",
      "cite": "NDA221313",
      "facts": [
@@ -597,6 +909,12 @@
     },
     {
      "title": "Phenylephrine Hydrochloride In Sodium Chloride",
+     "key": {
+      "org": "Inforlife",
+      "what": "Phenylephrine Hydrochloride In Sodium Chloride",
+      "cond": "phenylephrine hydrochloride in sodium chloride",
+      "extra": ""
+     },
      "url": "https://api.fda.gov/drug/drugsfda.json?search=application_number:%22NDA215783%22",
      "cite": "NDA215783",
      "facts": [
@@ -608,6 +926,12 @@
     },
     {
      "title": "Wilserdly",
+     "key": {
+      "org": "Genentech",
+      "what": "Wilserdly",
+      "cond": "giredestran",
+      "extra": ""
+     },
      "url": "https://api.fda.gov/drug/drugsfda.json?search=application_number:%22NDA220791%22",
      "cite": "NDA220791",
      "facts": [

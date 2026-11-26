@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import re
 import sys
 import urllib.parse
 from datetime import date, datetime, timedelta, timezone
@@ -51,7 +52,7 @@ RECALLS_API = "https://api.fda.gov/drug/enforcement.json"
 FEDREG_API = "https://www.federalregister.gov/api/v1/documents.json"
 MAX_ITEMS = 50
 CT_FIELDS = ("NCTId,BriefTitle,LeadSponsorName,EnrollmentCount,OverallStatus,Condition,"
-             "WhyStopped,Phase")
+             "WhyStopped,Phase,Acronym,InterventionName")
 INDUSTRY_P3 = "AREA[Phase]PHASE3 AND AREA[LeadSponsorClass]INDUSTRY"
 # Routine Paperwork Reduction Act notices: real records, but noise for this reader.
 FEDREG_SKIP = ("Agency Information Collection Activities",)
@@ -84,6 +85,51 @@ def last_full_week(today: date) -> tuple[date, date]:
 # --------------------------------------------------------------------------- #
 # Collect
 # --------------------------------------------------------------------------- #
+# ---- key words -------------------------------------------------------------
+# Registry titles are long ("A Study of Aticaprant 10 mg as Adjunctive Therapy in
+# Adult Participants With…"), so short displays use the record's own fields instead:
+# company, drug, condition, acronym. docs/index.html builds the same key words for
+# its live tiles; keep the two in step.
+_ORG_NOISE = re.compile(
+    r"\b(Inc|LLC|L\.L\.C|Ltd|Limited|Co|Corp|Corporation|GmbH|AG|SA|S\.A|plc|Pharmaceuticals?|"
+    r"Pharma|Biosciences|Biotherapeutics|Therapeutics|Biopharma(ceuticals)?|"
+    r"Research (&|and) Development)\b\.?", re.I)
+_NOT_A_DRUG = re.compile(r"placebo|sham|vehicle|standard of care|usual care|best supportive|"
+                         r"\bcontrol\b|^intervention\s*\d|^arm\b", re.I)
+_DOSE_FORM = re.compile(r"\s+(oral|tablets?|capsules?|injection|injectable|solution|"
+                        r"suspension|usp|for)$", re.I)
+
+
+def short_org(name: str) -> str:
+    """"Janssen Research & Development, LLC" -> "Janssen"."""
+    full = (name or "").strip()
+    head = re.split(r",| - |\s+[Aa]n?\s+(?=[A-Z])", full)[0]     # "…, LLC", "… - a GSK company", "… A Sanofi Co"
+    short = re.sub(r"[\s&-]+$", "", re.sub(r"\s+", " ", _ORG_NOISE.sub("", head))).strip()
+    return short or full
+
+
+def key_drug(names) -> str:
+    """The investigational products, without placebo/control arms or dosage-form words."""
+    out = []
+    for n in names or []:
+        if not n or _NOT_A_DRUG.search(n):
+            continue
+        n = re.sub(r"\([^)]*\)", "", n).strip()
+        while _DOSE_FORM.search(n):
+            n = _DOSE_FORM.sub("", n).strip()
+        if n and n.lower() not in (o.lower() for o in out):
+            out.append(n)
+    return " + ".join(out[:2])
+
+
+def key_cond(cond: str) -> str:
+    """Index-style "Depressive Disorder, Major" -> "Major Depressive Disorder"."""
+    m = re.fullmatch(r"([^,()]+), ([^,()]+)", (cond or "").strip())
+    if m and len(m.group(2).split()) <= 2:
+        return f"{m.group(2)} {m.group(1)}"
+    return (cond or "").strip()
+
+
 def _ct(adv: str) -> tuple[int, list[dict]]:
     payload = get_json(CT_API, params={
         "filter.advanced": adv, "fields": CT_FIELDS, "pageSize": 100,
@@ -103,8 +149,13 @@ def _ct(adv: str) -> tuple[int, list[dict]]:
         status = ps.get("statusModule", {})
         why = status.get("whyStopped")
         overall = (status.get("overallStatus") or "").replace("_", " ").capitalize()
+        drugs = [i.get("name", "") for i in
+                 ps.get("armsInterventionsModule", {}).get("interventions", []) or []]
         items.append({
             "title": ident.get("briefTitle", nct),
+            "key": {"org": short_org(facts[0]), "what": key_drug(drugs) or ident.get("acronym", ""),
+                    "cond": key_cond(conditions[0]) if conditions else "",
+                    "acr": ident.get("acronym", "")},
             "url": f"https://clinicaltrials.gov/study/{nct}",
             "cite": nct,
             "facts": [f for f in facts if f],
@@ -170,7 +221,10 @@ def collect_approvals(start: date, end: date) -> dict:
         # Title-case real brand names only (Drugs@FDA shouts them); with no brand, fall
         # back to the application number as-is, so "NDA217062" isn't mangled.
         title = (brand.title() if brand.isupper() else brand) if brand else appno
-        items.append({"title": title, "url": _appl_url(appno),
+        items.append({"title": title, "key": {"org": short_org(app.get("sponsor_name", "").title()),
+                                              "what": title, "cond": generic.lower() if generic else "",
+                                              "extra": "priority review" if "priority review" in facts else ""},
+                      "url": _appl_url(appno),
                       "cite": appno, "facts": [f for f in facts if f], "note": ""})
     items.sort(key=lambda i: ("priority review" not in i["facts"], i["title"]))
     return {"total": len(items), "items": items}
@@ -374,6 +428,20 @@ def render_feed(briefs: list[dict]) -> str:
             + "".join(items) + "</channel></rss>\n")
 
 
+def key_line(item: dict) -> str:
+    """"Janssen: Aticaprant · Major Depressive Disorder (VENTURA-7)", falling back to
+    the sponsor and a shortened title when a record has no usable key words."""
+    k = item.get("key") or {}
+    if not k.get("what"):
+        return f"{item['facts'][0]}: {_short(item['title'])}"
+    line = f"{k['org']}: {k['what']}" if k.get("org") else k["what"]
+    if k.get("cond"):
+        line += f" · {k['cond']}"
+    if k.get("acr") and k["acr"] != k["what"]:
+        line += f" ({k['acr']})"
+    return line
+
+
 def _short(text: str, n: int = 80) -> str:
     return text if len(text) <= n else text[: n - 1].rstrip() + "…"
 
@@ -390,7 +458,7 @@ def render_linkedin(brief: dict) -> str:
         return "error" not in secs[key]
 
     def examples(key, n=2):
-        return "".join(f"\n   – {i['facts'][0]}: {_short(i['title'])}" for i in secs[key]["items"][:n])
+        return "".join(f"\n   – {key_line(i)}" for i in secs[key]["items"][:n])
 
     lines = [f"This week in biopharma records ({label})", ""]
     if ok("new_trials"):
@@ -420,25 +488,23 @@ def render_linkedin(brief: dict) -> str:
 
 
 def latest_summary(brief: dict) -> dict:
-    """A small summary of the newest week for the site's front tile to rotate through.
-    Plain strings (the page inserts them as text), facts only, each from the records."""
+    """The newest week, as slides for the site's front tile. Counts are plain text;
+    records carry key words ({lead, org, what, cond, acr, extra}) so the page can pick
+    the longest version that fits the tile at the visitor's screen size."""
     secs = brief["sections"]
 
     def items(key, n):
         return [] if "error" in secs[key] else secs[key]["items"][:n]
 
-    lines = []
-    for key in ("new_trials", "results", "approvals", "recalls"):
-        if "error" not in secs[key]:
-            lines.append(stat(secs, key))
-    lines += [f"New Phase 3: {i['facts'][0]} — {_short(i['title'], 70)}" for i in items("new_trials", 2)]
-    lines += [f"Results: {i['facts'][0]} — {_short(i['title'], 70)}" for i in items("results", 2)]
-    lines += [f"Approved: {i['title']} ({i['facts'][0]})"
-              + (" · priority review" if "priority review" in i["facts"] else "")
-              for i in items("approvals", 4)]
-    lines += [f"Stopped: {i['facts'][0]} — {_short(i['title'], 70)}" for i in items("stopped", 2)]
+    slides = [{"text": stat(secs, k)} for k in ("new_trials", "results", "approvals", "recalls")
+              if "error" not in secs[k]]
+    for lead, key, n in (("New Phase 3", "new_trials", 2), ("Results", "results", 2),
+                         ("Approved", "approvals", 4), ("Stopped", "stopped", 2)):
+        for i in items(key, n):
+            k = i.get("key") or {"what": _short(i["title"], 60)}
+            slides.append({"lead": lead, **{f: v for f, v in k.items() if v}})
     return {"end": brief["end"], "label": week_label(brief), "url": f"{brief['end']}.html",
-            "highlights": lines}
+            "slides": slides}
 
 
 def write_site(out: Path) -> list[dict]:

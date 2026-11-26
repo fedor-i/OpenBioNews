@@ -45,6 +45,15 @@ to follow [Semantic Versioning](https://semver.org/).
   writes. Rotation pauses on hover or focus, is off for reduced motion, and is hidden
   from screen readers; a source that can't be reached leaves the plain description.
   The daily website check fails if a tile shows no live headline.
+- **Tile slides show the words that matter, at every screen size.** Each slide is built
+  from the record's key words, not its long registry title: company (short form,
+  "Janssen" not "Janssen Research & Development, LLC"), drug (placebo and control arms
+  dropped), condition (index-style "Depressive Disorder, Major" reworded) and acronym.
+  Each slide has several lengths and the tile shows the longest that fits its width,
+  re-chosen when the window is resized or a phone rotated: "Janssen: Aticaprant · Major
+  Depressive Disorder (VENTURA-7)" on a tablet, "Janssen: Aticaprant" on a small phone.
+  Checked at 320–1280px: no slide cut off. The weekly brief and its LinkedIn draft use
+  the same key words.
 
 ### Changed (website)
 - **Opens on ready-made views instead of an empty form.** A first visit now sees
