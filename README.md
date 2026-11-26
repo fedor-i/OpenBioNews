@@ -3,11 +3,37 @@
 <!-- mcp-name: io.github.fedor-i/openbionews -->
 
 [![CI](https://github.com/fedor-i/OpenBioNews/actions/workflows/ci.yml/badge.svg)](https://github.com/fedor-i/OpenBioNews/actions/workflows/ci.yml)
+[![Live API checks](https://github.com/fedor-i/OpenBioNews/actions/workflows/live.yml/badge.svg)](https://github.com/fedor-i/OpenBioNews/actions/workflows/live.yml)
+[![PyPI](https://img.shields.io/pypi/v/openbionews.svg)](https://pypi.org/project/openbionews/)
+[![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.fedor--i%2Fopenbionews-5b4bdb.svg)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.fedor-i/openbionews)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](pyproject.toml)
 
-**A free, self-hosted daily brief built from official biopharma records — every line cited.**
+**Track biopharma competitors in official records — every item cited to its source.**
+
+ClinicalTrials.gov, the FDA, the Federal Register, PubMed and SEC EDGAR, in four forms:
+
+| | |
+|---|---|
+| 🌐 **[Website](https://fedor-i.github.io/OpenBioNews/)** | Filter trials, recalls, approvals, shortages and filings in your browser. No install, no login, nothing tracked. |
+| 📰 **[Weekly brief](https://fedor-i.github.io/OpenBioNews/brief/)** ([RSS](https://fedor-i.github.io/OpenBioNews/brief/feed.xml)) | Every Monday: new industry Phase 3 trials, results posted, trials stopped (with the stated reason), FDA approvals, Class I recalls. |
+| 🤖 **[MCP server](#use-it-from-an-ai-assistant-mcp)** | Your AI assistant pulls the records with their source links instead of guessing. 10 read-only tools, no API keys. |
+| 🖥️ **[Daily brief for your watch list](#quick-start)** | Runs on your machine for the companies, drugs and conditions you follow; email optional. |
+
+<a href="https://fedor-i.github.io/OpenBioNews/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/site-dark.png">
+    <img alt="The OpenBioNews website: this week's brief with 23 new Phase 3 trials, the top sponsors, and the week at a glance (results posted, trials stopped, FDA approvals, Class I recalls, FDA notices)" src="docs/img/site-light.png">
+  </picture>
+</a>
+
+**Add the MCP server in one click:**
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_OpenBioNews-0098FF?logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=openbionews&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--with%22%2C%22mcp%22%2C%22openbionews%22%2C%22mcp%22%5D%7D)
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=openbionews&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLXdpdGgiLCJtY3AiLCJvcGVuYmlvbmV3cyIsIm1jcCJdfQ==)
+— or in Claude Code: `claude mcp add openbionews -- uvx --with mcp openbionews mcp`
+(these need [uv](https://docs.astral.sh/uv/); for Claude Desktop see [the MCP section](#use-it-from-an-ai-assistant-mcp)).
+
+---
 
 OpenBioNews reads primary sources — **ClinicalTrials.gov**, the **FDA** (recalls,
 approvals, shortages, adverse events, labels), the **Federal Register**, **PubMed**
