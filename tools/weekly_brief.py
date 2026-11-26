@@ -535,6 +535,58 @@ def render_linkedin(brief: dict) -> str:
     return "\n".join(lines)
 
 
+def render_edition(brief: dict, per_section: int = 3) -> str:
+    """The week as a LinkedIn newsletter edition: a page with the article (title,
+    the week in numbers, the top records per section with links, and where to read
+    the rest) and a button that copies it with its formatting, ready to paste into
+    LinkedIn's article editor. Not indexed; it's a working page for the author."""
+    secs, label = brief["sections"], week_label(brief)
+    esc = html.escape
+    page_url = f"{SITE}brief/{brief['end']}.html"
+    nums = "".join(f"<li>{stat(secs, k, html_bold=True)}</li>" for k, _, _ in SECTIONS)
+    art = [f"<p>The week of {esc(label)} in official records: what was registered, reported, "
+           f"stopped, approved and recalled. Every item links to the record itself.</p>",
+           f"<h2>The week in numbers</h2><ul>{nums}</ul>"]
+    for key, name, what in SECTIONS:
+        sec = secs[key]
+        if key == "fda_notices" or "error" in sec or not sec["items"]:
+            continue
+        art.append(f"<h2>{esc(name)}</h2>")
+        rows = []
+        for it in sec["items"][:per_section]:
+            head = key_line(it).lower()     # the bold line already names company, drug, condition
+            facts = " · ".join(esc(f) for f in it["facts"][1:] if f.lower() not in head)
+            facts = f"{facts} · {esc(it['cite'])}" if facts else esc(it["cite"])
+            note = f"<br><em>{esc(_short(it['note'], 220))}</em>" if it.get("note") else ""
+            rows.append(f'<li><a href="{esc(it["url"])}"><strong>{esc(key_line(it))}</strong></a>'
+                        f"<br>{facts}{note}</li>")
+        more = (f'<p>Plus {sec["total"] - per_section} more in <a href="{page_url}#{key}">the full brief</a>.</p>'
+                if sec["total"] > per_section else "")
+        art.append(f"<ul>{''.join(rows)}</ul>{more}")
+    art.append(f'<h2>Read the full week</h2><p>All {sum(s.get("total", 0) for s in secs.values() if "error" not in s)} '
+               f'items with their sources: <a href="{page_url}">{page_url}</a></p>'
+               f'<p>Built automatically from ClinicalTrials.gov, openFDA and the Federal Register with '
+               f'<a href="{SITE}">OpenBioNews</a>, free and open source. It also works inside AI '
+               f'assistants (MCP), so they cite these records instead of guessing. Nothing here is '
+               f'editorialised; check the linked record before relying on an item. Not investment '
+               f'or medical advice.</p>')
+    title = f"This week in biopharma records: {label}"
+    body = (f'<p class="sub"><b>For the author:</b> LinkedIn → your newsletter → <b>Create new edition</b>. '
+            f'Upload the cover image, paste the title, then click <b>Copy article</b> and paste into the '
+            f'body. Attach the video or PDF from the weekly run in the post that shares it.</p>'
+            f'<p><b>Title:</b> <span id="t">{esc(title)}</span></p>'
+            f'<p><b>Cover image:</b> <a href="cards/{brief["end"]}.png">cards/{brief["end"]}.png</a></p>'
+            f'<p><button id="copy" type="button">Copy article</button> <span id="ok"></span></p>'
+            f'<section id="article">{"".join(art)}</section>'
+            "<script>document.getElementById('copy').onclick=async()=>{const a=document.getElementById('article');"
+            "try{await navigator.clipboard.write([new ClipboardItem({'text/html':new Blob([a.innerHTML],{type:'text/html'}),"
+            "'text/plain':new Blob([a.innerText],{type:'text/plain'})})]);document.getElementById('ok').textContent='Copied.'}"
+            "catch(e){const r=document.createRange();r.selectNodeContents(a);const s=getSelection();s.removeAllRanges();"
+            "s.addRange(r);document.getElementById('ok').textContent='Selected: press Ctrl/Cmd+C.'}}</script>")
+    page = _page(title, body, _description(brief))
+    return page.replace("<head>", '<head><meta name="robots" content="noindex">', 1)
+
+
 def latest_summary(brief: dict) -> dict:
     """The newest week, as slides for the site's front tile. Counts are plain text;
     records carry key words ({lead, org, what, cond, acr, extra}) so the page can pick
@@ -579,6 +631,8 @@ def write_site(out: Path, sitemap: Path | None = None) -> list[dict]:
         render_index(briefs, card=bool(briefs) and (out / "cards" / f"{briefs[0]['end']}.png").exists()),
         "utf-8")
     (out / "feed.xml").write_text(render_feed(briefs, cards), "utf-8")
+    if briefs:   # the newest week as a LinkedIn newsletter edition, ready to paste
+        (out / f"{briefs[0]['end']}-edition.html").write_text(render_edition(briefs[0]), "utf-8")
     if sitemap:
         sitemap.write_text(render_sitemap(briefs), "utf-8")
     if briefs:

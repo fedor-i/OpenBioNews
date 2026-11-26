@@ -63,6 +63,10 @@ jobs:
             echo
             echo "Download the **linkedin-draft** artifact below. It has the post text, a portrait"
             echo "image (-post.png), a video (reel.mp4) and a swipeable PDF (reel.pdf): attach one."
+            week="$(ls docs/brief/data | sort | tail -1 | sed 's/.json//')"
+            echo
+            echo "LinkedIn newsletter edition (title, cover image, one-click copy of the article):"
+            echo "https://fedor-i.github.io/OpenBioNews/brief/${week}-edition.html (live once the site deploys)"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:

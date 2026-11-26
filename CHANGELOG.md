@@ -17,6 +17,9 @@ to follow [Semantic Versioning](https://semver.org/).
   with a progress strip and writes a ~40 s MP4 (autoplays in the feed) and a PDF for a
   LinkedIn document post. The Monday workflow builds both from the new week and attaches
   them to the run.
+- **A LinkedIn newsletter edition for each week** (`brief/<week>-edition.html`, not indexed):
+  the title, cover image and an article (the week in numbers, the top records per section
+  with links, where to read the rest) with a button that copies it with its formatting.
 - **The brief's front page shows the latest week in full**, with every week listed
   below, instead of a single link.
 - **RSS items carry the post text and image**, so an RSS-to-social tool (Zapier, Make,

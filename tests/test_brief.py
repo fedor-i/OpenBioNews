@@ -235,6 +235,13 @@ def test_reel_picks_overviews_then_records_per_feed():
     assert "<b>Stopped Phase 3 · 30 days</b>" in frame and frame.count('<i class="') == 3
 
 
+def test_newsletter_edition_is_paste_ready_and_not_indexed():
+    page = wb.render_edition(_collect())
+    assert '<meta name="robots" content="noindex">' in page and "Copy article" in page
+    assert "<h2>The week in numbers</h2>" in page and "<b>2</b> new Phase 3 trials" in page
+    assert f"brief/{END}.html" in page and "<script>alert(1)</script>" not in page.split("<script>document")[0]
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):
