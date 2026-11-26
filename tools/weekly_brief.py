@@ -18,7 +18,9 @@ Writes into docs/brief/ (served by GitHub Pages):
   data/<week-end>.json   the collected records, the source of truth for rendering
   <week-end>.html        the week's page
   index.html, feed.xml   all weeks, newest first, and an RSS feed of them
-and prints a LinkedIn draft to review before posting.
+  ../sitemap.xml         the site's pages, for search engines
+and prints a LinkedIn draft to review before posting. tools/brief_card.py adds each
+week's share images (cards/); run --render-only afterwards to link them in.
 
 Usage:
   python tools/weekly_brief.py                 # the last full Mon–Sun week
@@ -346,21 +348,29 @@ footer{color:var(--muted);font-size:.82rem;margin-top:1.6rem}
 """
 
 
-def _page(title: str, body: str, description: str) -> str:
+def _page(title: str, body: str, description: str, url: str = "", image: str = "") -> str:
+    """``url`` is the page's own address (canonical, og:url); ``image`` its share card,
+    defaulting to the site-wide one."""
+    image = image or f"{SITE}og.png"
+    canon = (f'<link rel="canonical" href="{html.escape(url)}">'
+             f'<meta property="og:url" content="{html.escape(url)}">') if url else ""
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f"<title>{html.escape(title)}</title>"
             f'<meta name="description" content="{html.escape(description)}">'
+            f"{canon}"
+            f'<meta property="og:type" content="article"><meta property="og:site_name" content="OpenBioNews">'
             f'<meta property="og:title" content="{html.escape(title)}">'
             f'<meta property="og:description" content="{html.escape(description)}">'
-            f'<meta property="og:image" content="{SITE}og.png">'
+            f'<meta property="og:image" content="{html.escape(image)}">'
             '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
             '<meta name="twitter:card" content="summary_large_image">'
             f'<link rel="alternate" type="application/rss+xml" title="OpenBioNews weekly brief" href="feed.xml">'
             f"<style>{CSS}</style></head><body><main>{body}</main></body></html>\n")
 
 
-def render_week(brief: dict) -> str:
+def render_week(brief: dict, card: bool = False) -> str:
+    """``card``: the week has its own share image in cards/ (tools/brief_card.py)."""
     label = week_label(brief)
     secs = brief["sections"]
     stats = "".join(f"<li>{stat(secs, k, html_bold=True)}</li>" for k, _, _ in SECTIONS)
@@ -394,7 +404,9 @@ def render_week(brief: dict) -> str:
                  f'or medical advice. · <a href="{SITE}">OpenBioNews</a> (free, open source)</footer>')
     desc = (f"{label}: " + ", ".join(stat(secs, k) for k, _, _ in SECTIONS[:4])
             + ". Every item linked to its official record.")
-    return _page(f"This week in biopharma records — {label}", "".join(parts), desc)
+    return _page(f"This week in biopharma records — {label}", "".join(parts), desc,
+                 url=f"{SITE}brief/{brief['end']}.html",
+                 image=f"{SITE}brief/cards/{brief['end']}.png" if card else "")
 
 
 def render_index(briefs: list[dict]) -> str:
@@ -409,21 +421,29 @@ def render_index(briefs: list[dict]) -> str:
             f'official record. Published every Monday. <a href="feed.xml">RSS</a></p>'
             f'<ol class="weeks">{rows}</ol>')
     return _page("OpenBioNews weekly brief", body,
-                 "A weekly, fully cited summary of biopharma records for BD and competitive-intelligence analysts.")
+                 "A weekly, fully cited summary of biopharma records for BD and competitive-intelligence analysts.",
+                 url=f"{SITE}brief/")
 
 
-def render_feed(briefs: list[dict]) -> str:
+def render_feed(briefs: list[dict], cards: dict | None = None) -> str:
+    """RSS, newest first. Each item's description is the week's post text (the same as
+    the LinkedIn draft), so an RSS-to-social tool can post it as is. ``cards`` maps a
+    week's end date to the byte size of its portrait share image, attached as the
+    item's enclosure."""
+    cards = cards or {}
+
     def esc(s):
         return html.escape(s, quote=False)
     items = []
     for b in briefs[:20]:
         when = datetime.fromisoformat(b["generated_at"].replace("Z", "+00:00"))
-        summary = ", ".join(stat(b["sections"], k) for k, _, _ in SECTIONS)
         link = f"{SITE}brief/{b['end']}.html"
+        image = (f'<enclosure url="{SITE}brief/cards/{b["end"]}-post.png" type="image/png" length="{cards[b["end"]]}"/>'
+                 if b["end"] in cards else "")
         items.append(f"<item><title>{esc('This week in biopharma records — ' + week_label(b))}</title>"
                      f"<link>{link}</link><guid isPermaLink=\"true\">{link}</guid>"
                      f"<pubDate>{format_datetime(when)}</pubDate>"
-                     f"<description>{esc(summary + '. Every item linked to its official record.')}</description></item>")
+                     f"<description>{esc(render_linkedin(b))}</description>{image}</item>")
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>'
             "<title>OpenBioNews weekly brief</title>"
             f"<link>{SITE}brief/</link>"
@@ -510,13 +530,30 @@ def latest_summary(brief: dict) -> dict:
             "slides": slides}
 
 
-def write_site(out: Path) -> list[dict]:
+def render_sitemap(briefs: list[dict]) -> str:
+    """The site's pages for search engines: the app, the brief index and every week."""
+    urls = [(SITE, ""), (f"{SITE}brief/", briefs[0]["generated_at"][:10] if briefs else "")]
+    urls += [(f"{SITE}brief/{b['end']}.html", b["generated_at"][:10]) for b in briefs]
+    rows = "".join(f"<url><loc>{html.escape(u)}</loc>" + (f"<lastmod>{d}</lastmod>" if d else "") + "</url>"
+                   for u, d in urls)
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n'
+            f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{rows}</urlset>\n')
+
+
+def write_site(out: Path, sitemap: Path | None = None) -> list[dict]:
+    """Rebuild every page from data/*.json. ``sitemap``: where to write sitemap.xml
+    (the site root); main() passes docs/sitemap.xml for the published site."""
     briefs = sorted((json.loads(p.read_text("utf-8")) for p in (out / "data").glob("*.json")),
                     key=lambda b: b["end"], reverse=True)
+    cards = {b["end"]: (out / "cards" / f"{b['end']}-post.png").stat().st_size for b in briefs
+             if (out / "cards" / f"{b['end']}-post.png").exists()}
     for b in briefs:
-        (out / f"{b['end']}.html").write_text(render_week(b), "utf-8")
+        (out / f"{b['end']}.html").write_text(
+            render_week(b, card=(out / "cards" / f"{b['end']}.png").exists()), "utf-8")
     (out / "index.html").write_text(render_index(briefs), "utf-8")
-    (out / "feed.xml").write_text(render_feed(briefs), "utf-8")
+    (out / "feed.xml").write_text(render_feed(briefs, cards), "utf-8")
+    if sitemap:
+        sitemap.write_text(render_sitemap(briefs), "utf-8")
     if briefs:
         (out / "latest.json").write_text(json.dumps(latest_summary(briefs[0]), indent=1,
                                                     ensure_ascii=False), "utf-8")
@@ -545,7 +582,7 @@ def main(argv=None) -> int:
             print(f"::warning title=Weekly brief::{k} unavailable: {brief['sections'][k]['error']}",
                   file=sys.stderr)
         print(render_linkedin(brief))
-    write_site(out)
+    write_site(out, sitemap=out.parent / "sitemap.xml" if out == OUT else None)
     return 0
 
 

@@ -6,7 +6,19 @@ to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (weekly brief)
+- **Share images for each week.** `tools/brief_card.py` renders the week's counts and a
+  few named records (new Phase 3, approvals, results, stopped) as a 1200×630 link
+  preview (now the week page's `og:image`) and a 1080×1350 portrait image to attach
+  to a LinkedIn post. The Monday workflow attaches the portrait image to the run next
+  to the post draft. Sources that couldn't be reached read "unavailable", never zero.
+- **RSS items carry the post text and image**, so an RSS-to-social tool (Zapier, Make,
+  IFTTT) can post each week as is.
+- **Search engines:** a `sitemap.xml` covering the app, the brief index and every week,
+  canonical URLs, and structured data (schema.org `WebApplication`) on the site.
+
 ### Changed (website)
+- Front-box slides stay up for 10 seconds each.
 - **A front box that shows the week's real activity, with small charts.** One box at
   the top of every page, in four labelled feeds: this week's brief, terminated Phase 3
   trials (30 days), industry Phase 3 activity (this week) and Class I recalls (30 days).

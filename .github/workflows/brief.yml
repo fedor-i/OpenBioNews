@@ -34,6 +34,15 @@ jobs:
         env:
           END: ${{ github.event.inputs.end }}
         run: python tools/weekly_brief.py ${END:+--end "$END"} > linkedin.txt
+      - name: Render the share images
+        # A preview card for the week's page and a portrait image to attach to the post.
+        # Optional: if this fails, the brief still publishes with the site-wide image.
+        continue-on-error: true
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          python tools/brief_card.py
+          python tools/weekly_brief.py --render-only
       - name: Show the LinkedIn draft
         run: |
           {
@@ -41,17 +50,21 @@ jobs:
             echo '```'
             cat linkedin.txt
             echo '```'
+            echo
+            echo "Image to attach: download the **linkedin-draft** artifact below (the -post.png file)."
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: linkedin-draft
-          path: linkedin.txt
+          path: |
+            linkedin.txt
+            docs/brief/cards/*-post.png
       - name: Commit the new week
         id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/brief
+          git add docs/brief docs/sitemap.xml
           if git diff --cached --quiet; then echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           week="$(ls docs/brief/data | sort | tail -1 | sed 's/.json//')"
           git commit -m "Weekly brief: week ending $week"

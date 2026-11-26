@@ -17,6 +17,16 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="OpenBioNews: track competitors' trials, FDA actions and filings in official records, every item cited.">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://fedor-i.github.io/OpenBioNews/">
+<link rel="alternate" type="application/rss+xml" title="OpenBioNews weekly brief" href="https://fedor-i.github.io/OpenBioNews/brief/feed.xml">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"OpenBioNews",
+ "url":"https://fedor-i.github.io/OpenBioNews/","applicationCategory":"BusinessApplication","operatingSystem":"Any (web browser)",
+ "description":"Track biopharma competitors' clinical trials, FDA actions (recalls, approvals, shortages, labels, adverse events) and SEC filings in official records, every item cited to its source.",
+ "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
+ "isAccessibleForFree":true,"license":"https://opensource.org/licenses/MIT",
+ "codeRepository":"https://github.com/fedor-i/OpenBioNews","image":"https://fedor-i.github.io/OpenBioNews/og.png"}
+</script>
 <style>
   :root{
     --bg:#eef6f4; --panel:#ffffff; --ink:#132321; --muted:#5b726e; --line:#d6e6e2;
@@ -4163,7 +4173,7 @@ function fitStage(stage){
 }
 
 // ---------- carousel ----------
-const DUR={week:8000, brief:7000, sum:7000, rec:6000};   // denser slides get more time
+const DUR={week:10000, brief:10000, sum:10000, rec:10000};   // 10 s per slide
 function runCarousel(box, feeds){
   const stage=box.querySelector(".stage"), feedsEl=box.querySelector(".feeds"), pp=box.querySelector(".pp");
   const slides=feeds.flatMap(f=>f.slides.map((s,k)=>({...s, feed:f.id, k})));

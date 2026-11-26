@@ -1,2 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"><channel><title>OpenBioNews weekly brief</title><link>https://fedor-i.github.io/OpenBioNews/brief/</link><description>This week in biopharma records, fully cited.</description><item><title>This week in biopharma records — Nov 16–22, 2026</title><link>https://fedor-i.github.io/OpenBioNews/brief/2026-11-22.html</link><guid isPermaLink="true">https://fedor-i.github.io/OpenBioNews/brief/2026-11-22.html</guid><pubDate>Thu, 26 Nov 2026 02:26:47 +0000</pubDate><description>23 new Phase 3 trials, 14 Phase 3 trials with results, 9 Phase 3 trials stopped, 8 FDA approvals, 1 Class I recall, 7 FDA notices. Every item linked to its official record.</description></item></channel></rss>
+<rss version="2.0"><channel><title>OpenBioNews weekly brief</title><link>https://fedor-i.github.io/OpenBioNews/brief/</link><description>This week in biopharma records, fully cited.</description><item><title>This week in biopharma records — Nov 16–22, 2026</title><link>https://fedor-i.github.io/OpenBioNews/brief/2026-11-22.html</link><guid isPermaLink="true">https://fedor-i.github.io/OpenBioNews/brief/2026-11-22.html</guid><pubDate>Thu, 26 Nov 2026 02:26:47 +0000</pubDate><description>This week in biopharma records (Nov 16–22, 2026)
+
+• 23 new industry Phase 3 trials, largest first:
+   – Novartis: Pacibekitug · Myocardial Infarction (PINNACLE-MI)
+   – Hoffmann-La Roche: Fenebrutinib · Multiple Sclerosis
+• 14 industry Phase 3 trials posted results
+   – Bayer: Asundexian · Prevention of Ischemic Stroke (OCEANIC-STROKE)
+   – GlaxoSmithKline: Bepirovirsen · Chronic Hepatitis B
+• 9 industry Phase 3 trials marked terminated, suspended or withdrawn
+   – Bellus Health: BLU-5937 · Cough (CALM-2)
+   – Xenon: Azetukalner · Major Depressive Disorder (X-NOVA2)
+• 8 original FDA approvals (NDA/BLA), 4 with priority review:
+   – Infilbray (venglustat, Genzyme Corp A Sanofi Co)
+   – Lembaz (adrabetadex, Mandos Llc)
+   – Livsayis (cemdisiran, Regeneron Pharmaceuticals)
+   – Nelkarmi (neladalkib, Nuvalent)
+• 1 Class I drug recall
+
+Every item links to its official record: https://fedor-i.github.io/OpenBioNews/brief/2026-11-22.html
+
+Built automatically from ClinicalTrials.gov, openFDA and the Federal Register with OpenBioNews (free, open source). Check the record before relying on an item.
+
+#biotech #pharma #clinicaltrials #FDA #competitiveintelligence</description><enclosure url="https://fedor-i.github.io/OpenBioNews/brief/cards/2026-11-22-post.png" type="image/png" length="175031"/></item></channel></rss>

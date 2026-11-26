@@ -184,6 +184,47 @@ def test_linkedin_draft_is_plain_facts_with_correct_plurals():
     assert f"brief/{END}.html" in draft
 
 
+def test_sitemap_and_feed_carry_the_share_images():
+    brief = _collect()
+    import json
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "brief"
+        (out / "data").mkdir(parents=True)
+        (out / "data" / f"{END}.json").write_text(json.dumps(brief), "utf-8")
+        wb.write_site(out, sitemap=Path(tmp) / "sitemap.xml")
+        page = (out / f"{END}.html").read_text("utf-8")
+        assert f'content="{wb.SITE}og.png"' in page            # no card yet: site-wide image
+        assert f'rel="canonical" href="{wb.SITE}brief/{END}.html"' in page
+        assert "<enclosure" not in (out / "feed.xml").read_text("utf-8")
+        (out / "cards").mkdir()
+        (out / "cards" / f"{END}.png").write_bytes(b"png")
+        (out / "cards" / f"{END}-post.png").write_bytes(b"pngpng")
+        wb.write_site(out, sitemap=Path(tmp) / "sitemap.xml")
+        assert f'content="{wb.SITE}brief/cards/{END}.png"' in (out / f"{END}.html").read_text("utf-8")
+        feed = (out / "feed.xml").read_text("utf-8")
+        xml.dom.minidom.parseString(feed)
+        assert f'brief/cards/{END}-post.png" type="image/png" length="6"' in feed
+        assert "2 new industry Phase 3 trials" in feed           # the post text, ready to share
+        sm = xml.dom.minidom.parse(str(Path(tmp) / "sitemap.xml"))
+        locs = [n.firstChild.data for n in sm.getElementsByTagName("loc")]
+        assert locs == [wb.SITE, f"{wb.SITE}brief/", f"{wb.SITE}brief/{END}.html"]
+
+
+def test_share_card_shows_counts_names_and_unavailable_sources():
+    import brief_card as bc
+    brief = _collect()
+    brief["sections"]["recalls"] = {"error": "HTTP 503"}
+    for kind in ("card", "post"):
+        page = bc.card_html(brief, kind)
+        w, h = bc.SIZES[kind]
+        assert f"width:{w}px;height:{h}px" in page
+        assert "<b>2</b><span>New Phase 3 trials</span>" in page
+        assert "Class I recalls: unavailable" in page              # never shown as zero
+        assert "Nuvalent · Nelkarmi" in page and "priority review" in page
+        assert "<script>alert(1)</script>" not in page             # record text is escaped
+    assert bc.card_html(brief, "post").count("<li>") > bc.card_html(brief, "card").count("<li>")
+
+
 if __name__ == "__main__":
     failed = 0
     for name, fn in sorted(globals().items()):
