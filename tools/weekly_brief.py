@@ -353,6 +353,9 @@ def _page(title: str, body: str, description: str) -> str:
             f'<meta name="description" content="{html.escape(description)}">'
             f'<meta property="og:title" content="{html.escape(title)}">'
             f'<meta property="og:description" content="{html.escape(description)}">'
+            f'<meta property="og:image" content="{SITE}og.png">'
+            '<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
+            '<meta name="twitter:card" content="summary_large_image">'
             f'<link rel="alternate" type="application/rss+xml" title="OpenBioNews weekly brief" href="feed.xml">'
             f"<style>{CSS}</style></head><body><main>{body}</main></body></html>\n")
 
