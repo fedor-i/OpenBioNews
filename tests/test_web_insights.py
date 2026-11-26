@@ -654,6 +654,15 @@ def test_front_carousel_and_view_links():
         assert len(q) > 1, f"{href}: a view needs at least one filter"
 
 
+def test_page_script_parses_on_older_safari():
+    # One regex lookbehind ((?<=…) or (?<!…)) makes Safari before 16.4 reject the WHOLE
+    # script: nothing loads, and links seem to do nothing. Two sentence splitters used
+    # one until Nov 2026; keep them out.
+    js = _script()
+    hits = re.findall(r".{0,40}\(\?<[=!].{0,20}", js)
+    assert not hits, f"regex lookbehind breaks Safari < 16.4: {hits[:2]}"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

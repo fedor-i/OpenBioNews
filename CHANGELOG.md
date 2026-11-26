@@ -24,6 +24,10 @@ to follow [Semantic Versioning](https://semver.org/).
   off. The weekly brief and its LinkedIn draft use the same key words.
 
 ### Fixed (website)
+- **The site didn't work at all on Safari older than 16.4** (before March 2023): two
+  sentence splitters used a regex lookbehind, which those versions can't parse, so the
+  browser rejected the whole script. Links changed the address but nothing loaded.
+  Rewritten without it (same output); a test keeps lookbehinds out.
 - **Returning visitors never saw the ready-made views.** They were hidden whenever a
   watchlist was saved in the browser, which is anyone who had used the site before.
   They're now always at the front of the page.

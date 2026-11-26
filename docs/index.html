@@ -857,7 +857,8 @@ function clip(s,n){ s=s||""; return s.length>n ? s.slice(0,n).replace(/\s+\S*$/,
 function citeSentences(text, url, label){
   const t=(text||"").trim();
   if(!t) return "";
-  const parts=t.split(/(?<=[.!?])\s+(?=[A-Z0-9"'])/).filter(x=>x.trim());
+  // Sentence split without a lookbehind (Safari before 16.4 rejects the whole script on one).
+  const parts=t.replace(/([.!?])\s+(?=[A-Z0-9"'])/g,"$1\u0000").split("\u0000").filter(x=>x.trim());
   const sup=`<sup class="cite"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${esc(label)}">1</a></sup>`;
   return parts.map(p=>esc(p.trim())+sup).join(" ");
 }
@@ -2658,7 +2659,7 @@ function textRankTerms(docTokens, topn){
 function yakeKeyphrases(records, stop, topn){
   const isStop=w=>I_STOP.has(w)||stop.has(w)||w.length<3||/^\d+$/.test(w);
   const sents=[];
-  for(const r of records) for(const p of (r.title+". "+(r.text||"")).split(/(?<=[.!?])\s+/)){
+  for(const r of records) for(const p of (r.title+". "+(r.text||"")).replace(/([.!?])\s+/g,"$1\u0000").split("\u0000")){   // no lookbehind: old Safari
     const raw=p.trim().split(/\s+/).map(w=>w.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g,"")).filter(Boolean);
     if(raw.length) sents.push(raw);
   }
