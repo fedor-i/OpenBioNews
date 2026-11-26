@@ -53,16 +53,17 @@ def main() -> int:
         if not cards:
             print("FAIL         no ready-made views found on the landing page")
             return 1
-        # The front tiles fill in live counts and rotating headlines from the same queries.
+        # The front box cycles through a mix of the latest records from the views.
         try:
-            page.wait_for_function("[...document.querySelectorAll('#starters .tile .live')]"
-                                   ".filter(e => e.textContent.trim()).length >= 4", timeout=WAIT_MS)
-            rows.append(("PASS", "Front tiles", "all show live headlines"))
+            page.wait_for_function("document.getElementById('carousel')._slides", timeout=WAIT_MS)
+            n, cats = page.evaluate("(() => { const s = document.getElementById('carousel')._slides;"
+                                    " return [s.length, new Set(s.map(x => x.cat.split(' · ')[0])).size]; })()")
+            ok = n >= 8 and cats >= 3
+            rows.append(("PASS" if ok else "FAIL", "Front box",
+                         f"{n} slides from {cats} sources" + ("" if ok else " (expected a mixture)")))
+            failed += not ok
         except PWTimeout:
-            empty = page.eval_on_selector_all(
-                "#starters .tile", "ts => ts.filter(t => !t.querySelector('.live').textContent.trim())"
-                ".map(t => t.querySelector('b').textContent)")
-            rows.append(("FAIL", "Front tiles", f"no live headline on: {', '.join(empty)}"))
+            rows.append(("FAIL", "Front box", "no slides loaded"))
             failed += 1
         page.close()
         for card in cards:

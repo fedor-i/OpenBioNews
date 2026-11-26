@@ -614,31 +614,30 @@ def test_getjson_retries_transient_and_errors_are_deduped():
     assert js.count("iDedupeErrors().join(") >= 2, "dedupe not applied at both error render sites"
 
 
-def test_front_tiles_are_visible_and_valid_links():
-    # A few ready-made views sit at the front of the page, above the watchlist, the
-    # same for every visitor (hiding or folding them made them easy to miss). Each is
-    # a plain shareable link, so every parameter must be one loadFromUrl() reads, or
-    # it opens an empty form. tests/live/check_website.py opens each one daily.
+def test_front_carousel_and_view_links():
+    # One wide box at the front cycles through a mix of the latest records (up to 20
+    # slides) from the views listed under it; the views are plain links. Each view is
+    # a shareable link, so every parameter must be one loadFromUrl() reads, or it
+    # opens an empty form. tests/live/check_website.py opens each one daily.
     from urllib.parse import parse_qs, urlparse
     import html as _html
     js = _script()
     front = SRC[SRC.index('<section class="front" id="starters"'):]
     front = front[:front.index("</section>")]
-    assert SRC.index('id="starters"') < SRC.index('<div class="watchbar">'), "tiles must come first"
-    # (aria-hidden on the rotating line is fine: it keeps screen readers from announcing
-    # every change; the tile's own title still names the link.)
-    assert not re.search(r"(?<!aria-)\bhidden\b", front) and "updateStarters" not in js, \
-        "tiles must never be hidden"
-    assert "function loadTilePreviews(" in js and "prefers-reduced-motion:reduce" in js, \
-        "live tiles missing, or rotating regardless of reduced-motion"
-    # Slides are built from key words with several lengths, picked to fit the tile's
-    # current width (and re-picked on resize), so the relevant words always show.
+    assert SRC.index('id="starters"') < SRC.index('<div class="watchbar">'), "the box must come first"
+    assert front.count('class="carousel"') == 1, "exactly one carousel box"
+    assert not re.search(r"(?<!aria-)\bhidden\b", front), "the front must never be hidden"
+    feeds = re.findall(r'data-feed="([a-z]+)"', front)
+    assert feeds.count("brief") == 1 and len(feeds) >= 3, "the box needs a mixture of feeds"
+    assert "CAROUSEL_MAX=20" in js and "function interleave(" in js, "mix up to 20 slides"
     for fn in ("function slideVariants(", "function fitSlide(", "function keyDrug(", "function keyCond("):
-        assert fn in js, f"{fn} missing: tiles would fall back to cut-off titles"
+        assert fn in js, f"{fn} missing: slides would fall back to cut-off titles"
     assert 'addEventListener("resize"' in js[js.index("function fitSlide("):], "no re-fit on resize"
-    tiles = re.findall(r'<a class="tile[^"]*"', front)
-    assert 3 <= len(tiles) <= 4, "keep the front to a few tiles"
-    assert 'class="tile brief" href="brief/"' in front, "the weekly brief should be a front tile"
+    assert "prefers-reduced-motion:reduce" in js[js.index("function runCarousel("):], "rotates despite reduced motion"
+    # A view link must run its own search even when a watchlist is saved.
+    lf = js[js.index("function loadFromUrl("):]
+    assert lf.index("selectTab(t, runner)") < lf.index("if(watch.length) return;"), \
+        "a view link must win over a saved watchlist"
     known = set()
     for block in re.findall(r"const [TRASH]_FIELDS=\{([^}]*)\}", js):
         known |= set(re.findall(r':"([a-z]+)"', block))
@@ -646,8 +645,8 @@ def test_front_tiles_are_visible_and_valid_links():
     tabs = set()
     for decl in ("const TABS", "const VIEW_TABS"):      # VIEW_TABS = TABS.concat(...)
         tabs |= set(re.findall(r'"([a-z]+)"', js[js.index(decl):].split(";")[0]))
-    hrefs = re.findall(r'data-starter href="([^"]+)"', front)
-    assert len(hrefs) >= 6, "expected the ready-made views (tiles plus 'More views')"
+    hrefs = re.findall(r'data-starter (?:data-[a-z]+="[^"]*" )*href="([^"]+)"', front)
+    assert len(hrefs) >= 6, "expected the ready-made views"
     for href in hrefs:
         q = parse_qs(urlparse(_html.unescape(href)).query)
         assert q.get("tab", [""])[0] in tabs, f"{href}: unknown tab"

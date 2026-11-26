@@ -51,35 +51,25 @@
   footer .quality img{vertical-align:middle}
   .brand small{font:400 .82rem/1.3 -apple-system,sans-serif;color:var(--muted);display:block;margin-top:.35rem}
   main{max-width:60rem;margin:0 auto;padding:0 1rem 3rem}
-  /* A few ready-made views at the front of the page, the same for every visitor. */
+  /* One wide box at the front cycling through the latest records, then the views. */
   .front{max-width:60rem;margin:0 auto;padding:.4rem 1rem .8rem}
-  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem}
-  .tile{display:block;background:var(--panel);border:1px solid var(--line);border-radius:12px;
-    padding:.7rem .8rem;color:var(--ink);text-decoration:none}
-  .tile:hover,.tile:focus-visible{border-color:var(--accent)}
-  .tile b{display:block;font-size:.95rem;line-height:1.25;margin-bottom:.2rem}
-  .tile span{display:block;font-size:.8rem;color:var(--muted)}
-  .tile.brief{background:var(--accent);border-color:var(--accent)}
-  .tile.brief b,.tile.brief span{color:var(--on-accent)}
-  /* The latest records, rotating. Two lines reserved so tiles don't jump as text changes. */
-  .tile .live{font-size:.8rem;line-height:1.3;color:var(--ink);margin-top:.35rem;min-height:2.6em;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;transition:opacity .35s}
-  .tile .live:empty{display:none}
-  /* Slides: the current headline leaves to the left, the next arrives from the right. */
-  .tile .live.slide-out{animation:tileOut .35s ease-in forwards}
-  .tile .live.slide-in{animation:tileIn .35s ease-out}
-  @keyframes tileOut{to{transform:translateX(-24px);opacity:0}}
-  @keyframes tileIn{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
-  /* Dots: how many headlines there are, and which one is showing. */
-  .tile .dots{display:flex;gap:4px;margin-top:.4rem}
-  .tile .dots i{width:6px;height:6px;border-radius:50%;background:var(--line);transition:background .3s}
-  .tile .dots i.on{background:var(--accent)}
-  .tile.brief .dots i{background:rgba(255,255,255,.35)}
-  .tile.brief .dots i.on{background:var(--on-accent)}
-  @media (prefers-reduced-motion:reduce){ .tile .live.slide-out,.tile .live.slide-in{animation:none} }
-  .morev{margin:.55rem 0 0;font-size:.85rem;color:var(--muted)}
-  .morev a{color:var(--accent)}
-  @media (max-width:640px){ .tiles{grid-template-columns:1fr 1fr} .tile .live{-webkit-line-clamp:3;min-height:3.9em} }
+  .carousel{display:block;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
+    border-radius:12px;padding:.75rem 1rem .65rem;color:var(--ink);text-decoration:none;overflow:hidden}
+  .carousel:hover{border-color:var(--accent)}
+  .carousel .cat{display:block;font-size:.75rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--accent)}
+  .carousel .live{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    font-size:1.02rem;line-height:1.35;font-weight:600;margin-top:.2rem;min-height:2.7em}
+  .carousel .live.slide-out{animation:tileOut .35s ease-in forwards}
+  .carousel .live.slide-in{animation:tileIn .35s ease-out}
+  @keyframes tileOut{to{transform:translateX(-28px);opacity:0}}
+  @keyframes tileIn{from{transform:translateX(28px);opacity:0}to{transform:none;opacity:1}}
+  .carousel .dots{display:flex;flex-wrap:wrap;gap:4px;margin-top:.45rem;min-height:6px}
+  .carousel .dots i{width:6px;height:6px;border-radius:50%;background:var(--line);transition:background .3s}
+  .carousel .dots i.on{background:var(--accent)}
+  @media (prefers-reduced-motion:reduce){ .carousel .live.slide-out,.carousel .live.slide-in{animation:none} }
+  .views{margin:.45rem 0 0;font-size:.88rem;line-height:1.7;color:var(--muted)}
+  .views a{color:var(--accent)}
+  .views a[data-feed="brief"]{font-weight:600}
   .tabs{display:flex;flex-wrap:wrap;gap:.2rem .4rem;margin:1rem 0 .2rem;border-bottom:1px solid var(--line)}
   .tab{background:none;border:none;padding:.6rem .9rem;font-size:.98rem;font-weight:600;color:var(--muted);
     cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
@@ -386,14 +376,21 @@
   </h1>
 </header>
 
-<section class="front" id="starters" aria-label="Ready-made views">
-  <div class="tiles">
-    <a class="tile brief" href="brief/"><b>📰 This week's brief</b><span class="sub">Trials, approvals, recalls · Mondays</span><span class="live" aria-hidden="true"></span></a>
-    <a class="tile" data-starter href="?tab=trials&amp;status=TERMINATED&amp;phase=PHASE3&amp;recent=30"><b>Terminated Phase 3 trials</b><span class="sub">Last 30 days</span><span class="live" aria-hidden="true"></span></a>
-    <a class="tile" data-starter href="?tab=trials&amp;phase=PHASE3&amp;recent=7&amp;industry=1"><b>Industry Phase 3 this week</b><span class="sub">New and updated</span><span class="live" aria-hidden="true"></span></a>
-    <a class="tile" data-starter href="?tab=recalls&amp;class=1&amp;rrecent=30"><b>Class I recalls</b><span class="sub">Most serious · last 30 days</span><span class="live" aria-hidden="true"></span></a>
-  </div>
-  <p class="morev">More views:
+<section class="front" id="starters" aria-label="Latest records and ready-made views">
+  <!-- One wide box cycling through a mix of the latest records from the views below.
+       It's a pointer-only shortcut (the slide's view): the same destinations are the
+       plain links underneath, which is what keyboards and screen readers use. -->
+  <a class="carousel" id="carousel" href="brief/" tabindex="-1" aria-hidden="true">
+    <span class="cat">Latest records</span>
+    <span class="live">Loading the latest records…</span>
+    <span class="dots"></span>
+  </a>
+  <p class="views">
+    <a href="brief/" data-feed="brief" data-label="This week's brief">📰 This week's brief</a> ·
+    <a data-starter data-feed="trials" data-label="Terminated Phase 3" data-when="in the last 30 days" href="?tab=trials&amp;status=TERMINATED&amp;phase=PHASE3&amp;recent=30">Terminated Phase 3 trials</a> ·
+    <a data-starter data-feed="trials" data-label="Industry Phase 3" data-when="new or updated this week" href="?tab=trials&amp;phase=PHASE3&amp;recent=7&amp;industry=1">Industry Phase 3 this week</a> ·
+    <a data-starter data-feed="recalls" data-label="Class I recall" data-when="in the last 30 days" href="?tab=recalls&amp;class=1&amp;rrecent=30">Class I recalls</a></p>
+  <p class="views">More views:
     <a data-starter href="?tab=shortages&amp;hstatus=Current">Current drug shortages</a> ·
     <a data-starter href="?tab=trials&amp;term=GLP-1&amp;recent=30">GLP-1 trials</a> ·
     <a data-starter href="?tab=trials&amp;term=%22antibody-drug+conjugate%22&amp;recent=30">Antibody–drug conjugate trials</a> ·
@@ -3690,8 +3687,21 @@ function loadFromUrl(){
   $("t_industry").checked = p.get("industry")==="1";
   ["t_recent","r_recent","a_recent","s_recent"].forEach(id=>{ const sel=$(id); if(!sel) return;  // refresh range-input visibility after restoring a shared link
     const box=$(id.replace(/_recent$/,"_range")); if(box) box.hidden=sel.value!=="custom"; });
+  // A link that names filters (a ready-made view, or a shared search) shows exactly
+  // that search, even with a saved watchlist, and jumps to its results: on a phone
+  // they're well below the fold. (It used to let the watchlist take over, so tapping
+  // a view on a returning visit seemed to do nothing.)
+  const runner={trials:()=>searchTrials(true), recalls:()=>searchRecalls(true),
+    approvals:()=>searchApprovals(true), shortages:()=>searchShortages(true), sec:()=>searchSec(true)}[t];
+  const urlFilters=TABS.includes(t) && (Object.values(fieldsFor(t)).some(k=>p.get(k)) ||
+    (t==="trials" && p.get("industry")==="1"));
+  if(urlFilters && runner){
+    selectTab(t, runner);
+    const bar=$("resultsBar"); if(bar) requestAnimationFrame(()=>bar.scrollIntoView({block:"start"}));
+    return;
+  }
   selectTab(t);                       // auto-runs the watchlist when present
-  if(watch.length) return;            // watchlist drives the view
+  if(watch.length) return;            // no filters in the link: the watchlist drives the view
   if(t==="trials" && trialsHasFilter(trialsFilters())) searchTrials(true);
   else if(t==="recalls" && recallsHasFilter(recallsFilters())) searchRecalls(true);
   else if(t==="approvals" && apprHasFilter(apprFilters())) searchApprovals(true);
@@ -3758,77 +3768,86 @@ function fitSlide(live, sl){
   for(const v of vs){ live.textContent=v; if(live.scrollHeight<=live.clientHeight+2) return; }
   live.textContent=vs[vs.length-1];     // nothing fits whole: the shortest, clamped with "…"
 }
-async function tilePreview(tile){
-  const href=tile.getAttribute("href")||"";
-  if(tile.classList.contains("brief")){
+// One feed per view link (brief, trials or recalls): its count and a few slides.
+async function feedSlides(a){
+  const href=a.getAttribute("href")||"", label=a.dataset.label, when=a.dataset.when||"";
+  if(a.dataset.feed==="brief"){
     const d=await getJson("brief/latest.json");
-    return {count:`Week of ${d.label}`, slides:d.slides||(d.highlights||[]).map(t=>({text:t}))};
+    return (d.slides||[]).map(sl=>({...sl, cat:`${label} · ${d.label}`, href}));
   }
-  const spec=tileFilters(href.split("?")[1]||""); if(!spec) return null;
-  const sub=tile.querySelector(".sub").textContent;
+  const spec=tileFilters(href.split("?")[1]||""); if(!spec) return [];
+  const tag=(n)=>`${label} · ${n.toLocaleString()} ${when}`;
   if(spec.kind==="trials"){
     const u=new URL(buildCtUrl(spec.f));
-    u.searchParams.set("pageSize","6");
+    u.searchParams.set("pageSize","5");
     u.searchParams.set("fields","NCTId,BriefTitle,LeadSponsorName,Acronym,InterventionName,Condition");
     const d=await getJson(u.toString());
-    const slides=(d.studies||[]).map(st=>{ const ps=st.protocolSection||{};
+    return (d.studies||[]).map(st=>{ const ps=st.protocolSection||{};
       const acr=dig(ps,"identificationModule","acronym")||"";
       const drug=keyDrug((dig(ps,"armsInterventionsModule","interventions")||[]).map(i=>i.name));
-      return {org:shortOrg(dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")),
+      return {cat:tag(d.totalCount||0), href,
+        org:shortOrg(dig(ps,"sponsorCollaboratorsModule","leadSponsor","name")),
         what: drug || acr || clip(dig(ps,"identificationModule","briefTitle")||"",60),
         cond: keyCond((dig(ps,"conditionsModule","conditions")||[])[0]), acr}; });
-    return {count:`${(d.totalCount||slides.length).toLocaleString()} · ${sub.toLowerCase()}`, slides};
   }
-  const d=await getJson(buildFdaUrl(spec.f,0).replace(/limit=\d+/,"limit=6"), true);
-  if(d.__empty) return {count:`0 · ${sub.toLowerCase()}`, slides:[]};
-  const slides=(d.results||[]).map(r=>({org:shortOrg(r.recalling_firm),
+  const d=await getJson(buildFdaUrl(spec.f,0).replace(/limit=\d+/,"limit=5"), true);
+  if(d.__empty) return [];
+  const total=dig(d,"meta","results","total")||0;
+  return (d.results||[]).map(r=>({cat:tag(total), href, org:shortOrg(r.recalling_firm),
     what: titleCase((dig(r,"openfda","brand_name")||dig(r,"openfda","generic_name")||[])[0]) || clip((r.product_description||"").split(/,|\(/)[0],40),
     cond: clip((r.reason_for_recall||"").split(/[:;]|\s-\s|-\s(?=[A-Z])|\.\s/)[0].trim(),45)}));   // the reason's first clause
-  return {count:`${(dig(d,"meta","results","total")||slides.length).toLocaleString()} · ${sub.toLowerCase()}`, slides};
 }
-// Slides advance with position dots; the tile stays one link to the full view (the
-// dots are indicators, not buttons). Pauses on hover/focus and in a background tab;
-// under reduced motion there's no sliding and no dots.
-const TILE_SLIDES=8;
-function rotateTile(tile, slides, offset){
-  const live=tile.querySelector(".live"); if(!live||!slides.length) return;
-  slides=slides.slice(0,TILE_SLIDES);
-  tile._slides=slides; tile._i=0; fitSlide(live, slides[0]);
+// Take turns across the feeds (brief, terminated, industry, recall, brief, …) so the
+// box shows a mixture, up to CAROUSEL_MAX slides.
+const CAROUSEL_MAX=20;
+function interleave(lists){
+  const out=[];
+  for(let i=0; out.length<CAROUSEL_MAX && lists.some(l=>i<l.length); i++)
+    for(const l of lists) if(i<l.length && out.length<CAROUSEL_MAX) out.push(l[i]);
+  return out;
+}
+function showSlide(box, sl){
+  box.querySelector(".cat").textContent=sl.cat||"";
+  box.href=sl.href||"brief/";
+  fitSlide(box.querySelector(".live"), sl);
+}
+// Slides advance like slides, looping, with position dots. Pauses on hover and in a
+// background tab; under reduced motion it shows the first slide only, no dots.
+function runCarousel(box, slides){
+  const live=box.querySelector(".live"), dots=box.querySelector(".dots");
+  box._slides=slides; box._i=0; showSlide(box, slides[0]);
   const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
-  if(reduce||slides.length<2) return;
-  let paused=false;
-  const dots=document.createElement("span"); dots.className="dots"; dots.setAttribute("aria-hidden","true");
+  if(reduce||slides.length<2){ dots.innerHTML=""; return; }
   dots.innerHTML=slides.map((_,n)=>`<i${n?"":' class="on"'}></i>`).join("");
-  live.after(dots);
-  ["mouseenter","focusin"].forEach(e=>tile.addEventListener(e,()=>{paused=true;}));
-  ["mouseleave","focusout"].forEach(e=>tile.addEventListener(e,()=>{paused=false;}));
-  setTimeout(()=>setInterval(()=>{
+  let paused=false;
+  box.addEventListener("mouseenter",()=>{paused=true;});
+  box.addEventListener("mouseleave",()=>{paused=false;});
+  setInterval(()=>{
     if(paused||document.hidden) return;
     live.classList.add("slide-out");
     setTimeout(()=>{
-      tile._i=(tile._i+1)%slides.length; fitSlide(live, slides[tile._i]);
+      box._i=(box._i+1)%slides.length; showSlide(box, slides[box._i]);
       live.classList.remove("slide-out"); live.classList.add("slide-in");
-      [...dots.children].forEach((d,n)=>d.classList.toggle("on", n===tile._i));
+      [...dots.children].forEach((d,n)=>d.classList.toggle("on", n===box._i));
       setTimeout(()=>live.classList.remove("slide-in"),360);
     },350);
-  },4500), offset);
+  },4500);
 }
 // A rotated phone or a resized window changes what fits: re-pick the version shown.
-let tileResizeTimer=null;
-window.addEventListener("resize",()=>{ clearTimeout(tileResizeTimer); tileResizeTimer=setTimeout(()=>{
-  document.querySelectorAll("#starters .tile").forEach(t=>{ if(t._slides) fitSlide(t.querySelector(".live"), t._slides[t._i]); });
+let carouselResizeTimer=null;
+window.addEventListener("resize",()=>{ clearTimeout(carouselResizeTimer); carouselResizeTimer=setTimeout(()=>{
+  const box=$("carousel"); if(box&&box._slides) fitSlide(box.querySelector(".live"), box._slides[box._i]);
 },150); });
-async function loadTilePreviews(){
-  const tiles=[...document.querySelectorAll("#starters .tile")];
-  await Promise.all(tiles.map(async(tile,n)=>{
-    try{
-      const r=await tilePreview(tile); if(!r) return;
-      tile.querySelector(".sub").textContent=r.count;
-      rotateTile(tile, r.slides.filter(Boolean), n*1100);   // staggered, so tiles don't all change at once
-    }catch(e){ /* unreachable source: the tile keeps its plain description */ }
-  }));
+async function loadCarousel(){
+  const box=$("carousel"); if(!box) return;
+  const feeds=[...document.querySelectorAll("#starters .views a[data-feed]")];
+  // Each feed on its own: one source being down only removes its slides.
+  const lists=await Promise.all(feeds.map(a=>feedSlides(a).catch(()=>[])));
+  const slides=interleave(lists);
+  if(!slides.length){ box.querySelector(".live").textContent="Pick a view below."; return; }
+  runCarousel(box, slides);
 }
-loadTilePreviews();
+loadCarousel();
 </script>
 </body>
 </html>
