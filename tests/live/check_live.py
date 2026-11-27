@@ -241,6 +241,9 @@ def check_brief_sec_section():
     need("error" not in sec, f"SEC section error: {sec.get('error')}")
     need(sec["total"] >= 1, f"no biopharma deal or IPO filings found for {start}..{end} "
                             f"({len(hits)} raw 8-K hits)")
+    print(f"SEC section, {start}..{end}:")            # the full list, for reviewing quality
+    for i in sec["items"]:
+        print(f"  {i['title']}  [{' · '.join(i['facts'][1:])}]  {i['url']}")
     sample = "; ".join(i["title"] for i in sec["items"][:3])
     ipos = sum(1 for i in sec["items"] if "go public" in i["title"])
     note = f" NOTE: {sec['note']}" if sec.get("note") else ""
