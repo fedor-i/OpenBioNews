@@ -245,10 +245,11 @@ def check_brief_sec_section():
     for i in sec["items"]:
         print(f"  {i['title']}  [{' · '.join(i['facts'][1:])}]  {i['url']}")
     sample = "; ".join(i["title"] for i in sec["items"][:3])
-    ipos = sum(1 for i in sec["items"] if "go public" in i["title"])
+    from collections import Counter
+    kinds = Counter(i["key"].get("extra") or "other" for i in sec["items"])
     note = f" NOTE: {sec['note']}" if sec.get("note") else ""
-    return (f"{sec['total']} filings for {start}..{end} ({sec['total'] - ipos} deals, {ipos} IPO; "
-            f"{len(hits)} raw 8-K hits), e.g. {sample}{note}")
+    return (f"{sec['total']} filings for {start}..{end} ({dict(kinds)}; {len(hits)} raw 8-K hits), "
+            f"e.g. {sample}{note}")
 
 
 CHECKS = [

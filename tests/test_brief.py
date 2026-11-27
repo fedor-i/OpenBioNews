@@ -92,7 +92,14 @@ EFTS_DEALS = [
          name="Software Co  (SOFT)  (CIK 0009999999)"),                                # not biopharma
     _hit("0001234567-26-000003", "d8k.htm", "8-K", ["2836"], ["5.02"]),               # exec change
     _hit("0001234567-26-000004", "d8ka.htm", "8-K/A", ["2836"], ["1.01"]),            # amendment
+    _hit("0007777777-26-000005", "d8k.htm", "8-K", ["2834"], ["1.01"],
+         name="Greenland Mines Ltd  (GRML)  (CIK 0007777777)"),                       # a miner
+    _hit("0008888888-26-000006", "d8k.htm", "8-K", ["2834"], ["1.01"],
+         name="Smallcap Bio Inc  (SCB)  (CIK 0008888888)", date="2026-11-21"),        # a financing
 ]
+# The wording searches that tell what kind of agreement each 8-K is about.
+EFTS_TYPES = {'"license agreement"': ["0001234567-26-000001"],
+              '"securities purchase agreement"': ["0008888888-26-000006"]}
 EFTS_IPOS = [
     _hit("0005555555-26-000010", "ds1.htm", "S-1", ["2836"], name="NewBio Inc  (CIK 0005555555)",
          date="2026-11-20"),
@@ -111,6 +118,8 @@ def _efts(params):
     if form in ("S-1", "F-1"):
         assert params.get("q") == '"initial public offering"'
         hits = [h for h in EFTS_IPOS if h["_source"]["form"].startswith(form)]
+    elif params.get("q") in EFTS_TYPES:
+        hits = [{"_id": f"{adsh}:ex.htm", "_source": {}} for adsh in EFTS_TYPES[params["q"]]]
     else:
         hits = EFTS_DEALS if "material definitive" in params.get("q", "") else []
     return {"hits": {"total": {"value": len(hits)}, "hits": hits}}
@@ -301,11 +310,13 @@ def test_newsletter_edition_is_paste_ready_and_not_indexed():
 
 def test_sec_section_keeps_biopharma_deals_and_ipos_once_each():
     sec = _collect()["sections"]["sec"]
-    assert sec["total"] == 2, sec
-    ipo, deal = sec["items"]                                  # newest filing first
+    assert sec["total"] == 3, sec                             # the miner is left out
+    deal, ipo, fin = sec["items"]                             # licensing, then IPOs, then financings
     assert ipo["title"] == "NewBio Inc: filed to go public (S-1)" and ipo["facts"][-1] == "filed 2026-11-20"
-    assert deal["title"] == "Acme Therapeutics Inc: entered a material agreement"
-    assert deal["key"] == {"org": "Acme", "what": "Entered a material agreement", "acr": "ACME"}
+    assert fin["title"] == "Smallcap Bio Inc: signed a financing agreement"
+    assert deal["title"] == "Acme Therapeutics Inc: signed a licensing or collaboration agreement"
+    assert deal["key"] == {"org": "Acme", "what": "Signed a licensing or collaboration agreement",
+                           "acr": "ACME", "extra": "licensing"}
     assert "8-K Item 1.01" in deal["facts"] and deal["cite"] == "0001234567-26-000001"
     assert deal["url"] == ("https://www.sec.gov/Archives/edgar/data/1234567/000123456726000001/"
                            "0001234567-26-000001-index.htm")
@@ -315,11 +326,12 @@ def test_sec_retries_a_server_error_then_keeps_what_it_has():
     EFTS_FAIL.clear()
     EFTS_FAIL["S-1"] = 1                                  # one 500, then fine: retried
     sec = _collect()["sections"]["sec"]
-    assert sec["total"] == 2 and "note" not in sec
+    assert sec["total"] == 3 and "note" not in sec
     EFTS_FAIL["S-1"] = 9                                  # keeps failing: deals stay, note says so
     sec = _collect()["sections"]["sec"]
     EFTS_FAIL.clear()
-    assert [i["title"] for i in sec["items"]] == ["Acme Therapeutics Inc: entered a material agreement"]
+    assert [i["title"] for i in sec["items"]] == ["Acme Therapeutics Inc: signed a licensing or collaboration agreement",
+                                                  "Smallcap Bio Inc: signed a financing agreement"]
     assert "S-1 IPO filings" in sec["note"]
     brief = _collect()
     brief["sections"]["sec"] = sec

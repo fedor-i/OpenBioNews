@@ -4032,9 +4032,10 @@ function feedBrief(latest, week){
     let lede="";
     if(id==="approvals"){ const pr=items.filter(it=>(it.facts||[]).includes("priority review")).length;
       lede=pr?`<strong>${pr} of ${items.length}</strong> under priority review.`:""; }
-    else if(id==="sec"){ const ipo=items.filter(it=>/go public/i.test((it.key||{}).what||"")).length;
-      const d=items.length-ipo;
-      lede=`<strong>${d}</strong> deal filing${d===1?"":"s"} (8-K) · <strong>${ipo}</strong> IPO registration${ipo===1?"":"s"}.`; }
+    else if(id==="sec"){ const by=x=>items.filter(it=>((it.key||{}).extra||"")===x).length;
+      const parts=[["licensing","licensing"],["M&A","M&A"],["IPO","IPO"],["financing","financing"],["","other"]]
+        .map(([k,l])=>[by(k),l]).filter(([n])=>n>0).map(([n,l])=>`<strong>${n}</strong> ${l}`);
+      lede=parts.join(" · ")+"."; }
     else { const orgs=tally(items,it=>(it.key||{}).org), ps=items.map(ppl).filter(x=>x!=null);
       const sum=ps.reduce((a,b)=>a+b,0);
       lede=`<strong>${orgs.length}</strong> sponsors`+(ps.length?` · <strong>${fmtN(sum)}</strong> participants${ps.length<items.length?` in ${ps.length} trials`:""}`:"")+"."; }

@@ -22,6 +22,11 @@ to follow [Semantic Versioning](https://semver.org/).
   brief with a note saying what may be missing. IPO filings are S-1/F-1 registrations
   that mention an "initial public offering" (resale registrations by public companies
   are left out).
+  Each 8-K is labelled by the kind of agreement its documents describe (merger or
+  acquisition, licensing or collaboration, financing), found with a few extra EDGAR
+  searches for that wording, and the section lists partnering and M&A first, then IPOs,
+  other agreements and financings. Filers under the pharma codes whose names mark them as
+  miners, cannabis or supplement companies are left out.
 
 ## [0.8.9] — 2026-11-26
 

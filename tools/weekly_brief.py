@@ -61,6 +61,21 @@ BIOPHARMA_SICS = {"2834", "2835", "2836"}
 # 8-K items worth a BD reader's attention, in plain words.
 SEC_ITEMS = {"1.01": "entered a material agreement", "1.02": "ended a material agreement",
              "2.01": "completed an acquisition or sale"}
+# What kind of agreement an 8-K is about, from the wording its documents use, checked in
+# this order (a licensing deal with an equity investment counts as licensing).
+DEAL_TYPES = [
+    ("M&A", "merger or acquisition agreement",
+     ('"agreement and plan of merger"', '"merger agreement"', '"asset purchase agreement"')),
+    ("licensing", "licensing or collaboration agreement",
+     ('"license agreement"', '"collaboration agreement"')),
+    ("financing", "financing agreement",
+     ('"securities purchase agreement"', '"underwriting agreement"', '"sales agreement"',
+      '"loan agreement"', '"credit agreement"')),
+]
+# Filers under the pharma industry codes that aren't biopharma (miners, cannabis,
+# supplements), by words in their names.
+NOT_BIOPHARMA = re.compile(r"\b(mines?|mining|minerals|cannabis|hemp|cbd|nutrition(al)?|vitamins?|"
+                           r"supplements?|nutraceuticals?)\b", re.I)
 MAX_ITEMS = 50
 CT_FIELDS = ("NCTId,BriefTitle,LeadSponsorName,EnrollmentCount,OverallStatus,Condition,"
              "WhyStopped,Phase,Acronym,InterventionName")
@@ -325,9 +340,11 @@ def _efts(params: dict, ua: str, max_pages: int = 10) -> list[dict]:
     return hits
 
 
-def parse_sec_hits(hits: list[dict], kind: str) -> list[dict]:
+def parse_sec_hits(hits: list[dict], kind: str, deal_types: dict | None = None) -> list[dict]:
     """Brief items from EDGAR hits: biopharma filers only, one item per filing (EDGAR
-    returns a hit per document, exhibits included). ``kind`` is "deal" (8-K) or "ipo"."""
+    returns a hit per document, exhibits included). ``kind`` is "deal" (8-K) or "ipo";
+    ``deal_types`` maps an accession number to its type ("M&A", "licensing", "financing")."""
+    deal_types = deal_types or {}
     if hits and not any("sics" in (h.get("_source") or {}) for h in hits):
         raise HTTPJSONError("EDGAR results no longer carry industry codes (sics)")
     out, seen = [], set()
@@ -343,20 +360,29 @@ def parse_sec_hits(hits: list[dict], kind: str) -> list[dict]:
             items = [i for i in (src.get("items") or []) if i in SEC_ITEMS]
             if not items:
                 continue
-            what = "; ".join(SEC_ITEMS[i] for i in items)
+            dtype = deal_types.get(accn, "")
+            noun = next((n for t, n, _ in DEAL_TYPES if t == dtype), "material agreement")
+            words = {"1.01": f"signed a {noun}" if dtype else SEC_ITEMS["1.01"],
+                     "1.02": f"ended a {noun}" if dtype else SEC_ITEMS["1.02"],
+                     "2.01": SEC_ITEMS["2.01"]}
+            what = "; ".join(words[i] for i in items)
             detail = "8-K Item " + ", ".join(items)
         else:
             if form not in ("S-1", "F-1"):
                 continue
             what, detail = f"filed to go public ({form})", form
-        seen.add(accn)
         company, ticker = _sec_name((src.get("display_names") or [""])[0])
+        if NOT_BIOPHARMA.search(company):
+            continue
+        seen.add(accn)
         cik = str(int((src.get("ciks") or ["0"])[0] or 0))
         url = (f"https://www.sec.gov/Archives/edgar/data/{cik}/{accn.replace('-', '')}/{accn}-index.htm"
                if cik != "0" else f"https://efts.sec.gov/LATEST/search-index?q=%22{accn}%22")
         filed = src.get("file_date", "")
+        dtype = deal_types.get(accn, "") if kind == "deal" else "IPO"
         out.append({"title": f"{company}: {what}",
-                    "key": {"org": short_org(company), "what": what[0].upper() + what[1:], "acr": ticker},
+                    "key": {"org": short_org(company), "what": what[0].upper() + what[1:], "acr": ticker,
+                            "extra": dtype},
                     "url": url, "cite": accn,
                     "facts": [f for f in (company, detail, f"filed {filed}" if filed else "") if f],
                     "note": ""})
@@ -387,10 +413,25 @@ def collect_sec(start: date, end: date) -> dict:
             last_error = str(exc)[:200]
     if len(failed) == len(searches):
         return {"error": last_error}
-    items = parse_sec_hits(hits["deal"], "deal")
+    # What each 8-K is about, from the wording in its documents: one search per phrase,
+    # first type wins. A failed search only leaves those filings unlabelled.
+    deal_types: dict[str, str] = {}
+    if hits["deal"]:
+        for dtype, _, phrases in DEAL_TYPES:
+            for phrase in phrases:
+                try:
+                    found = _efts({"q": phrase, "forms": "8-K", **week}, ua, max_pages=5)
+                except HTTPJSONError:
+                    continue
+                for h in found:
+                    deal_types.setdefault((h.get("_id") or "").partition(":")[0], dtype)
+    items = parse_sec_hits(hits["deal"], "deal", deal_types)
     seen = {i["cite"] for i in items}
     items += [i for i in parse_sec_hits(hits["ipo"], "ipo") if i["cite"] not in seen]
+    # Partnering and M&A first, then IPOs, other agreements and financings; newest first within.
+    rank = {"M&A": 0, "licensing": 1, "IPO": 2, "": 3, "financing": 4}
     items.sort(key=lambda i: next((f for f in i["facts"] if f.startswith("filed ")), ""), reverse=True)
+    items.sort(key=lambda i: rank.get(i["key"].get("extra", ""), 3))
     if failed:
         return {"total": len(items), "items": items,
                 "note": f"SEC's search didn't answer for {', '.join(failed)}; those may be missing."}
