@@ -363,7 +363,8 @@ def parse_sec_hits(hits: list[dict], kind: str, deal_types: dict | None = None) 
             dtype = deal_types.get(accn, "")
             noun = next((n for t, n, _ in DEAL_TYPES if t == dtype), "material agreement")
             words = {"1.01": f"signed a {noun}" if dtype else SEC_ITEMS["1.01"],
-                     "1.02": f"ended a {noun}" if dtype else SEC_ITEMS["1.02"],
+                     "1.02": (f"ended a {noun}" if dtype and "1.01" not in items else
+                              "ended an agreement" if "1.01" in items else SEC_ITEMS["1.02"]),
                      "2.01": SEC_ITEMS["2.01"]}
             what = "; ".join(words[i] for i in items)
             detail = "8-K Item " + ", ".join(items)

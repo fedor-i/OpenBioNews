@@ -322,6 +322,16 @@ def test_sec_section_keeps_biopharma_deals_and_ipos_once_each():
                            "0001234567-26-000001-index.htm")
 
 
+def test_sec_titles_name_the_deal_type_once():
+    hits = [_hit("0001-26-9", "a.htm", "8-K", ["2834"], ["1.01", "1.02", "2.01"])]
+    item, = wb.parse_sec_hits(hits, "deal", {"0001-26-9": "M&A"})
+    assert item["title"] == ("Acme Therapeutics Inc: signed a merger or acquisition agreement; "
+                             "ended an agreement; completed an acquisition or sale")
+    item, = wb.parse_sec_hits([_hit("0001-26-8", "a.htm", "8-K", ["2834"], ["1.02"])], "deal",
+                              {"0001-26-8": "licensing"})
+    assert item["title"] == "Acme Therapeutics Inc: ended a licensing or collaboration agreement"
+
+
 def test_sec_retries_a_server_error_then_keeps_what_it_has():
     EFTS_FAIL.clear()
     EFTS_FAIL["S-1"] = 1                                  # one 500, then fine: retried
