@@ -17,6 +17,11 @@ to follow [Semantic Versioning](https://semver.org/).
   contact email: the workflow reads the `EDGAR_UA` repository secret; without it the
   section reads "unavailable", never "none". Weeks built before this show "not part of
   the brief yet". A live check runs the real search daily and on changes to the brief.
+  Each EDGAR search is retried on server errors (its search sometimes answers a heavy
+  query with a 500) and runs on its own, so one failing leaves the others' filings in the
+  brief with a note saying what may be missing. IPO filings are S-1/F-1 registrations
+  that mention an "initial public offering" (resale registrations by public companies
+  are left out).
 
 ## [0.8.9] — 2026-11-26
 

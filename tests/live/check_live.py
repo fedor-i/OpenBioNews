@@ -242,7 +242,10 @@ def check_brief_sec_section():
     need(sec["total"] >= 1, f"no biopharma deal or IPO filings found for {start}..{end} "
                             f"({len(hits)} raw 8-K hits)")
     sample = "; ".join(i["title"] for i in sec["items"][:3])
-    return f"{sec['total']} filings for {start}..{end} ({len(hits)} raw 8-K hits), e.g. {sample}"
+    ipos = sum(1 for i in sec["items"] if "go public" in i["title"])
+    note = f" NOTE: {sec['note']}" if sec.get("note") else ""
+    return (f"{sec['total']} filings for {start}..{end} ({sec['total'] - ipos} deals, {ipos} IPO; "
+            f"{len(hits)} raw 8-K hits), e.g. {sample}{note}")
 
 
 CHECKS = [

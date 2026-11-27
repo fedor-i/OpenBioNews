@@ -295,12 +295,27 @@ def _sec_name(display: str) -> tuple[str, str]:
     return (name[: m.start()].strip(), m.group(1).split(",")[0].strip()) if m else (name, "")
 
 
+def _efts_page(params: dict, ua: str, tries: int = 3) -> dict:
+    """One page of EDGAR full-text search, retried on server errors and rate limits
+    (EDGAR's search answers a heavy query with a 500 now and then)."""
+    for attempt in range(tries):
+        try:
+            return get_json(EFTS_API, params=params, headers={"User-Agent": ua}, timeout=30)
+        except HTTPJSONError as exc:
+            m = re.search(r"HTTP (\d{3})", str(exc))
+            transient = (m and (m.group(1).startswith("5") or m.group(1) == "429")) or \
+                "timed out" in str(exc).lower() or "could not reach" in str(exc)
+            if not transient or attempt == tries - 1:
+                raise
+            time.sleep(3 * (attempt + 1))
+    raise AssertionError("unreachable")
+
+
 def _efts(params: dict, ua: str, max_pages: int = 10) -> list[dict]:
     """Every hit for an EDGAR full-text search, following its pages."""
     hits: list[dict] = []
     while len(hits) < max_pages * 100:
-        page = get_json(EFTS_API, params={**params, "from": len(hits) or None},
-                        headers={"User-Agent": ua}, timeout=30)
+        page = _efts_page({**params, "from": len(hits) or None}, ua)
         batch = (page.get("hits") or {}).get("hits") or []
         hits += batch
         total = ((page.get("hits") or {}).get("total") or {}).get("value", 0)
@@ -356,17 +371,29 @@ def collect_sec(start: date, end: date) -> dict:
     if "@" not in ua:
         return {"error": "SEC needs a contact email: set OPENBIONEWS_EDGAR_UA"}
     week = {"dateRange": "custom", "startdt": str(start), "enddt": str(end)}
-    try:
-        deals = []
-        for phrase in ('"material definitive agreement"', '"completion of acquisition"'):
-            deals += _efts({"q": phrase, "forms": "8-K", **week}, ua)
-        ipos = _efts({"q": '"registration statement"', "forms": "S-1,F-1", **week}, ua)
-    except HTTPJSONError as exc:
-        return {"error": str(exc)[:200]}
-    items = parse_sec_hits(deals, "deal")
+    # Each search on its own, so one failing (EDGAR sometimes answers a 500) leaves
+    # the others' filings in the brief, with a note saying what's missing.
+    searches = [("deal", "8-K", '"material definitive agreement"', "deal filings"),
+                ("deal", "8-K", '"completion of acquisition"', "acquisition filings"),
+                ("ipo", "S-1", '"initial public offering"', "S-1 IPO filings"),
+                ("ipo", "F-1", '"initial public offering"', "F-1 IPO filings")]
+    hits: dict[str, list] = {"deal": [], "ipo": []}
+    failed, last_error = [], ""
+    for kind, form, phrase, label in searches:
+        try:
+            hits[kind] += _efts({"q": phrase, "forms": form, **week}, ua)
+        except HTTPJSONError as exc:
+            failed.append(label)
+            last_error = str(exc)[:200]
+    if len(failed) == len(searches):
+        return {"error": last_error}
+    items = parse_sec_hits(hits["deal"], "deal")
     seen = {i["cite"] for i in items}
-    items += [i for i in parse_sec_hits(ipos, "ipo") if i["cite"] not in seen]
+    items += [i for i in parse_sec_hits(hits["ipo"], "ipo") if i["cite"] not in seen]
     items.sort(key=lambda i: next((f for f in i["facts"] if f.startswith("filed ")), ""), reverse=True)
+    if failed:
+        return {"total": len(items), "items": items,
+                "note": f"SEC's search didn't answer for {', '.join(failed)}; those may be missing."}
     return {"total": len(items), "items": items}
 
 
@@ -506,6 +533,8 @@ def _week_body(brief: dict) -> list[str]:
             parts.append("</ol>")
             if sec["total"] > len(sec["items"]):
                 parts.append(f'<p class="what">Showing {len(sec["items"])} of {sec["total"]}.</p>')
+        if sec.get("note"):
+            parts.append(f'<p class="err">{html.escape(sec["note"])}</p>')
         parts.append("</section>")
     return parts
 

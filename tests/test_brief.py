@@ -100,9 +100,19 @@ EFTS_IPOS = [
 ]
 
 
+EFTS_FAIL: dict = {}      # form -> how many more times EDGAR answers it with a 500
+
+
 def _efts(params):
-    hits = EFTS_IPOS if "S-1" in params.get("forms", "") else (
-        EFTS_DEALS if "material definitive" in params.get("q", "") else [])
+    form = params.get("forms", "")
+    if EFTS_FAIL.get(form):
+        EFTS_FAIL[form] -= 1
+        raise HTTPJSONError(f"HTTP 500 from efts.sec.gov ({form})")
+    if form in ("S-1", "F-1"):
+        assert params.get("q") == '"initial public offering"'
+        hits = [h for h in EFTS_IPOS if h["_source"]["form"].startswith(form)]
+    else:
+        hits = EFTS_DEALS if "material definitive" in params.get("q", "") else []
     return {"hits": {"total": {"value": len(hits)}, "hits": hits}}
 
 
@@ -299,6 +309,25 @@ def test_sec_section_keeps_biopharma_deals_and_ipos_once_each():
     assert "8-K Item 1.01" in deal["facts"] and deal["cite"] == "0001234567-26-000001"
     assert deal["url"] == ("https://www.sec.gov/Archives/edgar/data/1234567/000123456726000001/"
                            "0001234567-26-000001-index.htm")
+
+
+def test_sec_retries_a_server_error_then_keeps_what_it_has():
+    EFTS_FAIL.clear()
+    EFTS_FAIL["S-1"] = 1                                  # one 500, then fine: retried
+    sec = _collect()["sections"]["sec"]
+    assert sec["total"] == 2 and "note" not in sec
+    EFTS_FAIL["S-1"] = 9                                  # keeps failing: deals stay, note says so
+    sec = _collect()["sections"]["sec"]
+    EFTS_FAIL.clear()
+    assert [i["title"] for i in sec["items"]] == ["Acme Therapeutics Inc: entered a material agreement"]
+    assert "S-1 IPO filings" in sec["note"]
+    brief = _collect()
+    brief["sections"]["sec"] = sec
+    assert "S-1 IPO filings; those may be missing." in wb.render_week(brief)
+    EFTS_FAIL.update({"8-K": 9, "S-1": 9, "F-1": 9})       # nothing answers: unavailable
+    sec = _collect()["sections"]["sec"]
+    EFTS_FAIL.clear()
+    assert "HTTP 500" in sec["error"]
 
 
 def test_sec_without_a_contact_email_reads_as_unavailable():
